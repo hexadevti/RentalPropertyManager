@@ -115,5 +115,7 @@ export interface Appointment {
   guestId?: string
   propertyId?: string
   notes?: string
+  completionNotes?: string
+  completedAt?: string
   createdAt: string
 }

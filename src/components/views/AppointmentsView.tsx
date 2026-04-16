@@ -4,13 +4,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { MagnifyingGlass, Plus, CalendarBlank, Clock, Trash, Pencil, User, Wrench, Files } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, CalendarBlank, Clock, Trash, Pencil, User, Wrench, Files, CheckCircle } from '@phosphor-icons/react'
 import { Appointment, ServiceProvider, Contract, Guest, Property } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import AppointmentDialogForm from '@/components/AppointmentDialogForm'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 
 export default function AppointmentsView() {
   const { t } = useLanguage()
@@ -25,6 +28,9 @@ export default function AppointmentsView() {
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null)
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
+  const [appointmentToComplete, setAppointmentToComplete] = useState<Appointment | null>(null)
+  const [completionNotes, setCompletionNotes] = useState('')
 
   const filteredAppointments = (appointments || [])
     .filter(apt => {
@@ -77,6 +83,33 @@ export default function AppointmentsView() {
       toast.success(t.appointments_view.deleted_success)
       setDeleteDialogOpen(false)
       setAppointmentToDelete(null)
+    }
+  }
+
+  const handleCompleteClick = (appointment: Appointment) => {
+    setAppointmentToComplete(appointment)
+    setCompletionNotes(appointment.completionNotes || '')
+    setCompleteDialogOpen(true)
+  }
+
+  const handleCompleteConfirm = () => {
+    if (appointmentToComplete) {
+      setAppointments((current) =>
+        (current || []).map(apt =>
+          apt.id === appointmentToComplete.id
+            ? {
+                ...apt,
+                status: 'completed' as const,
+                completionNotes,
+                completedAt: new Date().toISOString()
+              }
+            : apt
+        )
+      )
+      toast.success('Compromisso concluído com sucesso!')
+      setCompleteDialogOpen(false)
+      setAppointmentToComplete(null)
+      setCompletionNotes('')
     }
   }
 
@@ -220,6 +253,17 @@ export default function AppointmentsView() {
                     )}
                   </div>
                   <div className="flex gap-2">
+                    {appointment.status === 'scheduled' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCompleteClick(appointment)}
+                        className="bg-success/10 border-success/20 text-success-foreground hover:bg-success/20"
+                      >
+                        <CheckCircle weight="duotone" className="mr-2" />
+                        Concluir
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -257,7 +301,20 @@ export default function AppointmentsView() {
                   
                   {appointment.notes && (
                     <div className="mt-2 p-3 bg-muted rounded-md">
+                      <p className="text-xs font-semibold text-muted-foreground mb-1">Observações:</p>
                       <p className="text-sm text-muted-foreground">{appointment.notes}</p>
+                    </div>
+                  )}
+                  
+                  {appointment.completionNotes && appointment.status === 'completed' && (
+                    <div className="mt-2 p-3 bg-success/10 border border-success/20 rounded-md">
+                      <p className="text-xs font-semibold text-success-foreground mb-1">Observações de Conclusão:</p>
+                      <p className="text-sm text-success-foreground">{appointment.completionNotes}</p>
+                      {appointment.completedAt && (
+                        <p className="text-xs text-success-foreground/70 mt-2">
+                          Concluído em: {format(new Date(appointment.completedAt), 'dd/MM/yyyy HH:mm')}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -291,6 +348,51 @@ export default function AppointmentsView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={completeDialogOpen} onOpenChange={setCompleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Concluir Compromisso</DialogTitle>
+            <DialogDescription>
+              Adicione observações finais sobre a conclusão deste compromisso.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="completion-notes">Observações de Conclusão</Label>
+              <Textarea
+                id="completion-notes"
+                placeholder="Descreva o que foi realizado, resultados, ou qualquer informação relevante..."
+                value={completionNotes}
+                onChange={(e) => setCompletionNotes(e.target.value)}
+                rows={6}
+                className="resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCompleteDialogOpen(false)
+                setCompletionNotes('')
+                setAppointmentToComplete(null)
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCompleteConfirm}
+              className="bg-success hover:bg-success/90"
+            >
+              <CheckCircle weight="bold" className="mr-2" />
+              Concluir Compromisso
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
