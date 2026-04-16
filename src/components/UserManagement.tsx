@@ -169,10 +169,10 @@ export function UserManagement() {
             onValueChange={(value) =>
               handleRoleChange(profile.githubLogin, value as UserRole)
             }
-            disabled={currentUser?.login === profile.githubLogin}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
+          {t.userManagement?.description || 'Gerencie os perfis de acesso dos usuários do sistema'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="admin">
