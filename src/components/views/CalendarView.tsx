@@ -40,6 +40,8 @@ export default function CalendarView() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [appointmentDetailOpen, setAppointmentDetailOpen] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [taskDetailOpen, setTaskDetailOpen] = useState(false)
 
   const previousMonth = subMonths(currentDate, 1)
   const nextMonth = addMonths(currentDate, 1)
@@ -91,20 +93,23 @@ export default function CalendarView() {
 
     const tasksList = tasks || []
     tasksList.forEach(task => {
-      if (task.status !== 'completed') {
-        const taskDate = parseISO(task.dueDate)
-        if (isSameDay(taskDate, day)) {
-          const property = (properties || []).find(p => p.id === task.propertyId)
-          events.push({
-            id: `task-${task.id}`,
-            date: taskDate,
-            title: task.title,
-            type: 'task',
-            color: task.priority === 'high' ? 'bg-destructive' : task.priority === 'medium' ? 'bg-accent' : 'bg-muted-foreground',
-            description: task.description,
-            property: property?.name
-          })
+      const taskDate = parseISO(task.dueDate)
+      if (isSameDay(taskDate, day)) {
+        const property = (properties || []).find(p => p.id === task.propertyId)
+        const isCompleted = task.status === 'completed'
+        let color = task.priority === 'high' ? 'bg-destructive' : task.priority === 'medium' ? 'bg-accent' : 'bg-muted-foreground'
+        if (isCompleted) {
+          color = 'bg-success/40'
         }
+        events.push({
+          id: `task-${task.id}`,
+          date: taskDate,
+          title: task.title,
+          type: 'task',
+          color: color,
+          description: task.description,
+          property: property?.name
+        })
       }
     })
 
@@ -268,7 +273,7 @@ export default function CalendarView() {
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-success/40" />
-              <span className="text-xs text-muted-foreground">Compromisso concluído</span>
+              <span className="text-xs text-muted-foreground">Compromisso/Tarefa concluída</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-destructive" />
@@ -379,6 +384,42 @@ export default function CalendarView() {
                                     e.stopPropagation()
                                     setSelectedAppointment(appointment)
                                     setAppointmentDetailOpen(true)
+                                  }}
+                                  className={`w-full text-[10px] px-1.5 py-0.5 rounded ${event.color} text-white truncate text-left hover:opacity-80 transition-opacity`}
+                                >
+                                  {event.title}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-semibold">{event.title}</p>
+                                  <p className="text-xs text-muted-foreground">Status: {statusLabel}</p>
+                                  {event.description && (
+                                    <p className="text-xs">{event.description}</p>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )
+                      }
+                      
+                      if (event.type === 'task') {
+                        const task = (tasks || []).find(t => `task-${t.id}` === event.id)
+                        if (!task) return null
+                        
+                        const statusLabel = task.status === 'completed' ? 'Concluída' : 
+                                          task.status === 'in-progress' ? 'Em Progresso' : 'Pendente'
+                        
+                        return (
+                          <TooltipProvider key={event.id}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedTask(task)
+                                    setTaskDetailOpen(true)
                                   }}
                                   className={`w-full text-[10px] px-1.5 py-0.5 rounded ${event.color} text-white truncate text-left hover:opacity-80 transition-opacity`}
                                 >
@@ -725,6 +766,82 @@ export default function CalendarView() {
 
               <div className="flex justify-end gap-2 pt-4 border-t">
                 <Button variant="outline" onClick={() => setAppointmentDetailOpen(false)}>
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={taskDetailOpen} onOpenChange={setTaskDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckSquare weight="duotone" size={24} />
+              Detalhes da Tarefa
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedTask && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xl font-semibold">{selectedTask.title}</h3>
+                {selectedTask.description && (
+                  <p className="text-muted-foreground mt-1">{selectedTask.description}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Data de Vencimento</p>
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon weight="duotone" size={16} />
+                    <p>{format(parseISO(selectedTask.dueDate), "dd/MM/yyyy")}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Prioridade</p>
+                  <Badge variant="outline" className={
+                    selectedTask.priority === 'high' ? 'bg-destructive/10 text-destructive-foreground border-destructive/20' :
+                    selectedTask.priority === 'medium' ? 'bg-accent/10 text-accent-foreground border-accent/20' :
+                    'bg-muted text-muted-foreground border-border'
+                  }>
+                    {selectedTask.priority === 'high' ? 'Alta' :
+                     selectedTask.priority === 'medium' ? 'Média' : 'Baixa'}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Status</p>
+                <Badge className={
+                  selectedTask.status === 'completed' ? 'bg-success/20 text-success-foreground border-success/30' :
+                  selectedTask.status === 'in-progress' ? 'bg-primary/20 text-primary border-primary/30' :
+                  'bg-muted text-muted-foreground border-border'
+                }>
+                  {selectedTask.status === 'completed' ? 'Concluída' :
+                   selectedTask.status === 'in-progress' ? 'Em Progresso' : 'Pendente'}
+                </Badge>
+              </div>
+
+              {selectedTask.propertyId && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Propriedade</p>
+                  <p>{properties?.find(p => p.id === selectedTask.propertyId)?.name || 'N/A'}</p>
+                </div>
+              )}
+
+              {selectedTask.assignee && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Responsável</p>
+                  <p>{selectedTask.assignee}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setTaskDetailOpen(false)}>
                   Fechar
                 </Button>
               </div>
