@@ -27,10 +27,11 @@ export default function ContractDialogForm({
 }: ContractDialogFormProps) {
   const { t } = useLanguage()
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
-  const [guests, setGuests] = useKV<Guest[]>('guests', [])
+  const [guests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [guestDialogOpen, setGuestDialogOpen] = useState(false)
   const [guestSelectKey, setGuestSelectKey] = useState(0)
+  const [pendingGuestId, setPendingGuestId] = useState<string | null>(null)
   
   const [formData, setFormData] = useState({
     guestId: '',
@@ -63,6 +64,20 @@ export default function ContractDialogForm({
       }))
     }
   }, [editingContract, preSelectedPropertyId, properties])
+
+  useEffect(() => {
+    if (pendingGuestId && guests) {
+      const guestExists = guests.find(g => g.id === pendingGuestId)
+      if (guestExists) {
+        setFormData(prev => ({
+          ...prev,
+          guestId: pendingGuestId
+        }))
+        setGuestSelectKey(prev => prev + 1)
+        setPendingGuestId(null)
+      }
+    }
+  }, [guests, pendingGuestId])
 
   const resetForm = () => {
     setFormData({
@@ -132,11 +147,7 @@ export default function ContractDialogForm({
   }
 
   const handleGuestCreated = (guestId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      guestId: guestId
-    }))
-    setGuestSelectKey(prev => prev + 1)
+    setPendingGuestId(guestId)
   }
 
   const refreshGuestList = () => {
