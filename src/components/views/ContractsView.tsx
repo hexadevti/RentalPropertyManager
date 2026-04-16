@@ -176,22 +176,32 @@ export default function ContractsView() {
       return matchesSearch && matchesStatus
     })
 
+  const handleRefresh = () => {
+    setContracts((current) => [...(current || [])])
+    toast.success('Dados atualizados')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.contracts_view.title}</h2>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => {
-          setDialogOpen(open)
-          if (!open) resetForm()
-        }}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus weight="bold" />
-              {t.contracts_view.add_contract}
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            Atualizar
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={(open) => {
+            setDialogOpen(open)
+            if (!open) resetForm()
+          }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus weight="bold" />
+                {t.contracts_view.add_contract}
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingContract ? t.contracts_view.form.title_edit : t.contracts_view.form.title_new}</DialogTitle>
@@ -354,6 +364,7 @@ export default function ContractsView() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex gap-4">

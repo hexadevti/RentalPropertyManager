@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Guest, Booking } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -101,22 +101,32 @@ export default function GuestsView() {
     guest.phone.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const handleRefresh = () => {
+    setGuests((current) => [...(current || [])])
+    toast.success('Dados atualizados')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.guests_view.title}</h2>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => {
-          setDialogOpen(open)
-          if (!open) resetForm()
-        }}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus weight="bold" />
-              {t.guests_view.add_guest}
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            Atualizar
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={(open) => {
+            setDialogOpen(open)
+            if (!open) resetForm()
+          }}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus weight="bold" />
+                {t.guests_view.add_guest}
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}</DialogTitle>
@@ -222,6 +232,7 @@ export default function GuestsView() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="relative">

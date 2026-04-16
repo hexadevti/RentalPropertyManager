@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Calendar as CalendarIcon } from '@phosphor-icons/react'
+import { Plus, Calendar as CalendarIcon, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, isWithinInterval } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
@@ -69,6 +69,11 @@ export default function CalendarView() {
     )
   }
 
+  const handleRefresh = () => {
+    setBookings((current) => [...(current || [])])
+    toast.success('Dados atualizados')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -77,6 +82,10 @@ export default function CalendarView() {
           <p className="text-sm text-muted-foreground mt-1">Manage bookings and availability</p>
         </div>
         <div className="flex items-center gap-4">
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            Atualizar
+          </Button>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => {
               const newDate = new Date(currentDate)

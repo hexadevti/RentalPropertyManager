@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, CheckSquare, Trash } from '@phosphor-icons/react'
+import { Plus, CheckSquare, Trash, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
@@ -85,6 +85,11 @@ export default function TasksView() {
     return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
   })
 
+  const handleRefresh = () => {
+    setTasks((current) => [...(current || [])])
+    toast.success('Dados atualizados')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -92,14 +97,19 @@ export default function TasksView() {
           <h2 className="text-2xl font-semibold tracking-tight">Tasks & Appointments</h2>
           <p className="text-sm text-muted-foreground mt-1">Manage maintenance and administrative tasks</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus weight="bold" size={16} />
-              Add Task
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            Atualizar
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus weight="bold" size={16} />
+                Add Task
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Add Task</DialogTitle>
               <DialogDescription>Create a new task or appointment</DialogDescription>
@@ -190,6 +200,7 @@ export default function TasksView() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {!tasks || tasks.length === 0 ? (

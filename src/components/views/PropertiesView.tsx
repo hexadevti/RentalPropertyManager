@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, House, Bed, Buildings, Pencil, Trash, FileText } from '@phosphor-icons/react'
+import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
@@ -132,21 +132,31 @@ export default function PropertiesView() {
     }
   }
 
+  const handleRefresh = () => {
+    setProperties((current) => [...(current || [])])
+    toast.success('Dados atualizados')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">{t.properties_view.title}</h2>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus weight="bold" size={16} />
-              {t.properties_view.add_property}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            Atualizar
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus weight="bold" size={16} />
+                {t.properties_view.add_property}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
               <DialogTitle>{editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -239,6 +249,7 @@ export default function PropertiesView() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {!properties || properties.length === 0 ? (

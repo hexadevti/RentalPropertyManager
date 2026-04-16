@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, FileText, Trash } from '@phosphor-icons/react'
+import { Plus, FileText, Trash, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 
@@ -71,6 +71,11 @@ export default function DocumentsView() {
     return acc
   }, {} as Record<DocumentCategory, Document[]>)
 
+  const handleRefresh = () => {
+    setDocuments((current) => [...(current || [])])
+    toast.success('Dados atualizados')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -78,14 +83,19 @@ export default function DocumentsView() {
           <h2 className="text-2xl font-semibold tracking-tight">Documents</h2>
           <p className="text-sm text-muted-foreground mt-1">Organize your rental documentation</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus weight="bold" size={16} />
-              Add Document
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            Atualizar
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus weight="bold" size={16} />
+                Add Document
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Add Document</DialogTitle>
               <DialogDescription>Add a new document to your repository</DialogDescription>
@@ -156,6 +166,7 @@ export default function DocumentsView() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {!documents || documents.length === 0 ? (

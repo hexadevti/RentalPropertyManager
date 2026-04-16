@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Plus, TrendUp, TrendDown, Trash, CalendarBlank } from '@phosphor-icons/react'
+import { Plus, TrendUp, TrendDown, Trash, CalendarBlank, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns'
 import { ptBR, enUS } from 'date-fns/locale'
@@ -118,6 +118,11 @@ export default function FinancesView() {
   const totalExpenses = (transactions || []).filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
   const balance = totalIncome - totalExpenses
 
+  const handleRefresh = () => {
+    setTransactions((current) => [...(current || [])])
+    toast.success('Dados atualizados')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -125,14 +130,19 @@ export default function FinancesView() {
           <h2 className="text-2xl font-semibold tracking-tight">{t.finances_view.title}</h2>
           <p className="text-sm text-muted-foreground mt-1">{t.finances_view.monthly_cashflow}</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus weight="bold" size={16} />
-              {t.finances_view.add_transaction}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            Atualizar
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus weight="bold" size={16} />
+                {t.finances_view.add_transaction}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{t.finances_view.form.title_new}</DialogTitle>
               <DialogDescription>{t.finances_view.form.description}</DialogDescription>
@@ -235,6 +245,7 @@ export default function FinancesView() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -2,9 +2,11 @@ import { useKV } from '@github/spark/hooks'
 import { Transaction, Booking, Property, Task } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { TrendUp, TrendDown, House, Calendar, CheckSquare, Percent } from '@phosphor-icons/react'
+import { Button } from '@/components/ui/button'
+import { TrendUp, TrendDown, House, Calendar, CheckSquare, Percent, ArrowsClockwise } from '@phosphor-icons/react'
 import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
+import { toast } from 'sonner'
 
 export default function ReportsView() {
   const { formatCurrency } = useCurrency()
@@ -83,11 +85,21 @@ export default function ReportsView() {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5)
 
+  const handleRefresh = () => {
+    toast.success('Dados atualizados')
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Reports & Analytics</h2>
-        <p className="text-sm text-muted-foreground mt-1">Overview of your rental business performance</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">Reports & Analytics</h2>
+          <p className="text-sm text-muted-foreground mt-1">Overview of your rental business performance</p>
+        </div>
+        <Button variant="outline" onClick={handleRefresh} className="gap-2">
+          <ArrowsClockwise weight="bold" size={16} />
+          Atualizar
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
