@@ -32,7 +32,7 @@ export default function FinancesView() {
   const [transactions, setTransactions] = useKV<Transaction[]>('transactions', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
-  const [serviceProviders] = useKV<ServiceProvider[]>('serviceProviders', [])
+  const [serviceProviders] = useKV<ServiceProvider[]>('service-providers', [])
   const [guests] = useKV<Guest[]>('guests', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
