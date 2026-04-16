@@ -1,87 +1,92 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useKV } from '@github/spark/hooks'
 
+type UserRole = 'admin' | 'guest'
+type UserStatus = 'pending' | 'approved' | 'rejected'
 
+interface UserProfile {
   githubLogin: string
-
+  role: UserRole
+  status: UserStatus
+  email: string
   avatarUrl: string
+  createdAt: string
   updatedAt: string
-
-  currentUser: any |
-  isLoading: bo
-  isAdmin: boolean
-  isApproved: boole
-  isRejected: boole
- 
-
 }
-const AuthContext = creat
-export function AuthProvider({ ch
-  const [userProfile
-  const [profiles, setProfiles] = useK
-  useEffect(() => 
 
-      try {
-        if (!isMount
-        setCurrentUse
-          (p) => p.githubLogin === user.login
-        
-          setUserProfile(existingProfile)
-          const newProfile: UserProfile = {
-            role: user.isOwner ? 'adm
- 
+interface AuthContextType {
+  currentUser: any | null
+  userProfile: UserProfile | null
+  isLoading: boolean
+  isAdmin: boolean
+  isGuest: boolean
+  isApproved: boolean
+  isPending: boolean
+  isRejected: boolean
+  hasRole: (role: UserRole) => boolean
+  updateUserRole: (githubLogin: string, role: UserRole) => void
+  updateUserStatus: (githubLogin: string, status: UserStatus) => void
+  createUser: (githubLogin: string, role: UserRole) => void
+  deleteUser: (githubLogin: string) => void
+  getAllProfiles: () => UserProfile[]
+}
 
-          }
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-      } catch (error) {
-      } finally {
-      }
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [currentUser, setCurrentUser] = useState<any | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [profiles, setProfiles] = useKV<UserProfile[]>('user-profiles', [])
 
-
-
-  }, [])
   useEffect(() => {
+    let isMounted = true
 
-      )
-        set
-    }
-
-
-
-    setProfiles((currentProfiles) =>
-        p.githubLogin === githubLogin
-         
-    )
-
+    const loadUser = async () => {
+      try {
+        const user = await spark.user()
+        
+        if (!isMounted) return
+        
+        setCurrentUser(user)
+        
+        const existingProfile = (profiles || []).find(
+          (p) => p.githubLogin === user.login
+        )
+        
+        if (existingProfile) {
           setUserProfile(existingProfile)
         } else {
           const newProfile: UserProfile = {
             githubLogin: user.login,
             role: user.isOwner ? 'admin' : 'guest',
             status: user.isOwner ? 'approved' : 'pending',
-
+            email: user.email || '',
             avatarUrl: user.avatarUrl,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-      email
+          }
+          
           setProfiles((currentProfiles) => [...currentProfiles, newProfile])
-      updatedAt: new Date().toISOStr
+          setUserProfile(newProfile)
         }
-  }
+      } catch (error) {
         console.error('Failed to load user:', error)
-    setProfiles((
-        setIsLoading(false)
-
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
     }
 
     loadUser()
 
     return () => {
-    hasRole,
+      isMounted = false
     }
-    isAp
+  }, [])
 
-    updateUserRole,
+  useEffect(() => {
     if (currentUser && profiles.length > 0) {
       const updatedProfile = profiles.find(
         (p) => p.githubLogin === currentUser.login
