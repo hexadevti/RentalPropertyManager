@@ -122,17 +122,26 @@ export default function ReportsView() {
   const pendingTasks = (tasks || []).filter(t => t.status !== 'completed').length
 
   const propertyStats = (properties || []).map(property => {
-    const propertyBookings = (bookings || []).filter(b => b.propertyId === property.id)
-    const propertyRevenue = propertyBookings.reduce((acc, b) => acc + b.totalAmount, 0)
+    const propertyContracts = (contracts || []).filter(c => 
+      c.propertyIds.includes(property.id)
+    )
     
-    const totalBookedDays = propertyBookings.reduce((acc, booking) => {
-      const days = differenceInDays(new Date(booking.checkOut), new Date(booking.checkIn))
-      return acc + days
+    const propertyRevenue = filteredTransactions
+      .filter(t => {
+        if (t.type !== 'income' || !t.contractId) return false
+        const contract = (contracts || []).find(c => c.id === t.contractId)
+        return contract && contract.propertyIds.includes(property.id)
+      })
+      .reduce((acc, t) => acc + t.amount, 0)
+    
+    const totalBookedDays = propertyContracts.reduce((acc, contract) => {
+      const days = differenceInDays(parseISO(contract.endDate), parseISO(contract.startDate))
+      return acc + Math.max(0, days)
     }, 0)
 
     return {
       property,
-      bookings: propertyBookings.length,
+      bookings: propertyContracts.length,
       revenue: propertyRevenue,
       bookedDays: totalBookedDays
     }
@@ -278,7 +287,7 @@ export default function ReportsView() {
         ? stat.property.name.substring(0, 15) + '...'
         : stat.property.name,
       receita: stat.revenue,
-      reservas: stat.bookings
+      contratos: stat.bookings
     }))
   }
 
@@ -703,7 +712,7 @@ export default function ReportsView() {
         <CardContent>
           {propertyBarData.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-12">
-              {t.language === 'pt' ? 'Adicione propriedades e reservas para visualizar o gráfico' : 'Add properties and bookings to view the chart'}
+              {t.language === 'pt' ? 'Adicione propriedades e contratos com transações para visualizar o gráfico' : 'Add properties and contracts with transactions to view the chart'}
             </p>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -716,7 +725,7 @@ export default function ReportsView() {
                     name === 'receita' ? formatCurrency(value) : value,
                     name === 'receita' 
                       ? (t.language === 'pt' ? 'Receita' : 'Revenue')
-                      : (t.language === 'pt' ? 'Reservas' : 'Bookings')
+                      : (t.language === 'pt' ? 'Contratos' : 'Contracts')
                   ]}
                   contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
                 />
@@ -795,9 +804,9 @@ export default function ReportsView() {
                       <Badge variant="outline" className="capitalize">{stat.property.type}</Badge>
                     </div>
                     <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                      <span>{stat.bookings} {t.language === 'pt' ? 'reservas' : 'bookings'}</span>
+                      <span>{stat.bookings} {t.language === 'pt' ? 'contratos' : 'contracts'}</span>
                       <span>•</span>
-                      <span>{stat.bookedDays} {t.language === 'pt' ? 'dias ocupados' : 'days booked'}</span>
+                      <span>{stat.bookedDays} {t.language === 'pt' ? 'dias contratados' : 'contract days'}</span>
                     </div>
                   </div>
                   <div className="text-right">
