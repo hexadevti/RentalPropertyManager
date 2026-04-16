@@ -175,7 +175,7 @@ export default function FinancesView() {
                 {t.finances_view.add_transaction}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{editingTransaction ? t.finances_view.form.title_edit : t.finances_view.form.title_new}</DialogTitle>
               <DialogDescription>{t.finances_view.form.description}</DialogDescription>
