@@ -44,9 +44,9 @@ export default function FinancesView() {
     category: '',
     description: '',
     date: new Date().toISOString().split('T')[0],
-    propertyId: '',
-    contractId: '',
-    serviceProviderId: ''
+    propertyId: undefined as string | undefined,
+    contractId: undefined as string | undefined,
+    serviceProviderId: undefined as string | undefined
   })
 
   const locale = language === 'pt' ? ptBR : enUS
@@ -124,9 +124,9 @@ export default function FinancesView() {
       category: '',
       description: '',
       date: new Date().toISOString().split('T')[0],
-      propertyId: '',
-      contractId: '',
-      serviceProviderId: ''
+      propertyId: undefined,
+      contractId: undefined,
+      serviceProviderId: undefined
     })
     setEditingTransaction(null)
     setIsDialogOpen(false)
@@ -140,9 +140,9 @@ export default function FinancesView() {
       category: transaction.category,
       description: transaction.description,
       date: transaction.date,
-      propertyId: transaction.propertyId || '',
-      contractId: transaction.contractId || '',
-      serviceProviderId: transaction.serviceProviderId || ''
+      propertyId: transaction.propertyId,
+      contractId: transaction.contractId,
+      serviceProviderId: transaction.serviceProviderId
     })
     setIsDialogOpen(true)
   }
@@ -238,7 +238,7 @@ export default function FinancesView() {
 
               <div className="space-y-2">
                 <Label htmlFor="propertyId">{t.finances_view.form.property} {t.finances_view.form.optional}</Label>
-                <Select value={formData.propertyId || 'none'} onValueChange={(value) => setFormData({ ...formData, propertyId: value === 'none' ? '' : value })}>
+                <Select value={formData.propertyId || 'none'} onValueChange={(value) => setFormData({ ...formData, propertyId: value === 'none' ? undefined : value })}>
                   <SelectTrigger id="propertyId">
                     <SelectValue placeholder={t.finances_view.form.select_property} />
                   </SelectTrigger>

@@ -194,7 +194,7 @@ export default function ContractDialogForm({
               </div>
               <Select
                 key={guestSelectKey}
-                value={formData.guestId}
+                value={formData.guestId || undefined}
                 onValueChange={(value) => setFormData({ ...formData, guestId: value })}
                 required
               >
