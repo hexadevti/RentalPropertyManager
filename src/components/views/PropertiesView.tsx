@@ -4,6 +4,7 @@ import { Property, PropertyType, PropertyStatus } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -16,6 +17,8 @@ export default function PropertiesView() {
   const [properties, setProperties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -79,9 +82,18 @@ export default function PropertiesView() {
     setIsDialogOpen(true)
   }
 
-  const handleDelete = (id: string) => {
-    setProperties((current) => (current || []).filter(p => p.id !== id))
-    toast.success('Property deleted')
+  const handleDeleteClick = (property: Property) => {
+    setPropertyToDelete(property)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (propertyToDelete) {
+      setProperties((current) => (current || []).filter(p => p.id !== propertyToDelete.id))
+      toast.success('Property deleted')
+      setPropertyToDelete(null)
+      setDeleteDialogOpen(false)
+    }
   }
 
   const getStatusColor = (status: PropertyStatus) => {
@@ -277,7 +289,7 @@ export default function PropertiesView() {
                     <Pencil size={14} />
                     Edit
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDelete(property.id)}>
+                  <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(property)}>
                     <Trash size={14} />
                     Delete
                   </Button>
@@ -287,6 +299,23 @@ export default function PropertiesView() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this property?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the property "{propertyToDelete?.name}" from your portfolio.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
