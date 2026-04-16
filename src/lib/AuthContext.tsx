@@ -53,138 +53,116 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         )
         
         if (existingProfile) {
-          const newProfile: UserProfile =
-            role
+          setUserProfile(existingProfile)
+        } else {
+          const newProfile: UserProfile = {
+            githubLogin: user.login,
+            role: user.isOwner ? 'admin' : 'guest',
+            status: user.isOwner ? 'approved' : 'pending',
             email: user.email,
-            createdAt: new Date().to
+            avatarUrl: user.avatarUrl,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           }
+          setProfiles((currentProfiles) => [...currentProfiles, newProfile])
           setUserProfile(newProfile)
+        }
       } catch (error) {
+        console.error('Failed to load user:', error)
       } finally {
-          setIsLoading(false)
+        setIsLoading(false)
       }
+    }
 
-    
+    loadUser()
+
+    return () => {
       isMounted = false
+    }
   }, [])
+
   useEffect(() => {
-    
-      (p) => p.gi
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    if (currentUser && profiles.length > 0) {
+      const updatedProfile = profiles.find(
+        (p) => p.githubLogin === currentUser.login
+      )
+      if (updatedProfile) {
+        setUserProfile(updatedProfile)
+      }
+    }
+  }, [profiles, currentUser])
+
+  const hasRole = (role: UserRole) => {
+    return userProfile?.role === role
+  }
+
+  const updateUserRole = (githubLogin: string, role: UserRole) => {
+    setProfiles((currentProfiles) =>
+      currentProfiles.map((p) =>
+        p.githubLogin === githubLogin
+          ? { ...p, role, updatedAt: new Date().toISOString() }
+          : p
+      )
+    )
+  }
+
+  const updateUserStatus = (githubLogin: string, status: UserStatus) => {
+    setProfiles((currentProfiles) =>
+      currentProfiles.map((p) =>
+        p.githubLogin === githubLogin
+          ? { ...p, status, updatedAt: new Date().toISOString() }
+          : p
+      )
+    )
+  }
+
+  const createUser = (githubLogin: string, role: UserRole) => {
+    const newProfile: UserProfile = {
+      githubLogin,
+      role,
+      status: 'pending',
+      email: '',
+      avatarUrl: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    setProfiles((currentProfiles) => [...currentProfiles, newProfile])
+  }
+
+  const deleteUser = (githubLogin: string) => {
+    setProfiles((currentProfiles) =>
+      currentProfiles.filter((p) => p.githubLogin !== githubLogin)
+    )
+  }
+
+  const getAllProfiles = () => {
+    return profiles || []
+  }
+
+  const value: AuthContextType = {
+    currentUser,
+    userProfile,
+    isLoading,
+    hasRole,
+    isAdmin: userProfile?.role === 'admin',
+    isGuest: userProfile?.role === 'guest',
+    isApproved: userProfile?.status === 'approved',
+    isPending: userProfile?.status === 'pending',
+    isRejected: userProfile?.status === 'rejected',
+    updateUserRole,
+    updateUserStatus,
+    createUser,
+    deleteUser,
+    getAllProfiles
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
