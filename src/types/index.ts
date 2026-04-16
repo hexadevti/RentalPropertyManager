@@ -110,3 +110,14 @@ export interface UserProfile {
   createdAt: string
   updatedAt: string
 }
+
+export type TemplateType = 'monthly' | 'short-term'
+
+export interface ContractTemplate {
+  id: string
+  name: string
+  type: TemplateType
+  content: string
+  createdAt: string
+  updatedAt: string
+}

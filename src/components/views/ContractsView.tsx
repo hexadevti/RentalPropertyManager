@@ -8,13 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Contract, Guest, Property, ContractStatus, RentalType } from '@/types'
+import { Contract, Guest, Property, ContractStatus, RentalType, ContractTemplate } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { format } from 'date-fns'
 import GuestDialogForm from '../GuestDialogForm'
+import { generateContractPDF, downloadPDF, openPDFInNewTab } from '@/lib/contractPDF'
 
 export default function ContractsView() {
   const { t } = useLanguage()
@@ -22,12 +23,16 @@ export default function ContractsView() {
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
+  const [templates] = useKV<ContractTemplate[]>('contract-templates', [])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
   const [guestDialogOpen, setGuestDialogOpen] = useState(false)
   const [localGuests, setLocalGuests] = useState<Guest[]>([])
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
+  const [selectedContractForPDF, setSelectedContractForPDF] = useState<Contract | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
 
   useEffect(() => {
     setLocalGuests(guests || [])
@@ -179,6 +184,71 @@ export default function ContractsView() {
   const handleRefresh = () => {
     setContracts((current) => [...(current || [])])
     toast.success('Dados atualizados')
+  }
+
+  const handleGeneratePDF = (contract: Contract) => {
+    setSelectedContractForPDF(contract)
+    setSelectedTemplateId('')
+    setPdfDialogOpen(true)
+  }
+
+  const handlePDFGeneration = (action: 'download' | 'view') => {
+    if (!selectedContractForPDF || !selectedTemplateId) {
+      toast.error('Selecione um template')
+      return
+    }
+
+    const template = (templates || []).find(t => t.id === selectedTemplateId)
+    if (!template) {
+      toast.error('Template não encontrado')
+      return
+    }
+
+    const guest = (guests || []).find(g => g.id === selectedContractForPDF.guestId)
+    if (!guest) {
+      toast.error('Hóspede não encontrado')
+      return
+    }
+
+    const contractProperties = (properties || []).filter(p => 
+      selectedContractForPDF.propertyIds.includes(p.id)
+    )
+
+    try {
+      const pdf = generateContractPDF(
+        {
+          contract: selectedContractForPDF,
+          guest,
+          properties: contractProperties,
+          template,
+        },
+        formatCurrency
+      )
+
+      if (action === 'download') {
+        const filename = `contrato-${guest.name.replace(/\s+/g, '-').toLowerCase()}-${format(new Date(), 'yyyy-MM-dd')}.pdf`
+        downloadPDF(pdf, filename)
+        toast.success('PDF baixado com sucesso')
+      } else {
+        openPDFInNewTab(pdf)
+        toast.success('PDF aberto em nova aba')
+      }
+
+      setPdfDialogOpen(false)
+      setSelectedContractForPDF(null)
+      setSelectedTemplateId('')
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error)
+      toast.error('Erro ao gerar PDF')
+    }
+  }
+
+  const getMatchingTemplates = (rentalType: RentalType) => {
+    const typeMap: Record<RentalType, string> = {
+      'monthly': 'monthly',
+      'short-term': 'short-term',
+    }
+    return (templates || []).filter(t => t.type === typeMap[rentalType])
   }
 
   return (
@@ -466,6 +536,14 @@ export default function ContractsView() {
                     <Button
                       size="icon"
                       variant="ghost"
+                      onClick={() => handleGeneratePDF(contract)}
+                      title="Gerar PDF"
+                    >
+                      <FilePdf size={18} className="text-primary" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       onClick={() => handleEdit(contract)}
                     >
                       <Pencil size={18} />
@@ -490,6 +568,60 @@ export default function ContractsView() {
         onOpenChange={setGuestDialogOpen}
         onGuestCreated={handleGuestCreated}
       />
+
+      <Dialog open={pdfDialogOpen} onOpenChange={setPdfDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gerar PDF do Contrato</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="pdf-template">Selecione o Template</Label>
+              <Select
+                value={selectedTemplateId}
+                onValueChange={setSelectedTemplateId}
+              >
+                <SelectTrigger id="pdf-template">
+                  <SelectValue placeholder="Escolha um template..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectedContractForPDF && getMatchingTemplates(selectedContractForPDF.rentalType).length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhum template disponível para este tipo de contrato
+                    </div>
+                  ) : (
+                    selectedContractForPDF && getMatchingTemplates(selectedContractForPDF.rentalType).map(template => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                className="flex-1 gap-2"
+                onClick={() => handlePDFGeneration('view')}
+                disabled={!selectedTemplateId}
+              >
+                <Eye size={18} weight="duotone" />
+                Visualizar
+              </Button>
+              <Button
+                className="flex-1 gap-2"
+                onClick={() => handlePDFGeneration('download')}
+                disabled={!selectedTemplateId}
+              >
+                <FilePdf size={18} weight="duotone" />
+                Baixar PDF
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

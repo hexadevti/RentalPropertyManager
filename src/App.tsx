@@ -1,6 +1,6 @@
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { House, Wallet, Calendar, CheckSquare, ChartBar, User, Gear, Files, Wrench, CalendarCheck } from '@phosphor-icons/react'
+import { House, Wallet, Calendar, CheckSquare, ChartBar, User, Gear, Files, Wrench, CalendarCheck, FileText } from '@phosphor-icons/react'
 import PropertiesView from './components/views/PropertiesView'
 import FinancesView from './components/views/FinancesView'
 import CalendarView from './components/views/CalendarView'
@@ -8,6 +8,7 @@ import TasksView from './components/views/TasksView'
 import ReportsView from './components/views/ReportsView'
 import GuestsView from './components/views/GuestsView'
 import ContractsView from './components/views/ContractsView'
+import ContractTemplatesView from './components/views/ContractTemplatesView'
 import ServiceProvidersView from './components/views/ServiceProvidersView'
 import AppointmentsView from './components/views/AppointmentsView'
 import SettingsView from './components/views/SettingsView'
@@ -95,7 +96,7 @@ function AppContent() {
 
       <main className="container mx-auto px-6 py-6">
         <Tabs defaultValue={isGuest ? "calendar" : "properties"} className="w-full">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-10' : 'grid-cols-4'} h-auto p-1 bg-card border border-border`}>
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-11' : 'grid-cols-4'} h-auto p-1 bg-card border border-border`}>
             {isAdmin && (
               <TabsTrigger value="properties" className="flex items-center gap-2 py-3">
                 <House weight="duotone" size={20} />
@@ -134,6 +135,12 @@ function AppContent() {
               <Files weight="duotone" size={20} />
               <span className="hidden sm:inline">{t.tabs.contracts}</span>
             </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="templates" className="flex items-center gap-2 py-3">
+                <FileText weight="duotone" size={20} />
+                <span className="hidden sm:inline">Templates</span>
+              </TabsTrigger>
+            )}
             {isAdmin && (
               <TabsTrigger value="providers" className="flex items-center gap-2 py-3">
                 <Wrench weight="duotone" size={20} />
@@ -182,6 +189,11 @@ function AppContent() {
             <TabsContent value="contracts" className="mt-0">
               <ContractsView />
             </TabsContent>
+            {isAdmin && (
+              <TabsContent value="templates" className="mt-0">
+                <ContractTemplatesView />
+              </TabsContent>
+            )}
             {isAdmin && (
               <TabsContent value="providers" className="mt-0">
                 <ServiceProvidersView />
