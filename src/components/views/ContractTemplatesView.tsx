@@ -1,36 +1,36 @@
 import { useState } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogHeader,
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '
 import { Badge } from '@/components/ui/badge'
-import { MagnifyingGlass, Plus, Pencil, Trash, FileText, Copy } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { ContractTemplate, TemplateType } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
-
-const DEFAULT_MONTHLY_TEMPLATE = `CONTRATO DE LOCAÇÃO MENSAL
-
+const DEFAULT_MONTHLY_TEMPLATE = `CONTRATO DE LOCAÇ
 LOCADOR(A): [NOME_LOCADOR]
-LOCATÁRIO(A): {{guestName}}
 CPF: {{guestDocument}}
-E-mail: {{guestEmail}}
 Telefone: {{guestPhone}}
-
 IMÓVEL(EIS):
-{{properties}}
 
-VALOR DA LOCAÇÃO: {{monthlyAmount}}
-VENCIMENTO: Todo dia {{paymentDueDay}} de cada mês
 
 PERÍODO: {{startDate}} até {{endDate}}
 
-CLÁUSULA 1ª - DO OBJETO
-O presente contrato tem por objeto a locação do(s) imóvel(is) acima identificado(s), para fins residenciais.
+
+O prazo de locação é de {{s
+CLÁUSULA 3ª - DO ALUGU
+
+São obrigações do locatá
+
+
+São obrigações
+
+{{notes}}
+Data: {{currentDate}}
+
+
+
+LOCATÁRIO(A): {{guestNa
+E-mail: {{guestEmail}}
 
 CLÁUSULA 2ª - DO PRAZO
 O prazo de locação é de {{startDate}} até {{endDate}}, podendo ser prorrogado mediante acordo entre as partes.
@@ -66,108 +66,108 @@ Telefone: {{guestPhone}}
 Endereço: {{guestAddress}}
 Nacionalidade: {{guestNationality}}
 
-IMÓVEL(EIS):
-{{properties}}
 
-VALOR TOTAL: {{monthlyAmount}}
-PERÍODO: {{startDate}} até {{endDate}}
 
-CLÁUSULA 1ª - DO OBJETO
-O presente contrato tem por objeto a locação por temporada do(s) imóvel(is) acima identificado(s), nos termos da Lei 8.245/91.
 
-CLÁUSULA 2ª - DO PRAZO
-A locação é por prazo determinado de {{startDate}} até {{endDate}}, sem possibilidade de renovação automática.
+    Locador(a)                
+export default function ContractTempla
 
-CLÁUSULA 3ª - DO VALOR
-O valor total da locação é de {{monthlyAmount}}, já incluindo todas as despesas.
-
-CLÁUSULA 4ª - DO PAGAMENTO
-O pagamento deverá ser efetuado até o dia {{paymentDueDay}}.
-
-CLÁUSULA 5ª - DAS OBRIGAÇÕES DO LOCATÁRIO
-São obrigações do locatário:
-a) Utilizar o imóvel exclusivamente para fins residenciais;
-b) Manter o imóvel limpo e em bom estado;
-c) Não sublocar ou ceder o imóvel a terceiros;
-d) Restituir o imóvel no prazo acordado.
-
-CLÁUSULA 6ª - DAS OBRIGAÇÕES DO LOCADOR
-São obrigações do locador:
-a) Entregar o imóvel limpo e em perfeitas condições de uso;
-b) Garantir o uso pacífico durante o período contratado.
-
-CLÁUSULA 7ª - DO CHECK-IN E CHECK-OUT
-Check-in: A partir das 14h do dia {{startDate}}
-Check-out: Até às 12h do dia {{endDate}}
-
-{{notes}}
-
-Data: {{currentDate}}
-
-_________________________          _________________________
-    Locador(a)                         Locatário(a)`
-
-export default function ContractTemplatesView() {
-  const { t } = useLanguage()
-  const [templates, setTemplates] = useKV<ContractTemplate[]>('contract-templates', [])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null)
+  const [dialogOpen, se
   
-  const [formData, setFormData] = useState({
-    name: '',
-    type: 'monthly' as TemplateType,
+
     content: '',
-  })
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
+
       type: 'monthly',
-      content: '',
     })
-    setEditingTemplate(null)
-  }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = (e:
     
-    if (editingTemplate) {
-      setTemplates((currentTemplates) =>
-        (currentTemplates || []).map(t =>
+
           t.id === editingTemplate.id
-            ? { 
-                ...formData, 
-                id: t.id, 
+                ...formData,
                 createdAt: t.createdAt,
-                updatedAt: new Date().toISOString()
               }
-            : t
         )
-      )
-      toast.success('Template atualizado com sucesso')
-    } else {
-      const newTemplate: ContractTemplate = {
-        ...formData,
+      toast.success('Template atualizado
+
         id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      setTemplates((currentTemplates) => [...(currentTemplates || []), newTemplate])
-      toast.success('Template criado com sucesso')
+        updatedAt: new Dat
+      setTemplates((currentTemplates) => [...(currentTempla
     }
-    
-    setDialogOpen(false)
-    resetForm()
+
+  }
+  const handleEdit = (template: ContractTemplat
+    setFormData({
+
+    })
+
+  const handleDelete 
+
+
+    const newTemplate: ContractTemplate = {
+
+      createdAt: new Date().toISOString(),
+    }
+    toast.success('Template duplicado com sucesso')
+
+    setFormData(prev => ({
+      content: type === 'monthly' ? DEFAULT_MONTHLY_TEMPLATE : DEFAULT_SHORT_TERM_TEMPL
+  
+
+    .filter(t
+    )
+  const getTypeL
   }
 
-  const handleEdit = (template: ContractTemplate) => {
-    setEditingTemplate(template)
-    setFormData({
-      name: template.name,
-      type: template.type,
-      content: template.content,
-    })
+      ? 'bg-primary/10 text
+  }
+  return (
+      <div className="
+          <h2 clas
+      
+          setDialogOpen(open
+   
+
+              Novo Template
+          </DialogTrig
+    
+            </DialogHeader
+              <div className="grid grid-
+                  <Label htmlFor="templat
+                    id="template-name
+                
+                    required
+                </div>
+                <div>
+                  <Select
+               
+               
+         
+       
+                      <SelectItem value="short-term">C
+            
+              </div>
+              <div>
+                  <Label htmlFor="
+                    type="button"
+                    size="sm"
+       
+                    <FileText size={16} weight="duotone" />
+                  </Button>
+     
+    
+                  placeh
+               
+   
+
+                    <div><code className="bg-backgroun
+                    <div><code c
+                 
+                    <div><
+                    <div><
+                    <div><code c
+      
     setDialogOpen(true)
   }
 
@@ -302,6 +302,106 @@ export default function ContractTemplatesView() {
                     <div><code className="bg-background px-1 py-0.5 rounded">{'{{paymentDueDay}}'}</code> - Dia vencimento</div>
                     <div><code className="bg-background px-1 py-0.5 rounded">{'{{notes}}'}</code> - Observações</div>
                     <div><code className="bg-background px-1 py-0.5 rounded">{'{{currentDate}}'}</code> - Data atual</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button type="button" variant="outline" onClick={() => {
+                  setDialogOpen(false)
+                  resetForm()
+                }}>
+                  Cancelar
+                </Button>
+                <Button type="submit">Salvar Template</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="relative">
+        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+        <Input
+          placeholder="Buscar templates..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      {filteredTemplates.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <FileText size={64} weight="duotone" className="text-muted-foreground mb-4" />
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              {searchQuery ? 'Nenhum template encontrado' : 'Nenhum template cadastrado'}
+            </h3>
+            {!searchQuery && (
+              <p className="text-muted-foreground text-center max-w-md">
+                Crie seu primeiro template de contrato para começar a gerar PDFs automaticamente
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredTemplates.map((template) => (
+            <Card key={template.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <CardTitle className="text-xl">{template.name}</CardTitle>
+                      <Badge className={getTypeBadgeClass(template.type)}>
+                        {getTypeLabel(template.type)}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Criado em {new Date(template.createdAt).toLocaleDateString('pt-BR')}
+                      {template.updatedAt !== template.createdAt && 
+                        ` • Atualizado em ${new Date(template.updatedAt).toLocaleDateString('pt-BR')}`
+                      }
+                    </p>
+                    <div className="mt-3 p-3 bg-muted rounded-md">
+                      <p className="text-xs font-mono text-muted-foreground whitespace-pre-wrap line-clamp-3">
+                        {template.content}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDuplicate(template)}
+                      title="Duplicar template"
+                    >
+                      <Copy size={18} />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleEdit(template)}
+                    >
+                      <Pencil size={18} />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDelete(template.id)}
+                    >
+                      <Trash size={18} className="text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
                   </div>
                 </div>
               </div>
