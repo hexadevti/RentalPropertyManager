@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { TrendUp, TrendDown, House, Calendar, CheckSquare, ArrowsClockwise, User, Files, Wrench, CalendarCheck } from '@phosphor-icons/react'
-import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, isBefore, isAfter, parseISO } from 'date-fns'
+import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, isBefore, isAfter, parseISO, subMonths, format, startOfDay } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { toast } from 'sonner'
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 export default function ReportsView() {
   const { formatCurrency } = useCurrency()
@@ -138,6 +139,85 @@ export default function ReportsView() {
       totalPaid
     }
   }).filter(g => g.contracts > 0).sort((a, b) => b.totalPaid - a.totalPaid)
+
+  const generateMonthlyData = () => {
+    const months = []
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = subMonths(now, i)
+      const monthStart = startOfMonth(monthDate)
+      const monthEnd = endOfMonth(monthDate)
+      
+      const monthTransactions = (transactions || []).filter(t =>
+        isWithinInterval(new Date(t.date), { start: monthStart, end: monthEnd })
+      )
+      
+      const income = monthTransactions
+        .filter(t => t.type === 'income')
+        .reduce((acc, t) => acc + t.amount, 0)
+      
+      const expenses = monthTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((acc, t) => acc + t.amount, 0)
+      
+      months.push({
+        month: format(monthDate, t.language === 'pt' ? 'MMM/yy' : 'MMM yy'),
+        receitas: income,
+        despesas: expenses,
+        lucro: income - expenses
+      })
+    }
+    return months
+  }
+
+  const generateCategoryPieData = () => {
+    return Object.entries(expensesByCategory)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 6)
+      .map(([category, amount]) => ({
+        name: category.charAt(0).toUpperCase() + category.slice(1),
+        value: amount
+      }))
+  }
+
+  const generatePropertyBarData = () => {
+    return propertyStats.slice(0, 8).map(stat => ({
+      name: stat.property.name.length > 15 
+        ? stat.property.name.substring(0, 15) + '...'
+        : stat.property.name,
+      receita: stat.revenue,
+      reservas: stat.bookings
+    }))
+  }
+
+  const generateTaskCompletionData = () => {
+    const months = []
+    for (let i = 5; i >= 0; i--) {
+      const monthDate = subMonths(now, i)
+      const monthStart = startOfMonth(monthDate)
+      const monthEnd = endOfMonth(monthDate)
+      
+      const monthTasks = (tasks || []).filter(t =>
+        isWithinInterval(new Date(t.createdAt), { start: monthStart, end: monthEnd })
+      )
+      
+      const completed = monthTasks.filter(t => t.status === 'completed').length
+      const pending = monthTasks.filter(t => t.status !== 'completed').length
+      
+      months.push({
+        month: format(monthDate, t.language === 'pt' ? 'MMM/yy' : 'MMM yy'),
+        concluídas: completed,
+        pendentes: pending
+      })
+    }
+    return months
+  }
+
+  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444']
+
+  const monthlyData = generateMonthlyData()
+  const categoryPieData = generateCategoryPieData()
+  const propertyBarData = generatePropertyBarData()
+  const taskCompletionData = generateTaskCompletionData()
 
   const handleRefresh = () => {
     toast.success(t.language === 'pt' ? 'Dados atualizados' : 'Data refreshed')
@@ -288,7 +368,93 @@ export default function ReportsView() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.language === 'pt' ? 'Evolução Financeira (6 meses)' : 'Financial Evolution (6 months)'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {monthlyData.every(m => m.receitas === 0 && m.despesas === 0) ? (
+            <p className="text-sm text-muted-foreground text-center py-12">
+              {t.language === 'pt' ? 'Adicione transações para visualizar o gráfico' : 'Add transactions to view the chart'}
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="month" fontSize={12} />
+                <YAxis fontSize={12} />
+                <Tooltip 
+                  formatter={(value: number) => formatCurrency(value)}
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="receitas" 
+                  stroke="#10b981" 
+                  strokeWidth={2} 
+                  name={t.language === 'pt' ? 'Receitas' : 'Income'}
+                  dot={{ r: 4 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="despesas" 
+                  stroke="#ef4444" 
+                  strokeWidth={2} 
+                  name={t.language === 'pt' ? 'Despesas' : 'Expenses'}
+                  dot={{ r: 4 }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="lucro" 
+                  stroke="#6366f1" 
+                  strokeWidth={2} 
+                  name={t.language === 'pt' ? 'Lucro' : 'Profit'}
+                  dot={{ r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.language === 'pt' ? 'Distribuição de Despesas' : 'Expense Distribution'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {categoryPieData.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-12">
+                {t.language === 'pt' ? 'Nenhuma despesa cadastrada' : 'No expense data available'}
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={categoryPieData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {categoryPieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>{t.language === 'pt' ? 'Resumo Financeiro Mensal' : 'Monthly Financial Summary'}</CardTitle>
@@ -363,6 +529,82 @@ export default function ReportsView() {
                   </div>
                 )
               })
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.language === 'pt' ? 'Receita por Propriedade' : 'Revenue by Property'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {propertyBarData.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-12">
+              {t.language === 'pt' ? 'Adicione propriedades e reservas para visualizar o gráfico' : 'Add properties and bookings to view the chart'}
+            </p>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={propertyBarData}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                <XAxis dataKey="name" fontSize={11} />
+                <YAxis fontSize={12} />
+                <Tooltip 
+                  formatter={(value: number, name: string) => [
+                    name === 'receita' ? formatCurrency(value) : value,
+                    name === 'receita' 
+                      ? (t.language === 'pt' ? 'Receita' : 'Revenue')
+                      : (t.language === 'pt' ? 'Reservas' : 'Bookings')
+                  ]}
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                />
+                <Legend />
+                <Bar 
+                  dataKey="receita" 
+                  fill="#10b981" 
+                  name={t.language === 'pt' ? 'Receita' : 'Revenue'}
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.language === 'pt' ? 'Conclusão de Tarefas (6 meses)' : 'Task Completion (6 months)'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {taskCompletionData.every(m => m.concluídas === 0 && m.pendentes === 0) ? (
+              <p className="text-sm text-muted-foreground text-center py-12">
+                {t.language === 'pt' ? 'Adicione tarefas para visualizar o gráfico' : 'Add tasks to view the chart'}
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={taskCompletionData}>
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <XAxis dataKey="month" fontSize={12} />
+                  <YAxis fontSize={12} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  />
+                  <Legend />
+                  <Bar 
+                    dataKey="concluídas" 
+                    fill="#10b981" 
+                    name={t.language === 'pt' ? 'Concluídas' : 'Completed'}
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar 
+                    dataKey="pendentes" 
+                    fill="#f59e0b" 
+                    name={t.language === 'pt' ? 'Pendentes' : 'Pending'}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
