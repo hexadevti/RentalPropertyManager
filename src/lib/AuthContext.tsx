@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { useKV } from '@github/spark/hooks'
 
 type UserRole = 'admin' | 'guest'
@@ -40,13 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    let isMounted = true
+    
     const loadUser = async () => {
       try {
         const user = await spark.user()
+        if (!isMounted) return
+        
         setCurrentUser(user)
+        
         const existingProfile = (profiles || []).find(
           (p) => p.githubLogin === user.login
         )
+        
         if (existingProfile) {
           setUserProfile(existingProfile)
         } else {
@@ -59,29 +65,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           }
-          setProfiles((current) => [...(current || []), newProfile])
+          setProfiles((current) => {
+            const exists = (current || []).some(p => p.githubLogin === user.login)
+            if (exists) return current
+            return [...(current || []), newProfile]
+          })
           setUserProfile(newProfile)
         }
       } catch (error) {
         console.error('Failed to load user:', error)
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     loadUser()
+    
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   useEffect(() => {
-    if (currentUser) {
-      const updatedProfile = (profiles || []).find(
-        (p) => p.githubLogin === currentUser.login
-      )
-      if (updatedProfile && JSON.stringify(updatedProfile) !== JSON.stringify(userProfile)) {
-        setUserProfile(updatedProfile)
-      }
+    if (!currentUser || isLoading) return
+    
+    const updatedProfile = (profiles || []).find(
+      (p) => p.githubLogin === currentUser.login
+    )
+    
+    if (updatedProfile) {
+      setUserProfile(updatedProfile)
     }
-  }, [profiles, currentUser])
+  }, [profiles, currentUser?.login, isLoading])
 
   const updateUserRole = (githubLogin: string, role: UserRole) => {
     setProfiles((current) =>

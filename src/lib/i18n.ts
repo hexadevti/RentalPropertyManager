@@ -476,6 +476,14 @@ export const translations = {
       contact: 'Se tiver dúvidas, entre em contato com o administrador do sistema.',
     },
     
+    rejected: {
+      title: 'Acesso Negado',
+      subtitle: 'Sua solicitação de acesso foi rejeitada',
+      message: 'Solicitação Rejeitada',
+      description: 'Sua solicitação de acesso ao sistema foi negada. Se você acredita que isso é um erro, entre em contato com o administrador do sistema.',
+      contact: 'Para mais informações, entre em contato com o administrador do sistema.',
+    },
+    
     errors: {
       unauthorized: 'Não autorizado',
       cannotChangeOwnRole: 'Você não pode alterar seu próprio perfil',
@@ -965,6 +973,14 @@ export const translations = {
       message: 'Request Sent',
       description: 'An administrator needs to approve your system access. You will receive a notification once your account is approved.',
       contact: 'If you have any questions, please contact the system administrator.',
+    },
+    
+    rejected: {
+      title: 'Access Denied',
+      subtitle: 'Your access request has been rejected',
+      message: 'Request Rejected',
+      description: 'Your system access request was denied. If you believe this is an error, please contact the system administrator.',
+      contact: 'For more information, please contact the system administrator.',
     },
     
     errors: {
