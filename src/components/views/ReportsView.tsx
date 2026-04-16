@@ -132,7 +132,15 @@ export default function ReportsView() {
         const contract = (contracts || []).find(c => c.id === t.contractId)
         return contract && contract.propertyIds.includes(property.id)
       })
-      .reduce((acc, t) => acc + t.amount, 0)
+      .reduce((acc, t) => {
+        const contract = (contracts || []).find(c => c.id === t.contractId)
+        if (!contract) return acc
+        
+        const propertyCount = contract.propertyIds.length
+        const propertyShare = t.amount / propertyCount
+        
+        return acc + propertyShare
+      }, 0)
     
     const totalBookedDays = propertyContracts.reduce((acc, contract) => {
       const days = differenceInDays(parseISO(contract.endDate), parseISO(contract.startDate))
