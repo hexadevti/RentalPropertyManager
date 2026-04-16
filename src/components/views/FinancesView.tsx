@@ -256,7 +256,7 @@ export default function FinancesView() {
               {formData.type === 'income' && (
                 <div className="space-y-2">
                   <Label htmlFor="contractId">Contrato (opcional)</Label>
-                  <Select value={formData.contractId || 'none'} onValueChange={(value) => setFormData({ ...formData, contractId: value === 'none' ? '' : value })}>
+                  <Select value={formData.contractId || 'none'} onValueChange={(value) => setFormData({ ...formData, contractId: value === 'none' ? undefined : value })}>
                     <SelectTrigger id="contractId">
                       <SelectValue placeholder="Selecione um contrato" />
                     </SelectTrigger>
@@ -279,7 +279,7 @@ export default function FinancesView() {
               {formData.type === 'expense' && (
                 <div className="space-y-2">
                   <Label htmlFor="serviceProviderId">Prestador de Serviço (opcional)</Label>
-                  <Select value={formData.serviceProviderId || 'none'} onValueChange={(value) => setFormData({ ...formData, serviceProviderId: value === 'none' ? '' : value })}>
+                  <Select value={formData.serviceProviderId || 'none'} onValueChange={(value) => setFormData({ ...formData, serviceProviderId: value === 'none' ? undefined : value })}>
                     <SelectTrigger id="serviceProviderId">
                       <SelectValue placeholder="Selecione um prestador" />
                     </SelectTrigger>
