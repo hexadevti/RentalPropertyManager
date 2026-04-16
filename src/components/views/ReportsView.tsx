@@ -108,8 +108,12 @@ export default function ReportsView() {
 
   const upcomingBookings = (bookings || []).filter(b => new Date(b.checkIn) > now)
 
+  const occupiedPropertiesFromContracts = new Set(
+    activeContracts.flatMap(contract => contract.propertyIds)
+  )
+
   const occupancyRate = properties && properties.length > 0
-    ? (currentBookings.length / properties.length) * 100
+    ? (occupiedPropertiesFromContracts.size / properties.length) * 100
     : 0
 
   const completedTasks = (tasks || []).filter(t => t.status === 'completed').length
@@ -413,7 +417,7 @@ export default function ReportsView() {
           <CardContent>
             <p className="text-3xl font-bold">{occupancyRate.toFixed(0)}%</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {currentBookings.length} {t.language === 'pt' ? 'ocupadas' : 'occupied'}
+              {occupiedPropertiesFromContracts.size} {t.language === 'pt' ? 'com contratos ativos' : 'with active contracts'}
             </p>
           </CardContent>
         </Card>
