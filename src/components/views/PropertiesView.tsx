@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Property, PropertyType, PropertyStatus, Contract } from '@/types'
+import { Property, PropertyType, PropertyStatus, Contract, Owner } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise } from '@phosphor-icons/react'
@@ -21,6 +22,7 @@ export default function PropertiesView() {
   const { formatCurrency } = useCurrency()
   const [properties, setProperties] = useKV<Property[]>('properties', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
+  const [owners] = useKV<Owner[]>('owners', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -34,7 +36,8 @@ export default function PropertiesView() {
     capacity: 1,
     pricePerNight: 0,
     pricePerMonth: 0,
-    description: ''
+    description: '',
+    ownerIds: [] as string[]
   })
 
   const getPropertyStatus = (propertyId: string): PropertyStatus => {
@@ -52,7 +55,7 @@ export default function PropertiesView() {
     if (editingProperty) {
       setProperties((current) => 
         (current || []).map(p => p.id === editingProperty.id 
-          ? { ...formData, id: p.id, createdAt: p.createdAt, status: getPropertyStatus(p.id) }
+          ? { ...formData, id: p.id, createdAt: p.createdAt, status: getPropertyStatus(p.id), ownerIds: formData.ownerIds }
           : p
         )
       )
@@ -62,7 +65,8 @@ export default function PropertiesView() {
         ...formData,
         id: Date.now().toString(),
         createdAt: new Date().toISOString(),
-        status: 'available'
+        status: 'available',
+        ownerIds: formData.ownerIds
       }
       setProperties((current) => [...(current || []), newProperty])
       toast.success(t.properties_view.form.created_success)
@@ -78,7 +82,8 @@ export default function PropertiesView() {
       capacity: 1,
       pricePerNight: 0,
       pricePerMonth: 0,
-      description: ''
+      description: '',
+      ownerIds: []
     })
     setEditingProperty(null)
     setIsDialogOpen(false)
@@ -92,9 +97,19 @@ export default function PropertiesView() {
       capacity: property.capacity,
       pricePerNight: property.pricePerNight,
       pricePerMonth: property.pricePerMonth,
-      description: property.description
+      description: property.description,
+      ownerIds: property.ownerIds || []
     })
     setIsDialogOpen(true)
+  }
+
+  const handleOwnerToggle = (ownerId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      ownerIds: prev.ownerIds.includes(ownerId)
+        ? prev.ownerIds.filter(id => id !== ownerId)
+        : [...prev.ownerIds, ownerId]
+    }))
   }
 
   const handleDeleteClick = (property: Property) => {
@@ -236,6 +251,34 @@ export default function PropertiesView() {
                   placeholder={t.properties_view.form.description_placeholder}
                   rows={3}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t.language === 'pt' ? 'Proprietários' : 'Owners'}</Label>
+                {(!owners || owners.length === 0) ? (
+                  <p className="text-sm text-muted-foreground">
+                    {t.language === 'pt' ? 'Nenhum proprietário cadastrado' : 'No owners registered'}
+                  </p>
+                ) : (
+                  <div className="border rounded-lg p-4 space-y-3 max-h-48 overflow-y-auto">
+                    {owners.map((owner) => (
+                      <div key={owner.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`owner-${owner.id}`}
+                          checked={formData.ownerIds.includes(owner.id)}
+                          onCheckedChange={() => handleOwnerToggle(owner.id)}
+                        />
+                        <label
+                          htmlFor={`owner-${owner.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {owner.name}
+                          <span className="text-xs text-muted-foreground ml-2">({owner.email})</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <DialogFooter>

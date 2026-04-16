@@ -1,12 +1,12 @@
 import { useKV } from '@github/spark/hooks'
-import { Transaction, Property, Task, ServiceProvider, Guest, Contract, Appointment } from '@/types'
+import { Transaction, Property, Task, ServiceProvider, Guest, Contract, Appointment, Owner } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar as CalendarComponent } from '@/components/ui/calendar'
-import { TrendUp, TrendDown, House, Calendar, CheckSquare, ArrowsClockwise, User, Files, Wrench, CalendarCheck, CalendarBlank } from '@phosphor-icons/react'
+import { TrendUp, TrendDown, House, Calendar, CheckSquare, ArrowsClockwise, User, Files, Wrench, CalendarCheck, CalendarBlank, Users } from '@phosphor-icons/react'
 import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, isBefore, isAfter, parseISO, subMonths, format, startOfDay, subDays, startOfYear, endOfYear, subYears, eachMonthOfInterval, eachDayOfInterval } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -26,6 +26,7 @@ export default function ReportsView() {
   const [guests] = useKV<Guest[]>('guests', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [appointments] = useKV<Appointment[]>('appointments', [])
+  const [owners] = useKV<Owner[]>('owners', [])
   
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('6m')
   const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined)
@@ -116,6 +117,8 @@ export default function ReportsView() {
       c.propertyIds.includes(property.id)
     )
     
+    const propertyOwners = (owners || []).filter(o => property.ownerIds?.includes(o.id))
+    
     const propertyRevenue = filteredTransactions
       .filter(t => {
         if (t.type !== 'income' || !t.contractId) return false
@@ -141,7 +144,8 @@ export default function ReportsView() {
       property,
       bookings: propertyContracts.length,
       revenue: propertyRevenue,
-      bookedDays: totalBookedDays
+      bookedDays: totalBookedDays,
+      owners: propertyOwners
     }
   }).sort((a, b) => b.revenue - a.revenue)
 
@@ -417,6 +421,21 @@ export default function ReportsView() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Users weight="duotone" size={16} />
+              {t.language === 'pt' ? 'Proprietários' : 'Owners'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{(owners || []).length}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {(properties || []).filter(p => p.ownerIds?.length > 0).length} {t.language === 'pt' ? 'propriedades com proprietário' : 'properties with owner'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Calendar weight="duotone" size={16} />
               {t.language === 'pt' ? 'Taxa de Ocupação' : 'Occupancy Rate'}
             </CardTitle>
@@ -450,26 +469,9 @@ export default function ReportsView() {
             </p>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <CheckSquare weight="duotone" size={16} />
-              {t.language === 'pt' ? 'Conclusão de Tarefas' : 'Task Completion'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">
-              {tasks && tasks.length > 0 ? ((completedTasks / tasks.length) * 100).toFixed(0) : 0}%
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {completedTasks} {t.language === 'pt' ? 'de' : 'of'} {(tasks || []).length} {t.language === 'pt' ? 'concluídas' : 'completed'}
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -801,6 +803,14 @@ export default function ReportsView() {
                       <h4 className="font-semibold">{stat.property.name}</h4>
                       <Badge variant="outline" className="capitalize">{stat.property.type}</Badge>
                     </div>
+                    {stat.owners.length > 0 && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Users size={12} className="text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {stat.owners.map(o => o.name).join(', ')}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                       <span>{stat.bookings} {t.language === 'pt' ? 'contratos' : 'contracts'}</span>
                       <span>•</span>

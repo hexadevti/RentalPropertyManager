@@ -1,6 +1,6 @@
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { House, Wallet, Calendar, CheckSquare, ChartBar, User, Gear, Files, Wrench, CalendarCheck, FileText } from '@phosphor-icons/react'
+import { House, Wallet, Calendar, CheckSquare, ChartBar, User, Gear, Files, Wrench, CalendarCheck, FileText, Users } from '@phosphor-icons/react'
 import PropertiesView from './components/views/PropertiesView'
 import FinancesView from './components/views/FinancesView'
 import CalendarView from './components/views/CalendarView'
@@ -11,6 +11,7 @@ import ContractsView from './components/views/ContractsView'
 import ContractTemplatesView from './components/views/ContractTemplatesView'
 import ServiceProvidersView from './components/views/ServiceProvidersView'
 import AppointmentsView from './components/views/AppointmentsView'
+import OwnersView from './components/views/OwnersView'
 import SettingsView from './components/views/SettingsView'
 import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
@@ -21,6 +22,7 @@ import { UserInfo } from '@/components/UserInfo'
 import { PendingApproval } from '@/components/PendingApproval'
 import { Rejected } from '@/components/Rejected'
 import { useKVCleanup } from '@/hooks/use-kv-cleanup'
+import { usePropertyMigration } from '@/hooks/use-property-migration'
 
 function AppContent() {
   const { t } = useLanguage()
@@ -30,6 +32,7 @@ function AppContent() {
   const [transactions] = useKV<Transaction[]>('transactions', [])
   
   useKVCleanup()
+  usePropertyMigration()
   
   const calculateBalance = () => {
     return (transactions || []).reduce((acc, t) => {
@@ -96,11 +99,17 @@ function AppContent() {
 
       <main className="container mx-auto px-6 py-6">
         <Tabs defaultValue={isGuest ? "calendar" : "properties"} className="w-full">
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-11' : 'grid-cols-4'} h-auto p-1 bg-card border border-border`}>
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-12' : 'grid-cols-4'} h-auto p-1 bg-card border border-border`}>
             {isAdmin && (
               <TabsTrigger value="properties" className="flex items-center gap-2 py-3">
                 <House weight="duotone" size={20} />
                 <span className="hidden sm:inline">{t.tabs.properties}</span>
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="owners" className="flex items-center gap-2 py-3">
+                <Users weight="duotone" size={20} />
+                <span className="hidden sm:inline">Proprietários</span>
               </TabsTrigger>
             )}
             {isAdmin && (
@@ -161,6 +170,11 @@ function AppContent() {
             {isAdmin && (
               <TabsContent value="properties" className="mt-0">
                 <PropertiesView />
+              </TabsContent>
+            )}
+            {isAdmin && (
+              <TabsContent value="owners" className="mt-0">
+                <OwnersView />
               </TabsContent>
             )}
             {isAdmin && (

@@ -7,6 +7,17 @@ export type TaskStatus = 'pending' | 'in-progress' | 'completed'
 export type RentalType = 'short-term' | 'monthly'
 export type ContractStatus = 'active' | 'expired' | 'cancelled'
 
+export interface Owner {
+  id: string
+  name: string
+  email: string
+  phone: string
+  document: string
+  address?: string
+  notes?: string
+  createdAt: string
+}
+
 export interface Property {
   id: string
   name: string
@@ -16,6 +27,7 @@ export interface Property {
   pricePerMonth: number
   status: PropertyStatus
   description: string
+  ownerIds: string[]
   createdAt: string
 }
 
