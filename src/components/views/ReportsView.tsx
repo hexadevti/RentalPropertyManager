@@ -969,43 +969,6 @@ export default function ReportsView() {
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.language === 'pt' ? 'Próximas Reservas' : 'Upcoming Bookings'}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {upcomingBookings.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              {t.language === 'pt' ? 'Nenhuma reserva futura' : 'No upcoming bookings'}
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {upcomingBookings.slice(0, 5).map(booking => {
-                const property = (properties || []).find(p => p.id === booking.propertyId)
-                const daysUntil = differenceInDays(new Date(booking.checkIn), now)
-                return (
-                  <div key={booking.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <p className="font-semibold">{booking.guestName}</p>
-                      <p className="text-sm text-muted-foreground">{property?.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {t.language === 'pt' ? `Check-in em ${daysUntil} dias` : `Check-in in ${daysUntil} days`}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-primary">{formatCurrency(booking.totalAmount)}</p>
-                      {booking.platform && (
-                        <Badge variant="outline" className="mt-1 text-xs">{booking.platform}</Badge>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }
