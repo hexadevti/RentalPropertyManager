@@ -27,9 +27,14 @@ export default function ContractDialogForm({
 }: ContractDialogFormProps) {
   const { t } = useLanguage()
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
-  const [guests] = useKV<Guest[]>('guests', [])
+  const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [guestDialogOpen, setGuestDialogOpen] = useState(false)
+  const [localGuests, setLocalGuests] = useState<Guest[]>([])
+
+  useEffect(() => {
+    setLocalGuests(guests || [])
+  }, [guests])
   
   const [formData, setFormData] = useState({
     guestId: '',
@@ -131,10 +136,12 @@ export default function ContractDialogForm({
   }
 
   const handleGuestCreated = (guestId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      guestId: guestId
-    }))
+    setTimeout(() => {
+      setFormData(prev => ({
+        ...prev,
+        guestId: guestId
+      }))
+    }, 100)
   }
 
   return (
@@ -171,7 +178,7 @@ export default function ContractDialogForm({
                   <SelectValue placeholder={t.contracts_view.form.select_guest} />
                 </SelectTrigger>
                 <SelectContent>
-                  {(guests || []).map((guest) => (
+                  {localGuests.map((guest) => (
                     <SelectItem key={guest.id} value={guest.id}>
                       {guest.name}
                     </SelectItem>
