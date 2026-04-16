@@ -1,6 +1,6 @@
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { House, Wallet, Calendar, CheckSquare, FileText, ChartBar, User, Gear, Files, Wrench } from '@phosphor-icons/react'
+import { House, Wallet, Calendar, CheckSquare, FileText, ChartBar, User, Gear, Files, Wrench, CalendarCheck } from '@phosphor-icons/react'
 import PropertiesView from './components/views/PropertiesView'
 import FinancesView from './components/views/FinancesView'
 import CalendarView from './components/views/CalendarView'
@@ -10,6 +10,7 @@ import ReportsView from './components/views/ReportsView'
 import GuestsView from './components/views/GuestsView'
 import ContractsView from './components/views/ContractsView'
 import ServiceProvidersView from './components/views/ServiceProvidersView'
+import AppointmentsView from './components/views/AppointmentsView'
 import SettingsView from './components/views/SettingsView'
 import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
@@ -58,7 +59,7 @@ function AppContent() {
 
       <main className="container mx-auto px-6 py-6">
         <Tabs defaultValue="properties" className="w-full">
-          <TabsList className="grid w-full grid-cols-10 h-auto p-1 bg-card border border-border">
+          <TabsList className="grid w-full grid-cols-11 h-auto p-1 bg-card border border-border">
             <TabsTrigger value="properties" className="flex items-center gap-2 py-3">
               <House weight="duotone" size={20} />
               <span className="hidden sm:inline">{t.tabs.properties}</span>
@@ -95,6 +96,10 @@ function AppContent() {
               <Wrench weight="duotone" size={20} />
               <span className="hidden sm:inline">Prestadores</span>
             </TabsTrigger>
+            <TabsTrigger value="appointments" className="flex items-center gap-2 py-3">
+              <CalendarCheck weight="duotone" size={20} />
+              <span className="hidden sm:inline">{t.tabs.appointments}</span>
+            </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center gap-2 py-3">
               <Gear weight="duotone" size={20} />
               <span className="hidden sm:inline">{t.tabs.settings}</span>
@@ -128,6 +133,9 @@ function AppContent() {
             </TabsContent>
             <TabsContent value="providers" className="mt-0">
               <ServiceProvidersView />
+            </TabsContent>
+            <TabsContent value="appointments" className="mt-0">
+              <AppointmentsView />
             </TabsContent>
             <TabsContent value="settings" className="mt-0">
               <SettingsView />

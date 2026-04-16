@@ -100,3 +100,20 @@ export interface Contract {
   notes?: string
   createdAt: string
 }
+
+export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled'
+
+export interface Appointment {
+  id: string
+  title: string
+  description?: string
+  date: string
+  time: string
+  status: AppointmentStatus
+  serviceProviderId?: string
+  contractId?: string
+  guestId?: string
+  propertyId?: string
+  notes?: string
+  createdAt: string
+}
