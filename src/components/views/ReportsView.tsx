@@ -108,6 +108,8 @@ export default function ReportsView() {
 
   const upcomingBookings = (bookings || []).filter(b => new Date(b.checkIn) > now)
 
+  const activeContracts = (contracts || []).filter(c => c.status === 'active')
+
   const occupiedPropertiesFromContracts = new Set(
     activeContracts.flatMap(contract => contract.propertyIds)
   )
@@ -146,8 +148,6 @@ export default function ReportsView() {
   const topExpenseCategories = Object.entries(expensesByCategory)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5)
-
-  const activeContracts = (contracts || []).filter(c => c.status === 'active')
   const expiredContracts = (contracts || []).filter(c => c.status === 'expired')
   
   const expiringContracts = activeContracts.filter(c => {
