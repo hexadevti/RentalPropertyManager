@@ -1,11 +1,10 @@
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { House, Wallet, Calendar, CheckSquare, FileText, ChartBar, User, Gear, Files, Wrench, CalendarCheck } from '@phosphor-icons/react'
+import { House, Wallet, Calendar, CheckSquare, ChartBar, User, Gear, Files, Wrench, CalendarCheck } from '@phosphor-icons/react'
 import PropertiesView from './components/views/PropertiesView'
 import FinancesView from './components/views/FinancesView'
 import CalendarView from './components/views/CalendarView'
 import TasksView from './components/views/TasksView'
-import DocumentsView from './components/views/DocumentsView'
 import ReportsView from './components/views/ReportsView'
 import GuestsView from './components/views/GuestsView'
 import ContractsView from './components/views/ContractsView'
@@ -59,7 +58,7 @@ function AppContent() {
 
       <main className="container mx-auto px-6 py-6">
         <Tabs defaultValue="properties" className="w-full">
-          <TabsList className="grid w-full grid-cols-11 h-auto p-1 bg-card border border-border">
+          <TabsList className="grid w-full grid-cols-10 h-auto p-1 bg-card border border-border">
             <TabsTrigger value="properties" className="flex items-center gap-2 py-3">
               <House weight="duotone" size={20} />
               <span className="hidden sm:inline">{t.tabs.properties}</span>
@@ -75,10 +74,6 @@ function AppContent() {
             <TabsTrigger value="tasks" className="flex items-center gap-2 py-3">
               <CheckSquare weight="duotone" size={20} />
               <span className="hidden sm:inline">{t.tabs.tasks}</span>
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="flex items-center gap-2 py-3">
-              <FileText weight="duotone" size={20} />
-              <span className="hidden sm:inline">{t.tabs.documents}</span>
             </TabsTrigger>
             <TabsTrigger value="reports" className="flex items-center gap-2 py-3">
               <ChartBar weight="duotone" size={20} />
@@ -118,9 +113,6 @@ function AppContent() {
             </TabsContent>
             <TabsContent value="tasks" className="mt-0">
               <TasksView />
-            </TabsContent>
-            <TabsContent value="documents" className="mt-0">
-              <DocumentsView />
             </TabsContent>
             <TabsContent value="reports" className="mt-0">
               <ReportsView />
