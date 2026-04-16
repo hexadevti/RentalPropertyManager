@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Contract, Guest, Property, ContractStatus, RentalType } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -139,6 +139,12 @@ export default function ContractsView() {
     }, 100)
   }
 
+  const refreshGuestList = async () => {
+    const currentGuests = guests || []
+    setLocalGuests([...currentGuests])
+    toast.success(t.contracts_view.form.guests_refreshed)
+  }
+
   const getGuestName = (guestId: string) => {
     const guest = (guests || []).find(g => g.id === guestId)
     return guest ? guest.name : 'Unknown'
@@ -195,16 +201,28 @@ export default function ContractsView() {
                 <div className="col-span-2">
                   <div className="flex items-center justify-between mb-2">
                     <Label htmlFor="contract-guest">{t.contracts_view.form.guest}</Label>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
-                      className="gap-1.5 h-7 text-xs"
-                      onClick={() => setGuestDialogOpen(true)}
-                    >
-                      <Plus size={14} weight="bold" />
-                      {t.contracts_view.form.new_guest}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        className="gap-1.5 h-7 text-xs"
+                        onClick={refreshGuestList}
+                      >
+                        <ArrowsClockwise size={14} weight="bold" />
+                        {t.contracts_view.form.refresh_guests}
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-1.5 h-7 text-xs"
+                        onClick={() => setGuestDialogOpen(true)}
+                      >
+                        <Plus size={14} weight="bold" />
+                        {t.contracts_view.form.new_guest}
+                      </Button>
+                    </div>
                   </div>
                   <Select
                     value={formData.guestId}

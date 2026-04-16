@@ -369,6 +369,8 @@ export const translations = {
         save: 'Salvar',
         created_success: 'Contrato criado com sucesso',
         updated_success: 'Contrato atualizado com sucesso',
+        guests_refreshed: 'Lista de hóspedes atualizada',
+        refresh_guests: 'Atualizar Lista',
       },
     },
     
@@ -760,6 +762,8 @@ export const translations = {
         save: 'Save',
         created_success: 'Contract created successfully',
         updated_success: 'Contract updated successfully',
+        guests_refreshed: 'Guest list updated',
+        refresh_guests: 'Refresh List',
       },
     },
     
