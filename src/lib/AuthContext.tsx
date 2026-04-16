@@ -15,25 +15,37 @@ interface UserProfile {
 }
 
 interface AuthContextType {
-    login: strin
-    avatarUrl: st
-    isOwner: bool
-  userProfile: UserPr
-  hasRole: (ro
+  currentUser: any | null
+  userProfile: UserProfile | null
+  isLoading: boolean
+  hasRole: (role: UserRole) => boolean
+  isAdmin: boolean
   isGuest: boolean
-  isPendin
-  updateUserRole: (githubLogin: s
-  createUser: (githu
-  getAllProfiles: () => UserProfile[]
-
-
-  const [currentUser,
-  const [isLoading, 
+  isApproved: boolean
+  isPending: boolean
   isRejected: boolean
+  updateUserRole: (githubLogin: string, role: UserRole) => void
+  updateUserStatus: (githubLogin: string, status: UserStatus) => void
+  createUser: (githubLogin: string, role: UserRole) => void
+  deleteUser: (githubLogin: string) => void
+  getAllProfiles: () => UserProfile[]
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [profiles, setProfiles] = useKV<UserProfile[]>('user-profiles', [])
+  const [currentUser, setCurrentUser] = useState<any | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
   useEffect(() => {
+    const loadUser = async () => {
       try {
+        const user = await spark.user()
         setCurrentUser(user)
-        const existingProfile = (profiles || []).fin
+        const existingProfile = (profiles || []).find(
+          (p) => p.githubLogin === user.login
         )
         if (existingProfile) {
           setUserProfile(existingProfile)
@@ -45,41 +57,20 @@ interface AuthContextType {
             email: user.email,
             avatarUrl: user.avatarUrl,
             createdAt: new Date().toISOString(),
-            updated
-          
-          s
+            updatedAt: new Date().toISOString(),
+          }
+          setProfiles((current) => [...(current || []), newProfile])
+          setUserProfile(newProfile)
+        }
       } catch (error) {
+        console.error('Failed to load user:', error)
       } finally {
+        setIsLoading(false)
+      }
+    }
 
-
+    loadUser()
   }, [])
-  useEffe
-
-      )
-        setUserProfile(updatedProfile)
-    }
-
-    setProfiles((current) =>
-        p.githubLogin === githubLogin
-          : p
-    )
-    if (userProfile?.githubLogin === g
-        prev ? { ...prev, role, updatedAt: new D
-    }
-
-    setPro
-        p.githubLogin === githubLogin
-          : p
-    )
-    if (userProfile?.gi
-        prev ? { ...prev, status, updatedAt: new Da
-    }
-
-    con
-     
-
-      createdA
-    }
 
   useEffect(() => {
     if (currentUser) {
@@ -90,7 +81,58 @@ interface AuthContextType {
         setUserProfile(updatedProfile)
       }
     }
-  }, [profiles, currentUser])> {
+  }, [profiles, currentUser])
+
+  const updateUserRole = (githubLogin: string, role: UserRole) => {
+    setProfiles((current) =>
+      (current || []).map((p) =>
+        p.githubLogin === githubLogin
+          ? { ...p, role, updatedAt: new Date().toISOString() }
+          : p
+      )
+    )
+    if (userProfile?.githubLogin === githubLogin) {
+      setUserProfile((prev) =>
+        prev ? { ...prev, role, updatedAt: new Date().toISOString() } : null
+      )
+    }
+  }
+
+  const updateUserStatus = (githubLogin: string, status: UserStatus) => {
+    setProfiles((current) =>
+      (current || []).map((p) =>
+        p.githubLogin === githubLogin
+          ? { ...p, status, updatedAt: new Date().toISOString() }
+          : p
+      )
+    )
+    if (userProfile?.githubLogin === githubLogin) {
+      setUserProfile((prev) =>
+        prev ? { ...prev, status, updatedAt: new Date().toISOString() } : null
+      )
+    }
+  }
+
+  const createUser = (githubLogin: string, role: UserRole) => {
+    const newProfile: UserProfile = {
+      githubLogin,
+      role,
+      status: 'pending',
+      email: '',
+      avatarUrl: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    setProfiles((current) => [...(current || []), newProfile])
+  }
+
+  const deleteUser = (githubLogin: string) => {
+    setProfiles((current) =>
+      (current || []).filter((p) => p.githubLogin !== githubLogin)
+    )
+  }
+
+  const getAllProfiles = () => {
     return profiles || []
   }
 
