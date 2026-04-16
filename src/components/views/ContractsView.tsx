@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,17 +14,24 @@ import { Contract, Guest, Property, ContractStatus, RentalType } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { format } from 'date-fns'
+import GuestDialogForm from '../GuestDialogForm'
 
 export default function ContractsView() {
   const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
-  const [guests] = useKV<Guest[]>('guests', [])
+  const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false)
+  const [localGuests, setLocalGuests] = useState<Guest[]>([])
+
+  useEffect(() => {
+    setLocalGuests(guests || [])
+  }, [guests])
   
   const [formData, setFormData] = useState({
     guestId: '',
@@ -123,6 +130,15 @@ export default function ContractsView() {
     }))
   }
 
+  const handleGuestCreated = (guestId: string) => {
+    setTimeout(() => {
+      setFormData(prev => ({
+        ...prev,
+        guestId: guestId
+      }))
+    }, 100)
+  }
+
   const getGuestName = (guestId: string) => {
     const guest = (guests || []).find(g => g.id === guestId)
     return guest ? guest.name : 'Unknown'
@@ -177,7 +193,19 @@ export default function ContractsView() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <Label htmlFor="contract-guest">{t.contracts_view.form.guest}</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label htmlFor="contract-guest">{t.contracts_view.form.guest}</Label>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      className="gap-1.5 h-7 text-xs"
+                      onClick={() => setGuestDialogOpen(true)}
+                    >
+                      <Plus size={14} weight="bold" />
+                      {t.contracts_view.form.new_guest}
+                    </Button>
+                  </div>
                   <Select
                     value={formData.guestId}
                     onValueChange={(value) => setFormData({ ...formData, guestId: value })}
@@ -187,7 +215,7 @@ export default function ContractsView() {
                       <SelectValue placeholder={t.contracts_view.form.select_guest} />
                     </SelectTrigger>
                     <SelectContent>
-                      {(guests || []).map((guest) => (
+                      {localGuests.map((guest) => (
                         <SelectItem key={guest.id} value={guest.id}>
                           {guest.name}
                         </SelectItem>
@@ -427,6 +455,12 @@ export default function ContractsView() {
           ))}
         </div>
       )}
+      
+      <GuestDialogForm
+        open={guestDialogOpen}
+        onOpenChange={setGuestDialogOpen}
+        onGuestCreated={handleGuestCreated}
+      />
     </div>
   )
 }
