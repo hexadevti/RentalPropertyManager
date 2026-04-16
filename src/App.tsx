@@ -11,9 +11,11 @@ import SettingsView from './components/views/SettingsView'
 import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
+import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
 
 function AppContent() {
   const { t } = useLanguage()
+  const { formatCurrency } = useCurrency()
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
   
@@ -38,7 +40,7 @@ function AppContent() {
               <div className="text-right">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.balance}</p>
                 <p className={`text-2xl font-bold ${calculateBalance() >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  ${calculateBalance().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatCurrency(calculateBalance())}
                 </p>
               </div>
               <div className="h-12 w-px bg-border" />
@@ -116,7 +118,9 @@ function AppContent() {
 function App() {
   return (
     <LanguageProvider>
-      <AppContent />
+      <CurrencyProvider>
+        <AppContent />
+      </CurrencyProvider>
     </LanguageProvider>
   )
 }

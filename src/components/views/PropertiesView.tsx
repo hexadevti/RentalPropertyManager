@@ -13,9 +13,11 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, House, Bed, Buildings, Pencil, Trash } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
+import { useCurrency } from '@/lib/CurrencyContext'
 
 export default function PropertiesView() {
   const { t } = useLanguage()
+  const { formatCurrency } = useCurrency()
   const [properties, setProperties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | null>(null)
@@ -276,11 +278,11 @@ export default function PropertiesView() {
                 <div className="space-y-1 pt-2 border-t">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{t.properties_view.per_night}:</span>
-                    <span className="font-semibold text-primary">${property.pricePerNight}</span>
+                    <span className="font-semibold text-primary">{formatCurrency(property.pricePerNight)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{t.properties_view.per_month}:</span>
-                    <span className="font-semibold text-primary">${property.pricePerMonth}</span>
+                    <span className="font-semibold text-primary">{formatCurrency(property.pricePerMonth)}</span>
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">

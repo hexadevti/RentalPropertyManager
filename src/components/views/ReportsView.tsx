@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TrendUp, TrendDown, House, Calendar, CheckSquare, Percent } from '@phosphor-icons/react'
 import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays } from 'date-fns'
+import { useCurrency } from '@/lib/CurrencyContext'
 
 export default function ReportsView() {
+  const { formatCurrency } = useCurrency()
   const [transactions] = useKV<Transaction[]>('transactions', [])
   const [bookings] = useKV<Booking[]>('bookings', [])
   const [properties] = useKV<Property[]>('properties', [])
@@ -128,10 +130,10 @@ export default function ReportsView() {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-success">
-              ${totalIncome.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              {formatCurrency(totalIncome)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              ${monthlyIncome.toFixed(0)} this month
+              {formatCurrency(monthlyIncome)} this month
             </p>
           </CardContent>
         </Card>
@@ -168,7 +170,7 @@ export default function ReportsView() {
                 <div>
                   <p className="text-sm text-muted-foreground">Income</p>
                   <p className="text-xl font-bold text-success">
-                    ${monthlyIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(monthlyIncome)}
                   </p>
                 </div>
               </div>
@@ -181,7 +183,7 @@ export default function ReportsView() {
                 <div>
                   <p className="text-sm text-muted-foreground">Expenses</p>
                   <p className="text-xl font-bold text-destructive">
-                    ${monthlyExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(monthlyExpenses)}
                   </p>
                 </div>
               </div>
@@ -190,7 +192,7 @@ export default function ReportsView() {
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground mb-1">Net Profit</p>
                 <p className={`text-2xl font-bold ${(monthlyIncome - monthlyExpenses) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  ${(monthlyIncome - monthlyExpenses).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatCurrency(monthlyIncome - monthlyExpenses)}
                 </p>
               </div>
             </div>

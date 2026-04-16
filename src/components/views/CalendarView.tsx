@@ -11,8 +11,10 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Calendar as CalendarIcon } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, isWithinInterval } from 'date-fns'
+import { useCurrency } from '@/lib/CurrencyContext'
 
 export default function CalendarView() {
+  const { formatCurrency } = useCurrency()
   const [bookings, setBookings] = useKV<Booking[]>('bookings', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)

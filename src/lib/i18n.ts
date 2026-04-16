@@ -288,6 +288,10 @@ export const translations = {
         pt: 'Português',
         en: 'English',
       },
+      currency_section: 'Moeda',
+      currency_description: 'Defina a moeda padrão do sistema',
+      currency_label: 'Moeda Corrente',
+      currency_updated: 'Moeda atualizada com sucesso',
     },
   },
   
@@ -580,6 +584,10 @@ export const translations = {
         pt: 'Português',
         en: 'English',
       },
+      currency_section: 'Currency',
+      currency_description: 'Set the default system currency',
+      currency_label: 'Current Currency',
+      currency_updated: 'Currency updated successfully',
     },
   },
 } as const

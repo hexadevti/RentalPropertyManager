@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns'
 import { ptBR, enUS } from 'date-fns/locale'
 import { useLanguage } from '@/lib/LanguageContext'
+import { useCurrency } from '@/lib/CurrencyContext'
 
 interface MonthlyData {
   month: string
@@ -27,6 +28,7 @@ interface MonthlyData {
 
 export default function FinancesView() {
   const { t, language } = useLanguage()
+  const { formatCurrency, config } = useCurrency()
   const [transactions, setTransactions] = useKV<Transaction[]>('transactions', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -150,7 +152,7 @@ export default function FinancesView() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="amount">{t.finances_view.form.amount} ($)</Label>
+                  <Label htmlFor="amount">{t.finances_view.form.amount} ({config.symbol})</Label>
                   <Input
                     id="amount"
                     type="number"
@@ -244,7 +246,7 @@ export default function FinancesView() {
             <div className="flex items-center gap-2">
               <TrendUp weight="duotone" size={20} className="text-success" />
               <span className="text-2xl font-bold text-success">
-                ${totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(totalIncome)}
               </span>
             </div>
           </CardContent>
@@ -257,7 +259,7 @@ export default function FinancesView() {
             <div className="flex items-center gap-2">
               <TrendDown weight="duotone" size={20} className="text-destructive" />
               <span className="text-2xl font-bold text-destructive">
-                ${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(totalExpenses)}
               </span>
             </div>
           </CardContent>
@@ -268,7 +270,7 @@ export default function FinancesView() {
           </CardHeader>
           <CardContent>
             <span className={`text-2xl font-bold ${balance >= 0 ? 'text-success' : 'text-destructive'}`}>
-              ${balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(balance)}
             </span>
           </CardContent>
         </Card>
@@ -310,19 +312,19 @@ export default function FinancesView() {
                         <div className="text-right">
                           <p className="text-xs text-muted-foreground">{t.finances_view.income}</p>
                           <p className="text-sm font-semibold text-success">
-                            ${monthData.income.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatCurrency(monthData.income)}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="text-xs text-muted-foreground">{t.finances_view.expense}</p>
                           <p className="text-sm font-semibold text-destructive">
-                            ${monthData.expenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatCurrency(monthData.expenses)}
                           </p>
                         </div>
                         <div className="text-right min-w-[100px]">
                           <p className="text-xs text-muted-foreground">{t.finances_view.net_balance}</p>
                           <p className={`text-base font-bold ${monthData.balance >= 0 ? 'text-success' : 'text-destructive'}`}>
-                            ${monthData.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatCurrency(monthData.balance)}
                           </p>
                         </div>
                       </div>
@@ -358,7 +360,7 @@ export default function FinancesView() {
                               </div>
                               <div className="flex items-center gap-3">
                                 <span className={`text-base font-bold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'}`}>
-                                  {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount).replace(/^[^\d-]+/, '')}
                                 </span>
                                 <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(transaction.id)}>
                                   <Trash size={16} />
