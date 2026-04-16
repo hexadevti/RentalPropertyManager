@@ -4,7 +4,7 @@ import { Contract, Property, Guest, Appointment, ServiceProvider, Task } from '@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Calendar as CalendarIcon, ArrowsClockwise, CalendarCheck, CheckSquare, CurrencyCircleDollar, FileText } from '@phosphor-icons/react'
+import { Plus, Calendar as CalendarIcon, ArrowsClockwise, CalendarCheck, CheckSquare, CurrencyCircleDollar, FileText, X, Wrench, User } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, isWithinInterval, addMonths, subMonths, parseISO, startOfWeek, endOfWeek, isBefore, isAfter } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -12,6 +12,8 @@ import { useCurrency } from '@/lib/CurrencyContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import ContractDialogForm from '../ContractDialogForm'
 import AppointmentDialogForm from '../AppointmentDialogForm'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface CalendarEvent {
   id: string
@@ -36,6 +38,8 @@ export default function CalendarView() {
   const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [appointmentDetailOpen, setAppointmentDetailOpen] = useState(false)
 
   const previousMonth = subMonths(currentDate, 1)
   const nextMonth = addMonths(currentDate, 1)
@@ -72,12 +76,13 @@ export default function CalendarView() {
       const appointmentDate = parseISO(appointment.date)
       if (isSameDay(appointmentDate, day)) {
         const property = (properties || []).find(p => p.id === appointment.propertyId)
+        const isCompleted = appointment.status === 'completed'
         events.push({
           id: `apt-${appointment.id}`,
           date: appointmentDate,
           title: appointment.title,
           type: 'appointment',
-          color: 'bg-primary',
+          color: isCompleted ? 'bg-success/40' : 'bg-primary',
           description: appointment.description,
           property: property?.name
         })
@@ -262,6 +267,10 @@ export default function CalendarView() {
               <span className="text-xs text-muted-foreground">Compromisso</span>
             </div>
             <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-success/40" />
+              <span className="text-xs text-muted-foreground">Compromisso concluído</span>
+            </div>
+            <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-destructive" />
               <span className="text-xs text-muted-foreground">Tarefa urgente</span>
             </div>
@@ -353,15 +362,53 @@ export default function CalendarView() {
                   </div>
                   
                   <div className="space-y-1">
-                    {dayEvents.slice(0, 3).map((event) => (
-                      <div
-                        key={event.id}
-                        className={`text-[10px] px-1.5 py-0.5 rounded ${event.color} text-white truncate`}
-                        title={event.title}
-                      >
-                        {event.title}
-                      </div>
-                    ))}
+                    {dayEvents.slice(0, 3).map((event) => {
+                      if (event.type === 'appointment') {
+                        const appointment = (appointments || []).find(a => `apt-${a.id}` === event.id)
+                        if (!appointment) return null
+                        
+                        const statusLabel = appointment.status === 'completed' ? 'Concluído' : 
+                                          appointment.status === 'cancelled' ? 'Cancelado' : 'Agendado'
+                        
+                        return (
+                          <TooltipProvider key={event.id}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedAppointment(appointment)
+                                    setAppointmentDetailOpen(true)
+                                  }}
+                                  className={`w-full text-[10px] px-1.5 py-0.5 rounded ${event.color} text-white truncate text-left hover:opacity-80 transition-opacity`}
+                                >
+                                  {event.title}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-semibold">{event.title}</p>
+                                  <p className="text-xs text-muted-foreground">Status: {statusLabel}</p>
+                                  {event.description && (
+                                    <p className="text-xs">{event.description}</p>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )
+                      }
+                      
+                      return (
+                        <div
+                          key={event.id}
+                          className={`text-[10px] px-1.5 py-0.5 rounded ${event.color} text-white truncate`}
+                          title={event.title}
+                        >
+                          {event.title}
+                        </div>
+                      )
+                    })}
                     {dayEvents.length > 3 && (
                       <div className="text-[10px] text-muted-foreground px-1.5">
                         +{dayEvents.length - 3} mais
@@ -560,6 +607,131 @@ export default function CalendarView() {
           toast.success('Compromisso criado com sucesso!')
         }}
       />
+
+      <Dialog open={appointmentDetailOpen} onOpenChange={setAppointmentDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarCheck weight="duotone" size={24} />
+              Detalhes do Compromisso
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedAppointment && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xl font-semibold">{selectedAppointment.title}</h3>
+                {selectedAppointment.description && (
+                  <p className="text-muted-foreground mt-1">{selectedAppointment.description}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Data</p>
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon weight="duotone" size={16} />
+                    <p>{format(parseISO(selectedAppointment.date), "dd/MM/yyyy")}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Horário</p>
+                  <p className="text-lg font-semibold">{selectedAppointment.time}</p>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Status</p>
+                <Badge className={
+                  selectedAppointment.status === 'completed' ? 'bg-success/20 text-success-foreground border-success/30' :
+                  selectedAppointment.status === 'cancelled' ? 'bg-destructive/20 text-destructive border-destructive/30' :
+                  'bg-primary/20 text-primary border-primary/30'
+                }>
+                  {selectedAppointment.status === 'completed' ? 'Concluído' :
+                   selectedAppointment.status === 'cancelled' ? 'Cancelado' : 'Agendado'}
+                </Badge>
+              </div>
+
+              {selectedAppointment.propertyId && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Propriedade</p>
+                  <p>{properties?.find(p => p.id === selectedAppointment.propertyId)?.name || 'N/A'}</p>
+                </div>
+              )}
+
+              {selectedAppointment.serviceProviderId && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Prestador de Serviço</p>
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded bg-accent/20">
+                      <Wrench weight="duotone" size={16} />
+                    </div>
+                    <p>{serviceProviders?.find(p => p.id === selectedAppointment.serviceProviderId)?.name || 'N/A'}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedAppointment.contractId && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Contrato</p>
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded bg-primary/20">
+                      <FileText weight="duotone" size={16} />
+                    </div>
+                    <p>
+                      {(() => {
+                        const contract = contracts?.find(c => c.id === selectedAppointment.contractId)
+                        const guest = guests?.find(g => g.id === contract?.guestId)
+                        return guest?.name || 'N/A'
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {selectedAppointment.guestId && !selectedAppointment.contractId && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Hóspede</p>
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded bg-secondary/20">
+                      <User weight="duotone" size={16} />
+                    </div>
+                    <p>{guests?.find(g => g.id === selectedAppointment.guestId)?.name || 'N/A'}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedAppointment.notes && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Observações</p>
+                  <p className="text-sm bg-muted p-3 rounded">{selectedAppointment.notes}</p>
+                </div>
+              )}
+
+              {selectedAppointment.status === 'completed' && selectedAppointment.completionNotes && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Observações de Conclusão</p>
+                  <p className="text-sm bg-success/10 p-3 rounded border border-success/20">{selectedAppointment.completionNotes}</p>
+                </div>
+              )}
+
+              {selectedAppointment.completedAt && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">Concluído em</p>
+                  <p className="text-sm">{format(parseISO(selectedAppointment.completedAt), "dd/MM/yyyy 'às' HH:mm")}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setAppointmentDetailOpen(false)}>
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
