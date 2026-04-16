@@ -137,40 +137,42 @@ export default function CalendarView() {
               <CardHeader>
                 <CardTitle className="text-lg">{property.name}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-8">
-                {months.map((month, monthIndex) => (
-                  <div key={month.date.toISOString()}>
-                    <h3 className={`text-base font-semibold mb-3 ${monthIndex === 1 ? 'text-primary' : 'text-muted-foreground'}`}>
-                      {format(month.date, 'MMMM yyyy')}
-                    </h3>
-                    <div className="grid grid-cols-7 gap-2">
-                      {month.days.map((day) => {
-                        const dayContracts = getContractsForDay(day, property.id)
-                        const hasContract = dayContracts.length > 0
-                        const isToday = isSameDay(day, new Date())
-                        
-                        return (
-                          <div
-                            key={day.toISOString()}
-                            className={`
-                              p-3 rounded-lg border text-center transition-colors
-                              ${isToday ? 'border-primary border-2' : 'border-border'}
-                              ${hasContract ? 'bg-accent/20' : 'bg-card'}
-                            `}
-                          >
-                            <div className="text-xs text-muted-foreground">{format(day, 'EEE')}</div>
-                            <div className="text-sm font-semibold mt-1">{format(day, 'd')}</div>
-                            {hasContract && (
-                              <div className="mt-2">
-                                <Badge className="text-xs px-1 py-0">Ocupado</Badge>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {months.map((month, monthIndex) => (
+                    <div key={month.date.toISOString()}>
+                      <h3 className={`text-sm font-semibold mb-3 text-center ${monthIndex === 1 ? 'text-primary' : 'text-muted-foreground'}`}>
+                        {format(month.date, 'MMMM yyyy')}
+                      </h3>
+                      <div className="grid grid-cols-7 gap-1">
+                        {month.days.map((day) => {
+                          const dayContracts = getContractsForDay(day, property.id)
+                          const hasContract = dayContracts.length > 0
+                          const isToday = isSameDay(day, new Date())
+                          
+                          return (
+                            <div
+                              key={day.toISOString()}
+                              className={`
+                                p-1.5 rounded border text-center transition-colors
+                                ${isToday ? 'border-primary border-2' : 'border-border'}
+                                ${hasContract ? 'bg-accent/20' : 'bg-card'}
+                              `}
+                            >
+                              <div className="text-[10px] text-muted-foreground leading-tight">{format(day, 'EEE')}</div>
+                              <div className="text-xs font-semibold">{format(day, 'd')}</div>
+                              {hasContract && (
+                                <div className="mt-0.5">
+                                  <div className="w-1 h-1 rounded-full bg-accent mx-auto" />
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </CardContent>
             </Card>
           ))}
