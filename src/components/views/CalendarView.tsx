@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Calendar as CalendarIcon, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { format, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, isWithinInterval } from 'date-fns'
+import { format, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, isWithinInterval, addMonths, subMonths } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import ContractDialogForm from '../ContractDialogForm'
@@ -20,9 +20,32 @@ export default function CalendarView() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
 
-  const monthStart = startOfMonth(currentDate)
-  const monthEnd = endOfMonth(currentDate)
-  const days = eachDayOfInterval({ start: monthStart, end: monthEnd })
+  const previousMonth = subMonths(currentDate, 1)
+  const nextMonth = addMonths(currentDate, 1)
+
+  const months = [
+    {
+      date: previousMonth,
+      days: eachDayOfInterval({ 
+        start: startOfMonth(previousMonth), 
+        end: endOfMonth(previousMonth) 
+      })
+    },
+    {
+      date: currentDate,
+      days: eachDayOfInterval({ 
+        start: startOfMonth(currentDate), 
+        end: endOfMonth(currentDate) 
+      })
+    },
+    {
+      date: nextMonth,
+      days: eachDayOfInterval({ 
+        start: startOfMonth(nextMonth), 
+        end: endOfMonth(nextMonth) 
+      })
+    }
+  ]
 
   const getContractsForDay = (day: Date, propertyId: string) => {
     return (contracts || []).filter(contract => 
@@ -108,39 +131,46 @@ export default function CalendarView() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {(properties || []).map((property) => (
             <Card key={property.id}>
               <CardHeader>
                 <CardTitle className="text-lg">{property.name}</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-7 gap-2">
-                  {days.map((day) => {
-                    const dayContracts = getContractsForDay(day, property.id)
-                    const hasContract = dayContracts.length > 0
-                    const isToday = isSameDay(day, new Date())
-                    
-                    return (
-                      <div
-                        key={day.toISOString()}
-                        className={`
-                          p-3 rounded-lg border text-center transition-colors
-                          ${isToday ? 'border-primary border-2' : 'border-border'}
-                          ${hasContract ? 'bg-accent/20' : 'bg-card'}
-                        `}
-                      >
-                        <div className="text-xs text-muted-foreground">{format(day, 'EEE')}</div>
-                        <div className="text-sm font-semibold mt-1">{format(day, 'd')}</div>
-                        {hasContract && (
-                          <div className="mt-2">
-                            <Badge className="text-xs px-1 py-0">Ocupado</Badge>
+              <CardContent className="space-y-8">
+                {months.map((month, monthIndex) => (
+                  <div key={month.date.toISOString()}>
+                    <h3 className={`text-base font-semibold mb-3 ${monthIndex === 1 ? 'text-primary' : 'text-muted-foreground'}`}>
+                      {format(month.date, 'MMMM yyyy')}
+                    </h3>
+                    <div className="grid grid-cols-7 gap-2">
+                      {month.days.map((day) => {
+                        const dayContracts = getContractsForDay(day, property.id)
+                        const hasContract = dayContracts.length > 0
+                        const isToday = isSameDay(day, new Date())
+                        
+                        return (
+                          <div
+                            key={day.toISOString()}
+                            className={`
+                              p-3 rounded-lg border text-center transition-colors
+                              ${isToday ? 'border-primary border-2' : 'border-border'}
+                              ${hasContract ? 'bg-accent/20' : 'bg-card'}
+                            `}
+                          >
+                            <div className="text-xs text-muted-foreground">{format(day, 'EEE')}</div>
+                            <div className="text-sm font-semibold mt-1">{format(day, 'd')}</div>
+                            {hasContract && (
+                              <div className="mt-2">
+                                <Badge className="text-xs px-1 py-0">Ocupado</Badge>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           ))}
