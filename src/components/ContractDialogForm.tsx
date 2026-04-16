@@ -27,10 +27,10 @@ export default function ContractDialogForm({
 }: ContractDialogFormProps) {
   const { t } = useLanguage()
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
-  const [guests] = useKV<Guest[]>('guests', [])
+  const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [guestDialogOpen, setGuestDialogOpen] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [guestSelectKey, setGuestSelectKey] = useState(0)
   
   const [formData, setFormData] = useState({
     guestId: '',
@@ -132,16 +132,15 @@ export default function ContractDialogForm({
   }
 
   const handleGuestCreated = (guestId: string) => {
-    setTimeout(() => {
-      setFormData(prev => ({
-        ...prev,
-        guestId: guestId
-      }))
-    }, 100)
+    setFormData(prev => ({
+      ...prev,
+      guestId: guestId
+    }))
+    setGuestSelectKey(prev => prev + 1)
   }
 
-  const refreshGuestList = async () => {
-    setRefreshKey(prev => prev + 1)
+  const refreshGuestList = () => {
+    setGuestSelectKey(prev => prev + 1)
     toast.success(t.contracts_view.form.guests_refreshed || 'Lista de hóspedes atualizada')
   }
 
@@ -183,6 +182,7 @@ export default function ContractDialogForm({
                 </div>
               </div>
               <Select
+                key={guestSelectKey}
                 value={formData.guestId}
                 onValueChange={(value) => setFormData({ ...formData, guestId: value })}
                 required
