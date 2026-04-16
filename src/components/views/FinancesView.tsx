@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Transaction, TransactionType, Property, Contract, ServiceProvider, Guest } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,7 @@ export default function FinancesView() {
   const [guests] = useKV<Guest[]>('guests', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
   
   const [formData, setFormData] = useState({
     type: 'income' as TransactionType,
@@ -49,6 +50,10 @@ export default function FinancesView() {
   })
 
   const locale = language === 'pt' ? ptBR : enUS
+
+  useEffect(() => {
+    setRefreshKey(prev => prev + 1)
+  }, [contracts, serviceProviders, guests])
 
   const monthlyData = useMemo(() => {
     if (!transactions || transactions.length === 0) return []
@@ -86,7 +91,7 @@ export default function FinancesView() {
 
     return Array.from(monthMap.values())
       .sort((a, b) => b.year - a.year || b.month.localeCompare(a.month))
-  }, [transactions, locale])
+  }, [transactions, locale, contracts, serviceProviders, guests, properties, refreshKey])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -152,7 +157,7 @@ export default function FinancesView() {
   const balance = totalIncome - totalExpenses
 
   const handleRefresh = () => {
-    setTransactions((current) => [...(current || [])])
+    setRefreshKey(prev => prev + 1)
     toast.success('Dados atualizados')
   }
 
