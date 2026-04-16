@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useKV } from '@github/spark/hooks'
 
 type UserRole = 'admin' | 'guest'
-
+type UserStatus = 'approved' | 'pending' | 'rejected'
 
 interface UserProfile {
   githubLogin: string
@@ -13,7 +13,7 @@ interface UserProfile {
   createdAt: string
   updatedAt: string
 }
-interface AuthContextType {
+
 interface AuthContextType {
   currentUser: {
     login: string
@@ -35,11 +35,10 @@ interface AuthContextType {
   deleteUser: (githubLogin: string) => Promise<void>
   getAllProfiles: () => UserProfile[]
 }
-reateContext<AuthContextType | undefined>(undefined)
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-Provider({ children }: { children: ReactNode }) {
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-r, setCurrentUser] = useState<AuthContextType['currentUser']>(null)
   const [currentUser, setCurrentUser] = useState<AuthContextType['currentUser']>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -167,14 +166,6 @@ r, setCurrentUser] = useState<AuthContextType['currentUser']>(null)
       {children}
     </AuthContext.Provider>
   )
-
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
 }
 
 export function useAuth() {
