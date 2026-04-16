@@ -32,6 +32,7 @@ interface AuthContextType {
   updateUserRole: (githubLogin: string, role: UserRole) => Promise<void>
   updateUserStatus: (githubLogin: string, status: UserStatus) => Promise<void>
   createUser: (githubLogin: string, email: string, role: UserRole) => Promise<void>
+  deleteUser: (githubLogin: string) => Promise<void>
   getAllProfiles: () => UserProfile[]
 }
 
@@ -126,6 +127,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfiles((current) => [...(current || []), newProfile])
   }
 
+  const deleteUser = async (githubLogin: string) => {
+    setProfiles((current) =>
+      (current || []).filter((p) => p.githubLogin !== githubLogin)
+    )
+  }
+
   const getAllProfiles = () => {
     return profiles || []
   }
@@ -153,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUserRole,
         updateUserStatus,
         createUser,
+        deleteUser,
         getAllProfiles,
       }}
     >

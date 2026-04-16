@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
-import { User, Shield, ShieldCheck, Clock, CheckCircle, XCircle, Plus, UserPlus } from '@phosphor-icons/react'
+import { User, Shield, ShieldCheck, Clock, CheckCircle, XCircle, Plus, UserPlus, Trash } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useState } from 'react'
 
@@ -17,7 +17,7 @@ type UserRole = 'admin' | 'guest'
 type UserStatus = 'pending' | 'approved' | 'rejected'
 
 export function UserManagement() {
-  const { isAdmin, currentUser, updateUserRole, updateUserStatus, getAllProfiles, createUser } = useAuth()
+  const { isAdmin, currentUser, updateUserRole, updateUserStatus, getAllProfiles, createUser, deleteUser } = useAuth()
   const { t } = useLanguage()
   const profiles = getAllProfiles()
   
@@ -93,6 +93,25 @@ export function UserManagement() {
       toast.error('Erro ao criar usuário')
     } finally {
       setIsCreating(false)
+    }
+  }
+
+  const handleDeleteUser = async (githubLogin: string) => {
+    if (!isAdmin) {
+      toast.error(t.errors?.unauthorized || 'Não autorizado')
+      return
+    }
+
+    if (currentUser?.login === githubLogin) {
+      toast.error('Você não pode apagar seu próprio usuário')
+      return
+    }
+
+    try {
+      await deleteUser(githubLogin)
+      toast.success('Usuário removido com sucesso')
+    } catch (error) {
+      toast.error('Erro ao remover usuário')
     }
   }
 
@@ -189,6 +208,15 @@ export function UserManagement() {
               </SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleDeleteUser(profile.githubLogin)}
+            disabled={currentUser?.login === profile.githubLogin}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash size={18} weight="duotone" />
+          </Button>
         </div>
       )}
     </div>
