@@ -4,7 +4,6 @@ export type PropertyStatus = 'available' | 'occupied' | 'maintenance'
 export type TransactionType = 'income' | 'expense'
 export type TaskPriority = 'low' | 'medium' | 'high'
 export type TaskStatus = 'pending' | 'in-progress' | 'completed'
-export type DocumentCategory = 'contract' | 'receipt' | 'insurance' | 'tax' | 'other'
 export type RentalType = 'short-term' | 'monthly'
 export type ContractStatus = 'active' | 'expired' | 'cancelled'
 
@@ -33,18 +32,6 @@ export interface Transaction {
   createdAt: string
 }
 
-export interface Booking {
-  id: string
-  propertyId: string
-  guestName: string
-  checkIn: string
-  checkOut: string
-  totalAmount: number
-  platform?: string
-  status: 'confirmed' | 'cancelled'
-  createdAt: string
-}
-
 export interface Task {
   id: string
   title: string
@@ -55,15 +42,6 @@ export interface Task {
   assignee?: string
   propertyId?: string
   createdAt: string
-}
-
-export interface Document {
-  id: string
-  name: string
-  category: DocumentCategory
-  uploadDate: string
-  notes?: string
-  propertyId?: string
 }
 
 export interface ServiceProvider {

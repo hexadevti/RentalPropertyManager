@@ -1,5 +1,5 @@
 import { useKV } from '@github/spark/hooks'
-import { Transaction, Booking, Property, Task, ServiceProvider, Guest, Contract, Appointment } from '@/types'
+import { Transaction, Property, Task, ServiceProvider, Guest, Contract, Appointment } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,6 @@ export default function ReportsView() {
   const { formatCurrency } = useCurrency()
   const { t } = useLanguage()
   const [transactions] = useKV<Transaction[]>('transactions', [])
-  const [bookings] = useKV<Booking[]>('bookings', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [tasks] = useKV<Task[]>('tasks', [])
   const [serviceProviders] = useKV<ServiceProvider[]>('service-providers', [])
@@ -98,15 +97,6 @@ export default function ReportsView() {
     .reduce((acc, t) => acc + t.amount, 0)
 
   const balance = totalIncome - totalExpenses
-
-  const currentBookings = (bookings || []).filter(b =>
-    isWithinInterval(now, {
-      start: new Date(b.checkIn),
-      end: new Date(b.checkOut)
-    })
-  )
-
-  const upcomingBookings = (bookings || []).filter(b => new Date(b.checkIn) > now)
 
   const activeContracts = (contracts || []).filter(c => c.status === 'active')
 
