@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useKV } from '@github/spark/hooks'
 
-  githubLogin: string
+type UserRole = 'admin' | 'guest'
 
 interface UserProfile {
   githubLogin: string
@@ -13,20 +13,24 @@ interface UserProfile {
 }
 
 interface AuthContextType {
-  currentUser: {tring
-    githubLogin: string
+  currentUser: {
+    login: string
     email: string
     avatarUrl: string
-    id: stringnull
+    id: string
     isOwner: boolean
-  } | null> boolean
+  } | null
   userProfile: UserProfile | null
   isLoading: boolean
-  hasRole: (role: UserRole) => boolean, role: UserRole) => Promise<void>
+  hasRole: (role: UserRole) => boolean
   isAdmin: boolean
+  isGuest: boolean
+  updateUserRole: (githubLogin: string, role: UserRole) => Promise<void>
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [currentUser, setCurrentUser] = useState<AuthContextType['currentUser']>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
