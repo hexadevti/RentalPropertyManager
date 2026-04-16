@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Plus, TrendUp, TrendDown, Trash, CalendarBlank, ArrowsClockwise } from '@phosphor-icons/react'
+import { Plus, TrendUp, TrendDown, Trash, CalendarBlank, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns'
 import { ptBR, enUS } from 'date-fns/locale'
@@ -35,6 +35,7 @@ export default function FinancesView() {
   const [serviceProviders] = useKV<ServiceProvider[]>('serviceProviders', [])
   const [guests] = useKV<Guest[]>('guests', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   
   const [formData, setFormData] = useState({
     type: 'income' as TransactionType,
@@ -90,13 +91,24 @@ export default function FinancesView() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
-    const newTransaction: Transaction = {
-      ...formData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString()
+    if (editingTransaction) {
+      const updatedTransaction: Transaction = {
+        ...editingTransaction,
+        ...formData
+      }
+      setTransactions((current) => 
+        (current || []).map(t => t.id === editingTransaction.id ? updatedTransaction : t)
+      )
+      toast.success(t.finances_view.form.updated_success)
+    } else {
+      const newTransaction: Transaction = {
+        ...formData,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString()
+      }
+      setTransactions((current) => [...(current || []), newTransaction])
+      toast.success(t.finances_view.form.created_success)
     }
-    setTransactions((current) => [...(current || []), newTransaction])
-    toast.success(t.finances_view.form.created_success)
     resetForm()
   }
 
@@ -111,7 +123,23 @@ export default function FinancesView() {
       contractId: '',
       serviceProviderId: ''
     })
+    setEditingTransaction(null)
     setIsDialogOpen(false)
+  }
+
+  const handleEdit = (transaction: Transaction) => {
+    setEditingTransaction(transaction)
+    setFormData({
+      type: transaction.type,
+      amount: transaction.amount,
+      category: transaction.category,
+      description: transaction.description,
+      date: transaction.date,
+      propertyId: transaction.propertyId || '',
+      contractId: transaction.contractId || '',
+      serviceProviderId: transaction.serviceProviderId || ''
+    })
+    setIsDialogOpen(true)
   }
 
   const handleDelete = (id: string) => {
@@ -149,7 +177,7 @@ export default function FinancesView() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{t.finances_view.form.title_new}</DialogTitle>
+              <DialogTitle>{editingTransaction ? t.finances_view.form.title_edit : t.finances_view.form.title_new}</DialogTitle>
               <DialogDescription>{t.finances_view.form.description}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -412,6 +440,9 @@ export default function FinancesView() {
                                 <span className={`text-base font-bold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'}`}>
                                   {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount).replace(/^[^\d-]+/, '')}
                                 </span>
+                                <Button variant="ghost" size="sm" className="text-primary hover:text-primary" onClick={() => handleEdit(transaction)}>
+                                  <PencilSimple size={16} />
+                                </Button>
                                 <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(transaction.id)}>
                                   <Trash size={16} />
                                 </Button>
