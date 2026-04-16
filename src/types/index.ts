@@ -70,3 +70,16 @@ export interface ServiceProvider {
   contact: string
   email?: string
 }
+
+export interface Guest {
+  id: string
+  name: string
+  email: string
+  phone: string
+  document: string
+  address?: string
+  nationality?: string
+  dateOfBirth?: string
+  notes?: string
+  createdAt: string
+}

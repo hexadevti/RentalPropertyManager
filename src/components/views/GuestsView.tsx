@@ -1,0 +1,354 @@
+import { useState } from 'react'
+import { useKV } from '@github/spark/hooks'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake } from '@phosphor-icons/react'
+import { toast } from 'sonner'
+import { Guest, Booking } from '@/types'
+import { useLanguage } from '@/lib/LanguageContext'
+import { format } from 'date-fns'
+
+export default function GuestsView() {
+  const { t } = useLanguage()
+  const [guests, setGuests] = useKV<Guest[]>('guests', [])
+  const [bookings] = useKV<Booking[]>('bookings', [])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingGuest, setEditingGuest] = useState<Guest | null>(null)
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    document: '',
+    address: '',
+    nationality: '',
+    dateOfBirth: '',
+    notes: '',
+  })
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      document: '',
+      address: '',
+      nationality: '',
+      dateOfBirth: '',
+      notes: '',
+    })
+    setEditingGuest(null)
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (editingGuest) {
+      setGuests((currentGuests) =>
+        (currentGuests || []).map(g =>
+          g.id === editingGuest.id
+            ? { ...formData, id: g.id, createdAt: g.createdAt }
+            : g
+        )
+      )
+      toast.success(t.guests_view.form.updated_success)
+    } else {
+      const newGuest: Guest = {
+        ...formData,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+      }
+      setGuests((currentGuests) => [...(currentGuests || []), newGuest])
+      toast.success(t.guests_view.form.created_success)
+    }
+    
+    setDialogOpen(false)
+    resetForm()
+  }
+
+  const handleEdit = (guest: Guest) => {
+    setEditingGuest(guest)
+    setFormData({
+      name: guest.name,
+      email: guest.email,
+      phone: guest.phone,
+      document: guest.document,
+      address: guest.address || '',
+      nationality: guest.nationality || '',
+      dateOfBirth: guest.dateOfBirth || '',
+      notes: guest.notes || '',
+    })
+    setDialogOpen(true)
+  }
+
+  const handleDelete = (id: string) => {
+    setGuests((currentGuests) => (currentGuests || []).filter(g => g.id !== id))
+    toast.success(t.guests_view.deleted_success)
+  }
+
+  const getGuestBookings = (guestName: string) => {
+    return (bookings || []).filter(b => b.guestName === guestName)
+  }
+
+  const filteredGuests = (guests || []).filter(guest =>
+    guest.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    guest.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    guest.phone.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.guests_view.title}</h2>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) resetForm()
+        }}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus weight="bold" />
+              {t.guests_view.add_guest}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <Label htmlFor="guest-name">{t.guests_view.form.name}</Label>
+                  <Input
+                    id="guest-name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder={t.guests_view.form.name_placeholder}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="guest-email">{t.guests_view.form.email}</Label>
+                  <Input
+                    id="guest-email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder={t.guests_view.form.email_placeholder}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="guest-phone">{t.guests_view.form.phone}</Label>
+                  <Input
+                    id="guest-phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder={t.guests_view.form.phone_placeholder}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="guest-document">{t.guests_view.form.document}</Label>
+                  <Input
+                    id="guest-document"
+                    value={formData.document}
+                    onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+                    placeholder={t.guests_view.form.document_placeholder}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="guest-nationality">{t.guests_view.form.nationality} {t.guests_view.form.optional}</Label>
+                  <Input
+                    id="guest-nationality"
+                    value={formData.nationality}
+                    onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                    placeholder={t.guests_view.form.nationality_placeholder}
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <Label htmlFor="guest-address">{t.guests_view.form.address} {t.guests_view.form.optional}</Label>
+                  <Input
+                    id="guest-address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder={t.guests_view.form.address_placeholder}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="guest-dob">{t.guests_view.form.date_of_birth} {t.guests_view.form.optional}</Label>
+                  <Input
+                    id="guest-dob"
+                    type="date"
+                    value={formData.dateOfBirth}
+                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <Label htmlFor="guest-notes">{t.guests_view.form.notes} {t.guests_view.form.optional}</Label>
+                  <Textarea
+                    id="guest-notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder={t.guests_view.form.notes_placeholder}
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button type="button" variant="outline" onClick={() => {
+                  setDialogOpen(false)
+                  resetForm()
+                }}>
+                  {t.guests_view.form.cancel}
+                </Button>
+                <Button type="submit">{t.guests_view.form.save}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="relative">
+        <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+        <Input
+          placeholder={t.guests_view.search_placeholder}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      {filteredGuests.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <User size={64} weight="duotone" className="text-muted-foreground mb-4" />
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              {searchQuery ? t.guests_view.no_guests : t.guests_view.no_guests}
+            </h3>
+            {!searchQuery && (
+              <p className="text-muted-foreground text-center max-w-md">
+                {t.guests_view.add_first}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredGuests.map((guest) => {
+            const guestBookings = getGuestBookings(guest.name)
+            return (
+              <Card key={guest.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User size={24} weight="duotone" className="text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl mb-1">{guest.name}</CardTitle>
+                        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Envelope size={16} weight="duotone" />
+                            {guest.email}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Phone size={16} weight="duotone" />
+                            {guest.phone}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <IdentificationCard size={16} weight="duotone" />
+                            {guest.document}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleEdit(guest)}
+                      >
+                        <Pencil size={18} />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleDelete(guest.id)}
+                      >
+                        <Trash size={18} className="text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      {guest.address && (
+                        <div className="flex items-start gap-2 text-sm">
+                          <MapPin size={16} weight="duotone" className="text-muted-foreground mt-0.5" />
+                          <span className="text-foreground">{guest.address}</span>
+                        </div>
+                      )}
+                      {guest.nationality && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Flag size={16} weight="duotone" className="text-muted-foreground" />
+                          <span className="text-foreground">{guest.nationality}</span>
+                        </div>
+                      )}
+                      {guest.dateOfBirth && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Cake size={16} weight="duotone" className="text-muted-foreground" />
+                          <span className="text-foreground">{format(new Date(guest.dateOfBirth), 'dd/MM/yyyy')}</span>
+                        </div>
+                      )}
+                      {guest.notes && (
+                        <div className="text-sm text-muted-foreground mt-2">
+                          <p className="italic">{guest.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2">{t.guests_view.bookings_history}</h4>
+                      {guestBookings.length > 0 ? (
+                        <div className="space-y-1">
+                          {guestBookings.slice(0, 3).map((booking) => (
+                            <div key={booking.id} className="text-sm text-muted-foreground">
+                              {format(new Date(booking.checkIn), 'dd/MM/yyyy')} - {format(new Date(booking.checkOut), 'dd/MM/yyyy')}
+                            </div>
+                          ))}
+                          {guestBookings.length > 3 && (
+                            <div className="text-xs text-muted-foreground">
+                              +{guestBookings.length - 3} {t.guests_view.no_bookings}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">{t.guests_view.no_bookings}</p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
