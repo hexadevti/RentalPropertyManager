@@ -3,17 +3,19 @@ import { useKV } from '@github/spark/hooks'
 import { Property, PropertyType, PropertyStatus } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, House, Bed, Buildings, Wrench, Check, Pencil, Trash } from '@phosphor-icons/react'
+import { Plus, House, Bed, Buildings, Pencil, Trash } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { useLanguage } from '@/lib/LanguageContext'
 
 export default function PropertiesView() {
+  const { t } = useLanguage()
   const [properties, setProperties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | null>(null)
@@ -40,7 +42,7 @@ export default function PropertiesView() {
           : p
         )
       )
-      toast.success('Property updated successfully')
+      toast.success(t.properties_view.form.updated_success)
     } else {
       const newProperty: Property = {
         ...formData,
@@ -48,7 +50,7 @@ export default function PropertiesView() {
         createdAt: new Date().toISOString()
       }
       setProperties((current) => [...(current || []), newProperty])
-      toast.success('Property added successfully')
+      toast.success(t.properties_view.form.created_success)
     }
     
     resetForm()
@@ -90,7 +92,7 @@ export default function PropertiesView() {
   const handleDeleteConfirm = () => {
     if (propertyToDelete) {
       setProperties((current) => (current || []).filter(p => p.id !== propertyToDelete.id))
-      toast.success('Property deleted')
+      toast.success(t.properties_view.deleted_success)
       setPropertyToDelete(null)
       setDeleteDialogOpen(false)
     }
@@ -116,45 +118,41 @@ export default function PropertiesView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Properties</h2>
-          <p className="text-sm text-muted-foreground mt-1">Manage your rental properties</p>
+          <h2 className="text-2xl font-semibold tracking-tight">{t.properties_view.title}</h2>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus weight="bold" size={16} />
-              Add Property
+              {t.properties_view.add_property}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingProperty ? 'Edit Property' : 'Add New Property'}</DialogTitle>
-              <DialogDescription>
-                {editingProperty ? 'Update property details' : 'Add a new rental property to your portfolio'}
-              </DialogDescription>
+              <DialogTitle>{editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Property Name</Label>
+                  <Label htmlFor="name">{t.properties_view.form.name}</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Beach Apartment 101"
+                    placeholder={t.properties_view.form.name_placeholder}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="type">Type</Label>
+                  <Label htmlFor="type">{t.properties_view.form.type}</Label>
                   <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value as PropertyType })}>
                     <SelectTrigger id="type">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="room">Room</SelectItem>
-                      <SelectItem value="apartment">Apartment</SelectItem>
-                      <SelectItem value="house">House</SelectItem>
+                      <SelectItem value="room">{t.properties_view.type.room}</SelectItem>
+                      <SelectItem value="apartment">{t.properties_view.type.apartment}</SelectItem>
+                      <SelectItem value="house">{t.properties_view.type.house}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -162,18 +160,19 @@ export default function PropertiesView() {
               
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="capacity">Capacity</Label>
+                  <Label htmlFor="capacity">{t.properties_view.form.capacity}</Label>
                   <Input
                     id="capacity"
                     type="number"
                     min="1"
                     value={formData.capacity}
                     onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
+                    placeholder={t.properties_view.form.capacity_placeholder}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="pricePerNight">Price/Night ($)</Label>
+                  <Label htmlFor="pricePerNight">{t.properties_view.form.price_night}</Label>
                   <Input
                     id="pricePerNight"
                     type="number"
@@ -181,11 +180,12 @@ export default function PropertiesView() {
                     step="0.01"
                     value={formData.pricePerNight}
                     onChange={(e) => setFormData({ ...formData, pricePerNight: parseFloat(e.target.value) })}
+                    placeholder={t.properties_view.form.price_night_placeholder}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="pricePerMonth">Price/Month ($)</Label>
+                  <Label htmlFor="pricePerMonth">{t.properties_view.form.price_month}</Label>
                   <Input
                     id="pricePerMonth"
                     type="number"
@@ -193,42 +193,43 @@ export default function PropertiesView() {
                     step="0.01"
                     value={formData.pricePerMonth}
                     onChange={(e) => setFormData({ ...formData, pricePerMonth: parseFloat(e.target.value) })}
+                    placeholder={t.properties_view.form.price_month_placeholder}
                     required
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
+                <Label htmlFor="status">{t.properties_view.form.status}</Label>
                 <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as PropertyStatus })}>
                   <SelectTrigger id="status">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="available">Available</SelectItem>
-                    <SelectItem value="occupied">Occupied</SelectItem>
-                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                    <SelectItem value="available">{t.properties_view.status.available}</SelectItem>
+                    <SelectItem value="occupied">{t.properties_view.status.occupied}</SelectItem>
+                    <SelectItem value="maintenance">{t.properties_view.status.maintenance}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{t.properties_view.form.description}</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Property description..."
+                  placeholder={t.properties_view.form.description_placeholder}
                   rows={3}
                 />
               </div>
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancel
+                  {t.properties_view.form.cancel}
                 </Button>
                 <Button type="submit">
-                  {editingProperty ? 'Update' : 'Add'} Property
+                  {t.properties_view.form.save}
                 </Button>
               </DialogFooter>
             </form>
@@ -240,11 +241,9 @@ export default function PropertiesView() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <House weight="duotone" size={64} className="text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No properties yet</h3>
-            <p className="text-sm text-muted-foreground mb-4">Add your first rental property to get started</p>
             <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
               <Plus weight="bold" size={16} />
-              Add Property
+              {t.properties_view.add_property}
             </Button>
           </CardContent>
         </Card>
@@ -260,38 +259,38 @@ export default function PropertiesView() {
                     </div>
                     <div>
                       <CardTitle className="text-lg">{property.name}</CardTitle>
-                      <CardDescription className="capitalize">{property.type}</CardDescription>
+                      <CardDescription>{t.properties_view.type[property.type]}</CardDescription>
                     </div>
                   </div>
                   <Badge className={getStatusColor(property.status)}>
-                    {property.status}
+                    {t.properties_view.status[property.status]}
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground line-clamp-2">{property.description || 'No description'}</p>
+                <p className="text-sm text-muted-foreground line-clamp-2">{property.description || t.properties_view.form.description_placeholder}</p>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Capacity:</span>
-                  <span className="font-medium">{property.capacity} guests</span>
+                  <span className="text-muted-foreground">{t.properties_view.capacity}:</span>
+                  <span className="font-medium">{property.capacity} {t.properties_view.people}</span>
                 </div>
                 <div className="space-y-1 pt-2 border-t">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Per Night:</span>
+                    <span className="text-muted-foreground">{t.properties_view.per_night}:</span>
                     <span className="font-semibold text-primary">${property.pricePerNight}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Per Month:</span>
+                    <span className="text-muted-foreground">{t.properties_view.per_month}:</span>
                     <span className="font-semibold text-primary">${property.pricePerMonth}</span>
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
                   <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleEdit(property)}>
                     <Pencil size={14} />
-                    Edit
+                    {t.properties_view.edit}
                   </Button>
                   <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(property)}>
                     <Trash size={14} />
-                    Delete
+                    {t.properties_view.delete}
                   </Button>
                 </div>
               </CardContent>
@@ -303,15 +302,15 @@ export default function PropertiesView() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this property?</AlertDialogTitle>
+            <AlertDialogTitle>{t.properties_view.delete_confirm_title}</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the property "{propertyToDelete?.name}" from your portfolio.
+              {t.properties_view.delete_confirm_description}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t.properties_view.delete_confirm_cancel}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+              {t.properties_view.delete_confirm_delete}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
