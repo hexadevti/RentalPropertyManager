@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Transaction, TransactionType, Property } from '@/types'
+import { Transaction, TransactionType, Property, Contract, ServiceProvider, Guest } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -31,6 +31,9 @@ export default function FinancesView() {
   const { formatCurrency, config } = useCurrency()
   const [transactions, setTransactions] = useKV<Transaction[]>('transactions', [])
   const [properties] = useKV<Property[]>('properties', [])
+  const [contracts] = useKV<Contract[]>('contracts', [])
+  const [serviceProviders] = useKV<ServiceProvider[]>('serviceProviders', [])
+  const [guests] = useKV<Guest[]>('guests', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   
   const [formData, setFormData] = useState({
@@ -40,7 +43,8 @@ export default function FinancesView() {
     description: '',
     date: new Date().toISOString().split('T')[0],
     propertyId: '',
-    serviceProvider: ''
+    contractId: '',
+    serviceProviderId: ''
   })
 
   const locale = language === 'pt' ? ptBR : enUS
@@ -104,7 +108,8 @@ export default function FinancesView() {
       description: '',
       date: new Date().toISOString().split('T')[0],
       propertyId: '',
-      serviceProvider: ''
+      contractId: '',
+      serviceProviderId: ''
     })
     setIsDialogOpen(false)
   }
@@ -214,15 +219,45 @@ export default function FinancesView() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="serviceProvider">{t.finances_view.form.provider} {t.finances_view.form.optional}</Label>
-                <Input
-                  id="serviceProvider"
-                  value={formData.serviceProvider}
-                  onChange={(e) => setFormData({ ...formData, serviceProvider: e.target.value })}
-                  placeholder={t.finances_view.no_provider}
-                />
-              </div>
+              {formData.type === 'income' && (
+                <div className="space-y-2">
+                  <Label htmlFor="contractId">Contrato (opcional)</Label>
+                  <Select value={formData.contractId || undefined} onValueChange={(value) => setFormData({ ...formData, contractId: value })}>
+                    <SelectTrigger id="contractId">
+                      <SelectValue placeholder="Selecione um contrato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(contracts || []).map((contract) => {
+                        const guest = (guests || []).find(g => g.id === contract.guestId)
+                        const contractProperties = (properties || []).filter(p => contract.propertyIds.includes(p.id))
+                        return (
+                          <SelectItem key={contract.id} value={contract.id}>
+                            {guest?.name} - {contractProperties.map(p => p.name).join(', ')}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {formData.type === 'expense' && (
+                <div className="space-y-2">
+                  <Label htmlFor="serviceProviderId">Prestador de Serviço (opcional)</Label>
+                  <Select value={formData.serviceProviderId || undefined} onValueChange={(value) => setFormData({ ...formData, serviceProviderId: value })}>
+                    <SelectTrigger id="serviceProviderId">
+                      <SelectValue placeholder="Selecione um prestador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(serviceProviders || []).map((provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name} - {provider.service}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="description">{t.finances_view.form.description_field}</Label>
@@ -347,6 +382,9 @@ export default function FinancesView() {
                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                         .map((transaction) => {
                           const property = (properties || []).find(p => p.id === transaction.propertyId)
+                          const contract = (contracts || []).find(c => c.id === transaction.contractId)
+                          const guest = contract ? (guests || []).find(g => g.id === contract.guestId) : null
+                          const provider = (serviceProviders || []).find(sp => sp.id === transaction.serviceProviderId)
                           return (
                             <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors ml-8">
                               <div className="flex items-center gap-3 flex-1">
@@ -362,10 +400,11 @@ export default function FinancesView() {
                                     <p className="font-medium text-sm">{transaction.description}</p>
                                     <Badge variant="outline" className="text-xs">{transaction.category}</Badge>
                                   </div>
-                                  <div className="flex items-center gap-3 mt-1">
+                                  <div className="flex items-center gap-3 mt-1 flex-wrap">
                                     <p className="text-xs text-muted-foreground">{format(new Date(transaction.date), 'dd/MM/yyyy')}</p>
                                     {property && <p className="text-xs text-muted-foreground">• {property.name}</p>}
-                                    {transaction.serviceProvider && <p className="text-xs text-muted-foreground">• {transaction.serviceProvider}</p>}
+                                    {guest && <p className="text-xs text-muted-foreground">• Contrato: {guest.name}</p>}
+                                    {provider && <p className="text-xs text-muted-foreground">• Prestador: {provider.name}</p>}
                                   </div>
                                 </div>
                               </div>

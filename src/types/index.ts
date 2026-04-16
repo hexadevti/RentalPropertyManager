@@ -28,7 +28,8 @@ export interface Transaction {
   description: string
   date: string
   propertyId?: string
-  serviceProvider?: string
+  contractId?: string
+  serviceProviderId?: string
   createdAt: string
 }
 
