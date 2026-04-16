@@ -10,10 +10,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, House, Bed, Buildings, Pencil, Trash } from '@phosphor-icons/react'
+import { Plus, House, Bed, Buildings, Pencil, Trash, FileText } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
+import ContractDialogForm from '@/components/ContractDialogForm'
 
 export default function PropertiesView() {
   const { t } = useLanguage()
@@ -24,6 +25,8 @@ export default function PropertiesView() {
   const [editingProperty, setEditingProperty] = useState<Property | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null)
+  const [contractDialogOpen, setContractDialogOpen] = useState(false)
+  const [selectedPropertyForContract, setSelectedPropertyForContract] = useState<string | undefined>(undefined)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -106,6 +109,11 @@ export default function PropertiesView() {
       setPropertyToDelete(null)
       setDeleteDialogOpen(false)
     }
+  }
+
+  const handleGenerateContract = (propertyId: string) => {
+    setSelectedPropertyForContract(propertyId)
+    setContractDialogOpen(true)
   }
 
   const getStatusColor = (status: PropertyStatus) => {
@@ -281,15 +289,26 @@ export default function PropertiesView() {
                     <span className="font-semibold text-primary">{formatCurrency(property.pricePerMonth)}</span>
                   </div>
                 </div>
-                <div className="flex gap-2 pt-2">
-                  <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleEdit(property)}>
-                    <Pencil size={14} />
-                    {t.properties_view.edit}
+                <div className="flex flex-col gap-2 pt-2">
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="w-full gap-2" 
+                    onClick={() => handleGenerateContract(property.id)}
+                  >
+                    <FileText size={14} />
+                    {t.properties_view.generate_contract}
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(property)}>
-                    <Trash size={14} />
-                    {t.properties_view.delete}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleEdit(property)}>
+                      <Pencil size={14} />
+                      {t.properties_view.edit}
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(property)}>
+                      <Trash size={14} />
+                      {t.properties_view.delete}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -314,6 +333,12 @@ export default function PropertiesView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ContractDialogForm
+        open={contractDialogOpen}
+        onOpenChange={setContractDialogOpen}
+        preSelectedPropertyId={selectedPropertyForContract}
+      />
     </div>
   )
 }
