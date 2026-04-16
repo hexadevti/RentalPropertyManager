@@ -1,19 +1,25 @@
 import { useKV } from '@github/spark/hooks'
-import { Transaction, Booking, Property, Task } from '@/types'
+import { Transaction, Booking, Property, Task, ServiceProvider, Guest, Contract, Appointment } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { TrendUp, TrendDown, House, Calendar, CheckSquare, Percent, ArrowsClockwise } from '@phosphor-icons/react'
-import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays } from 'date-fns'
+import { TrendUp, TrendDown, House, Calendar, CheckSquare, ArrowsClockwise, User, Files, Wrench, CalendarCheck } from '@phosphor-icons/react'
+import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, isBefore, isAfter, parseISO } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
+import { useLanguage } from '@/lib/LanguageContext'
 import { toast } from 'sonner'
 
 export default function ReportsView() {
   const { formatCurrency } = useCurrency()
+  const { t } = useLanguage()
   const [transactions] = useKV<Transaction[]>('transactions', [])
   const [bookings] = useKV<Booking[]>('bookings', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [tasks] = useKV<Task[]>('tasks', [])
+  const [serviceProviders] = useKV<ServiceProvider[]>('service-providers', [])
+  const [guests] = useKV<Guest[]>('guests', [])
+  const [contracts] = useKV<Contract[]>('contracts', [])
+  const [appointments] = useKV<Appointment[]>('appointments', [])
 
   const now = new Date()
   const monthStart = startOfMonth(now)
@@ -85,20 +91,72 @@ export default function ReportsView() {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5)
 
+  const activeContracts = (contracts || []).filter(c => c.status === 'active')
+  const expiredContracts = (contracts || []).filter(c => c.status === 'expired')
+  
+  const expiringContracts = activeContracts.filter(c => {
+    const endDate = parseISO(c.endDate)
+    const daysUntilExpiry = differenceInDays(endDate, now)
+    return daysUntilExpiry <= 30 && daysUntilExpiry >= 0
+  })
+
+  const scheduledAppointments = (appointments || []).filter(a => a.status === 'scheduled')
+  const completedAppointments = (appointments || []).filter(a => a.status === 'completed')
+  
+  const upcomingAppointments = scheduledAppointments.filter(a => {
+    const appointmentDate = parseISO(a.date)
+    return isAfter(appointmentDate, now)
+  }).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
+
+  const providerUtilization = (serviceProviders || []).map(provider => {
+    const providerTransactions = (transactions || []).filter(t => t.serviceProviderId === provider.id)
+    const providerAppointments = (appointments || []).filter(a => a.serviceProviderId === provider.id)
+    const totalSpent = providerTransactions.reduce((acc, t) => acc + t.amount, 0)
+    
+    return {
+      provider,
+      transactions: providerTransactions.length,
+      appointments: providerAppointments.length,
+      totalSpent
+    }
+  }).sort((a, b) => b.totalSpent - a.totalSpent)
+
+  const guestActivity = (guests || []).map(guest => {
+    const guestContracts = (contracts || []).filter(c => c.guestId === guest.id)
+    const guestAppointments = (appointments || []).filter(a => a.guestId === guest.id)
+    const activeGuestContracts = guestContracts.filter(c => c.status === 'active')
+    const totalPaid = guestContracts.reduce((acc, c) => {
+      const monthsDiff = Math.ceil(differenceInDays(parseISO(c.endDate), parseISO(c.startDate)) / 30)
+      return acc + (c.monthlyAmount * monthsDiff)
+    }, 0)
+    
+    return {
+      guest,
+      contracts: guestContracts.length,
+      activeContracts: activeGuestContracts.length,
+      appointments: guestAppointments.length,
+      totalPaid
+    }
+  }).filter(g => g.contracts > 0).sort((a, b) => b.totalPaid - a.totalPaid)
+
   const handleRefresh = () => {
-    toast.success('Dados atualizados')
+    toast.success(t.language === 'pt' ? 'Dados atualizados' : 'Data refreshed')
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Reports & Analytics</h2>
-          <p className="text-sm text-muted-foreground mt-1">Overview of your rental business performance</p>
+          <h2 className="text-2xl font-semibold tracking-tight">
+            {t.language === 'pt' ? 'Relatórios e Análises' : 'Reports & Analytics'}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {t.language === 'pt' ? 'Visão completa do desempenho do seu negócio' : 'Complete overview of your business performance'}
+          </p>
         </div>
         <Button variant="outline" onClick={handleRefresh} className="gap-2">
           <ArrowsClockwise weight="bold" size={16} />
-          Atualizar
+          {t.language === 'pt' ? 'Atualizar' : 'Refresh'}
         </Button>
       </div>
 
@@ -107,13 +165,13 @@ export default function ReportsView() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <House weight="duotone" size={16} />
-              Total Properties
+              {t.language === 'pt' ? 'Propriedades' : 'Properties'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{(properties || []).length}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {(properties || []).filter(p => p.status === 'available').length} available
+              {(properties || []).filter(p => p.status === 'available').length} {t.language === 'pt' ? 'disponíveis' : 'available'}
             </p>
           </CardContent>
         </Card>
@@ -122,13 +180,13 @@ export default function ReportsView() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Calendar weight="duotone" size={16} />
-              Occupancy Rate
+              {t.language === 'pt' ? 'Taxa de Ocupação' : 'Occupancy Rate'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{occupancyRate.toFixed(0)}%</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {currentBookings.length} currently occupied
+              {currentBookings.length} {t.language === 'pt' ? 'ocupadas' : 'occupied'}
             </p>
           </CardContent>
         </Card>
@@ -137,7 +195,7 @@ export default function ReportsView() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <TrendUp weight="duotone" size={16} />
-              Total Revenue
+              {t.language === 'pt' ? 'Receita Total' : 'Total Revenue'}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -145,7 +203,7 @@ export default function ReportsView() {
               {formatCurrency(totalIncome)}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {formatCurrency(monthlyIncome)} this month
+              {formatCurrency(monthlyIncome)} {t.language === 'pt' ? 'este mês' : 'this month'}
             </p>
           </CardContent>
         </Card>
@@ -154,7 +212,7 @@ export default function ReportsView() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <CheckSquare weight="duotone" size={16} />
-              Task Completion
+              {t.language === 'pt' ? 'Conclusão de Tarefas' : 'Task Completion'}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -162,7 +220,69 @@ export default function ReportsView() {
               {tasks && tasks.length > 0 ? ((completedTasks / tasks.length) * 100).toFixed(0) : 0}%
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              {completedTasks} of {(tasks || []).length} completed
+              {completedTasks} {t.language === 'pt' ? 'de' : 'of'} {(tasks || []).length} {t.language === 'pt' ? 'concluídas' : 'completed'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <User weight="duotone" size={16} />
+              {t.language === 'pt' ? 'Hóspedes' : 'Guests'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{(guests || []).length}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {guestActivity.filter(g => g.activeContracts > 0).length} {t.language === 'pt' ? 'com contratos ativos' : 'with active contracts'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Files weight="duotone" size={16} />
+              {t.language === 'pt' ? 'Contratos' : 'Contracts'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{activeContracts.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {expiringContracts.length} {t.language === 'pt' ? 'expirando em 30 dias' : 'expiring in 30 days'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Wrench weight="duotone" size={16} />
+              {t.language === 'pt' ? 'Prestadores' : 'Providers'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{(serviceProviders || []).length}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatCurrency(providerUtilization.reduce((acc, p) => acc + p.totalSpent, 0))} {t.language === 'pt' ? 'gastos' : 'spent'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <CalendarCheck weight="duotone" size={16} />
+              {t.language === 'pt' ? 'Compromissos' : 'Appointments'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{scheduledAppointments.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {completedAppointments.length} {t.language === 'pt' ? 'concluídos' : 'completed'}
             </p>
           </CardContent>
         </Card>
@@ -171,7 +291,7 @@ export default function ReportsView() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Financial Summary</CardTitle>
+            <CardTitle>{t.language === 'pt' ? 'Resumo Financeiro Mensal' : 'Monthly Financial Summary'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-4 bg-success/5 rounded-lg border border-success/20">
@@ -180,7 +300,7 @@ export default function ReportsView() {
                   <TrendUp weight="duotone" size={20} className="text-success" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Income</p>
+                  <p className="text-sm text-muted-foreground">{t.language === 'pt' ? 'Receitas' : 'Income'}</p>
                   <p className="text-xl font-bold text-success">
                     {formatCurrency(monthlyIncome)}
                   </p>
@@ -193,7 +313,7 @@ export default function ReportsView() {
                   <TrendDown weight="duotone" size={20} className="text-destructive" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Expenses</p>
+                  <p className="text-sm text-muted-foreground">{t.language === 'pt' ? 'Despesas' : 'Expenses'}</p>
                   <p className="text-xl font-bold text-destructive">
                     {formatCurrency(monthlyExpenses)}
                   </p>
@@ -202,7 +322,7 @@ export default function ReportsView() {
             </div>
             <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
               <div className="flex-1">
-                <p className="text-sm text-muted-foreground mb-1">Net Profit</p>
+                <p className="text-sm text-muted-foreground mb-1">{t.language === 'pt' ? 'Lucro Líquido' : 'Net Profit'}</p>
                 <p className={`text-2xl font-bold ${(monthlyIncome - monthlyExpenses) >= 0 ? 'text-success' : 'text-destructive'}`}>
                   {formatCurrency(monthlyIncome - monthlyExpenses)}
                 </p>
@@ -213,11 +333,13 @@ export default function ReportsView() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Top Expense Categories</CardTitle>
+            <CardTitle>{t.language === 'pt' ? 'Principais Categorias de Despesas' : 'Top Expense Categories'}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {topExpenseCategories.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No expense data available</p>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {t.language === 'pt' ? 'Nenhuma despesa cadastrada' : 'No expense data available'}
+              </p>
             ) : (
               topExpenseCategories.map(([category, amount]) => {
                 const percentage = totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0
@@ -226,7 +348,7 @@ export default function ReportsView() {
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-medium capitalize">{category}</span>
                       <span className="text-muted-foreground">
-                        ${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        {formatCurrency(amount)}
                       </span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
@@ -235,7 +357,9 @@ export default function ReportsView() {
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
-                    <p className="text-xs text-muted-foreground">{percentage.toFixed(1)}% of total expenses</p>
+                    <p className="text-xs text-muted-foreground">
+                      {percentage.toFixed(1)}% {t.language === 'pt' ? 'do total de despesas' : 'of total expenses'}
+                    </p>
                   </div>
                 )
               })
@@ -246,11 +370,13 @@ export default function ReportsView() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Property Performance</CardTitle>
+          <CardTitle>{t.language === 'pt' ? 'Desempenho por Propriedade' : 'Property Performance'}</CardTitle>
         </CardHeader>
         <CardContent>
           {propertyStats.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Add properties to see performance data</p>
+            <p className="text-sm text-muted-foreground text-center py-8">
+              {t.language === 'pt' ? 'Adicione propriedades para ver os dados de desempenho' : 'Add properties to see performance data'}
+            </p>
           ) : (
             <div className="space-y-4">
               {propertyStats.map(stat => (
@@ -261,16 +387,18 @@ export default function ReportsView() {
                       <Badge variant="outline" className="capitalize">{stat.property.type}</Badge>
                     </div>
                     <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                      <span>{stat.bookings} bookings</span>
+                      <span>{stat.bookings} {t.language === 'pt' ? 'reservas' : 'bookings'}</span>
                       <span>•</span>
-                      <span>{stat.bookedDays} days booked</span>
+                      <span>{stat.bookedDays} {t.language === 'pt' ? 'dias ocupados' : 'days booked'}</span>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-success">
-                      ${stat.revenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      {formatCurrency(stat.revenue)}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">Total revenue</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t.language === 'pt' ? 'Receita total' : 'Total revenue'}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -279,13 +407,163 @@ export default function ReportsView() {
         </CardContent>
       </Card>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.language === 'pt' ? 'Prestadores Mais Utilizados' : 'Most Used Providers'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {providerUtilization.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {t.language === 'pt' ? 'Nenhum prestador cadastrado' : 'No providers registered'}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {providerUtilization.slice(0, 5).map(item => (
+                  <div key={item.provider.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-semibold">{item.provider.name}</p>
+                      <p className="text-sm text-muted-foreground">{item.provider.service}</p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{item.transactions} {t.language === 'pt' ? 'transações' : 'transactions'}</span>
+                        <span>•</span>
+                        <span>{item.appointments} {t.language === 'pt' ? 'compromissos' : 'appointments'}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-primary">{formatCurrency(item.totalSpent)}</p>
+                      <p className="text-xs text-muted-foreground">{t.language === 'pt' ? 'total gasto' : 'total spent'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.language === 'pt' ? 'Contratos Expirando' : 'Expiring Contracts'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {expiringContracts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {t.language === 'pt' ? 'Nenhum contrato expirando nos próximos 30 dias' : 'No contracts expiring in the next 30 days'}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {expiringContracts.slice(0, 5).map(contract => {
+                  const guest = (guests || []).find(g => g.id === contract.guestId)
+                  const daysUntilExpiry = differenceInDays(parseISO(contract.endDate), now)
+                  return (
+                    <div key={contract.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <p className="font-semibold">{guest?.name || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {contract.propertyIds.length} {t.language === 'pt' ? 'propriedade(s)' : 'propertie(s)'}
+                        </p>
+                        <Badge variant="outline" className="mt-1 text-xs">
+                          {t.language === 'pt' ? `Expira em ${daysUntilExpiry} dias` : `Expires in ${daysUntilExpiry} days`}
+                        </Badge>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold">{formatCurrency(contract.monthlyAmount)}</p>
+                        <p className="text-xs text-muted-foreground">{t.language === 'pt' ? 'mensal' : 'monthly'}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.language === 'pt' ? 'Próximos Compromissos' : 'Upcoming Appointments'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {upcomingAppointments.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {t.language === 'pt' ? 'Nenhum compromisso agendado' : 'No upcoming appointments'}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {upcomingAppointments.slice(0, 5).map(appointment => {
+                  const provider = (serviceProviders || []).find(p => p.id === appointment.serviceProviderId)
+                  const guest = (guests || []).find(g => g.id === appointment.guestId)
+                  const daysUntil = differenceInDays(parseISO(appointment.date), now)
+                  return (
+                    <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <p className="font-semibold">{appointment.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {provider?.name || guest?.name || (t.language === 'pt' ? 'Sem vínculo' : 'No link')}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {daysUntil === 0 
+                              ? (t.language === 'pt' ? 'Hoje' : 'Today')
+                              : daysUntil === 1 
+                              ? (t.language === 'pt' ? 'Amanhã' : 'Tomorrow')
+                              : `${daysUntil} ${t.language === 'pt' ? 'dias' : 'days'}`}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{appointment.time}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t.language === 'pt' ? 'Hóspedes com Maior Atividade' : 'Most Active Guests'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {guestActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {t.language === 'pt' ? 'Nenhum hóspede com contratos' : 'No guests with contracts'}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {guestActivity.slice(0, 5).map(item => (
+                  <div key={item.guest.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <p className="font-semibold">{item.guest.name}</p>
+                      <p className="text-sm text-muted-foreground">{item.guest.email}</p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{item.contracts} {t.language === 'pt' ? 'contratos' : 'contracts'}</span>
+                        <span>•</span>
+                        <span>{item.activeContracts} {t.language === 'pt' ? 'ativos' : 'active'}</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-success">{formatCurrency(item.totalPaid)}</p>
+                      <p className="text-xs text-muted-foreground">{t.language === 'pt' ? 'total pago' : 'total paid'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Upcoming Bookings</CardTitle>
+          <CardTitle>{t.language === 'pt' ? 'Próximas Reservas' : 'Upcoming Bookings'}</CardTitle>
         </CardHeader>
         <CardContent>
           {upcomingBookings.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No upcoming bookings</p>
+            <p className="text-sm text-muted-foreground text-center py-8">
+              {t.language === 'pt' ? 'Nenhuma reserva futura' : 'No upcoming bookings'}
+            </p>
           ) : (
             <div className="space-y-3">
               {upcomingBookings.slice(0, 5).map(booking => {
@@ -296,10 +574,12 @@ export default function ReportsView() {
                     <div>
                       <p className="font-semibold">{booking.guestName}</p>
                       <p className="text-sm text-muted-foreground">{property?.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Check-in in {daysUntil} days</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {t.language === 'pt' ? `Check-in em ${daysUntil} dias` : `Check-in in ${daysUntil} days`}
+                      </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-primary">${booking.totalAmount}</p>
+                      <p className="font-bold text-primary">{formatCurrency(booking.totalAmount)}</p>
                       {booking.platform && (
                         <Badge variant="outline" className="mt-1 text-xs">{booking.platform}</Badge>
                       )}
