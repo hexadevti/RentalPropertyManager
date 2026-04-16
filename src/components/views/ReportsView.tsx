@@ -3,12 +3,18 @@ import { Transaction, Booking, Property, Task, ServiceProvider, Guest, Contract,
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { TrendUp, TrendDown, House, Calendar, CheckSquare, ArrowsClockwise, User, Files, Wrench, CalendarCheck } from '@phosphor-icons/react'
-import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, isBefore, isAfter, parseISO, subMonths, format, startOfDay } from 'date-fns'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar as CalendarComponent } from '@/components/ui/calendar'
+import { TrendUp, TrendDown, House, Calendar, CheckSquare, ArrowsClockwise, User, Files, Wrench, CalendarCheck, CalendarBlank } from '@phosphor-icons/react'
+import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, isBefore, isAfter, parseISO, subMonths, format, startOfDay, subDays, startOfYear, endOfYear, subYears, eachMonthOfInterval, eachDayOfInterval } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { toast } from 'sonner'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { useState } from 'react'
+
+type DateRangePreset = '7d' | '30d' | '3m' | '6m' | '1y' | 'ytd' | 'custom'
 
 export default function ReportsView() {
   const { formatCurrency } = useCurrency()
@@ -21,10 +27,55 @@ export default function ReportsView() {
   const [guests] = useKV<Guest[]>('guests', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [appointments] = useKV<Appointment[]>('appointments', [])
+  
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('6m')
+  const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined)
+  const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined)
 
   const now = new Date()
   const monthStart = startOfMonth(now)
   const monthEnd = endOfMonth(now)
+
+  const getDateRange = (): { start: Date; end: Date } => {
+    const end = now
+    let start: Date
+
+    switch (dateRangePreset) {
+      case '7d':
+        start = subDays(now, 7)
+        break
+      case '30d':
+        start = subDays(now, 30)
+        break
+      case '3m':
+        start = subMonths(now, 3)
+        break
+      case '6m':
+        start = subMonths(now, 6)
+        break
+      case '1y':
+        start = subYears(now, 1)
+        break
+      case 'ytd':
+        start = startOfYear(now)
+        break
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          return { start: customStartDate, end: customEndDate }
+        }
+        start = subMonths(now, 6)
+        break
+      default:
+        start = subMonths(now, 6)
+    }
+
+    return { start, end }
+  }
+
+  const dateRange = getDateRange()
+  const filteredTransactions = (transactions || []).filter(t =>
+    isWithinInterval(new Date(t.date), { start: dateRange.start, end: dateRange.end })
+  )
 
   const currentMonthTransactions = (transactions || []).filter(t =>
     isWithinInterval(new Date(t.date), { start: monthStart, end: monthEnd })
@@ -38,11 +89,11 @@ export default function ReportsView() {
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => acc + t.amount, 0)
 
-  const totalIncome = (transactions || [])
+  const totalIncome = filteredTransactions
     .filter(t => t.type === 'income')
     .reduce((acc, t) => acc + t.amount, 0)
 
-  const totalExpenses = (transactions || [])
+  const totalExpenses = filteredTransactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => acc + t.amount, 0)
 
@@ -81,7 +132,7 @@ export default function ReportsView() {
     }
   }).sort((a, b) => b.revenue - a.revenue)
 
-  const expensesByCategory = (transactions || [])
+  const expensesByCategory = filteredTransactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => {
       acc[t.category] = (acc[t.category] || 0) + t.amount
@@ -110,7 +161,7 @@ export default function ReportsView() {
   }).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
 
   const providerUtilization = (serviceProviders || []).map(provider => {
-    const providerTransactions = (transactions || []).filter(t => t.serviceProviderId === provider.id)
+    const providerTransactions = filteredTransactions.filter(t => t.serviceProviderId === provider.id)
     const providerAppointments = (appointments || []).filter(a => a.serviceProviderId === provider.id)
     const totalSpent = providerTransactions.reduce((acc, t) => acc + t.amount, 0)
     
@@ -141,13 +192,52 @@ export default function ReportsView() {
   }).filter(g => g.contracts > 0).sort((a, b) => b.totalPaid - a.totalPaid)
 
   const generateMonthlyData = () => {
-    const months = []
-    for (let i = 5; i >= 0; i--) {
-      const monthDate = subMonths(now, i)
+    const { start, end } = dateRange
+    const diffInMonths = differenceInDays(end, start) / 30
+    
+    if (diffInMonths <= 2) {
+      const days = eachDayOfInterval({ start, end })
+      const grouped: Record<string, { date: Date; income: number; expenses: number }> = {}
+      
+      days.forEach(day => {
+        const dayKey = format(day, 'dd/MM')
+        grouped[dayKey] = { date: day, income: 0, expenses: 0 }
+      })
+      
+      filteredTransactions.forEach(t => {
+        const dayKey = format(new Date(t.date), 'dd/MM')
+        if (grouped[dayKey]) {
+          if (t.type === 'income') {
+            grouped[dayKey].income += t.amount
+          } else {
+            grouped[dayKey].expenses += t.amount
+          }
+        }
+      })
+      
+      return Object.entries(grouped)
+        .sort((a, b) => a[1].date.getTime() - b[1].date.getTime())
+        .map(([key, value]) => ({
+          month: key,
+          receitas: value.income,
+          despesas: value.expenses,
+          lucro: value.income - value.expenses
+        }))
+        .filter((_, index, arr) => {
+          if (arr.length > 30) {
+            return index % Math.ceil(arr.length / 30) === 0
+          }
+          return true
+        })
+    }
+    
+    const months = eachMonthOfInterval({ start, end })
+    
+    return months.map(monthDate => {
       const monthStart = startOfMonth(monthDate)
       const monthEnd = endOfMonth(monthDate)
       
-      const monthTransactions = (transactions || []).filter(t =>
+      const monthTransactions = filteredTransactions.filter(t =>
         isWithinInterval(new Date(t.date), { start: monthStart, end: monthEnd })
       )
       
@@ -159,14 +249,13 @@ export default function ReportsView() {
         .filter(t => t.type === 'expense')
         .reduce((acc, t) => acc + t.amount, 0)
       
-      months.push({
+      return {
         month: format(monthDate, t.language === 'pt' ? 'MMM/yy' : 'MMM yy'),
         receitas: income,
         despesas: expenses,
         lucro: income - expenses
-      })
-    }
-    return months
+      }
+    })
   }
 
   const generateCategoryPieData = () => {
@@ -190,9 +279,10 @@ export default function ReportsView() {
   }
 
   const generateTaskCompletionData = () => {
-    const months = []
-    for (let i = 5; i >= 0; i--) {
-      const monthDate = subMonths(now, i)
+    const { start, end } = dateRange
+    const months = eachMonthOfInterval({ start, end })
+    
+    return months.map(monthDate => {
       const monthStart = startOfMonth(monthDate)
       const monthEnd = endOfMonth(monthDate)
       
@@ -203,13 +293,12 @@ export default function ReportsView() {
       const completed = monthTasks.filter(t => t.status === 'completed').length
       const pending = monthTasks.filter(t => t.status !== 'completed').length
       
-      months.push({
+      return {
         month: format(monthDate, t.language === 'pt' ? 'MMM/yy' : 'MMM yy'),
         concluídas: completed,
         pendentes: pending
-      })
-    }
-    return months
+      }
+    })
   }
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444']
@@ -225,7 +314,7 @@ export default function ReportsView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">
             {t.language === 'pt' ? 'Relatórios e Análises' : 'Reports & Analytics'}
@@ -234,10 +323,68 @@ export default function ReportsView() {
             {t.language === 'pt' ? 'Visão completa do desempenho do seu negócio' : 'Complete overview of your business performance'}
           </p>
         </div>
-        <Button variant="outline" onClick={handleRefresh} className="gap-2">
-          <ArrowsClockwise weight="bold" size={16} />
-          {t.language === 'pt' ? 'Atualizar' : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={dateRangePreset} onValueChange={(value) => setDateRangePreset(value as DateRangePreset)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">{t.language === 'pt' ? 'Últimos 7 dias' : 'Last 7 days'}</SelectItem>
+              <SelectItem value="30d">{t.language === 'pt' ? 'Últimos 30 dias' : 'Last 30 days'}</SelectItem>
+              <SelectItem value="3m">{t.language === 'pt' ? 'Últimos 3 meses' : 'Last 3 months'}</SelectItem>
+              <SelectItem value="6m">{t.language === 'pt' ? 'Últimos 6 meses' : 'Last 6 months'}</SelectItem>
+              <SelectItem value="1y">{t.language === 'pt' ? 'Último ano' : 'Last year'}</SelectItem>
+              <SelectItem value="ytd">{t.language === 'pt' ? 'Ano até hoje' : 'Year to date'}</SelectItem>
+              <SelectItem value="custom">{t.language === 'pt' ? 'Personalizado' : 'Custom'}</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {dateRangePreset === 'custom' && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <CalendarBlank weight="bold" size={16} />
+                  {customStartDate && customEndDate
+                    ? `${format(customStartDate, 'dd/MM/yy')} - ${format(customEndDate, 'dd/MM/yy')}`
+                    : (t.language === 'pt' ? 'Selecionar período' : 'Select period')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-4" align="end">
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      {t.language === 'pt' ? 'Data Inicial' : 'Start Date'}
+                    </label>
+                    <CalendarComponent
+                      mode="single"
+                      selected={customStartDate}
+                      onSelect={setCustomStartDate}
+                      disabled={(date) => date > new Date()}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      {t.language === 'pt' ? 'Data Final' : 'End Date'}
+                    </label>
+                    <CalendarComponent
+                      mode="single"
+                      selected={customEndDate}
+                      onSelect={setCustomEndDate}
+                      disabled={(date) => 
+                        date > new Date() || (customStartDate ? date < customStartDate : false)
+                      }
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+          
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            {t.language === 'pt' ? 'Atualizar' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -273,10 +420,15 @@ export default function ReportsView() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendUp weight="duotone" size={16} />
-              {t.language === 'pt' ? 'Receita Total' : 'Total Revenue'}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <TrendUp weight="duotone" size={16} />
+                {t.language === 'pt' ? 'Receita' : 'Revenue'}
+              </CardTitle>
+              <Badge variant="outline" className="text-xs">
+                {t.language === 'pt' ? 'Período' : 'Period'}
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-success">
@@ -370,7 +522,13 @@ export default function ReportsView() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t.language === 'pt' ? 'Evolução Financeira (6 meses)' : 'Financial Evolution (6 months)'}</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>
+              {t.language === 'pt' 
+                ? `Evolução Financeira - ${format(dateRange.start, 'dd/MM/yy')} até ${format(dateRange.end, 'dd/MM/yy')}`
+                : `Financial Evolution - ${format(dateRange.start, 'MM/dd/yy')} to ${format(dateRange.end, 'MM/dd/yy')}`}
+            </CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           {monthlyData.every(m => m.receitas === 0 && m.despesas === 0) ? (
@@ -574,7 +732,11 @@ export default function ReportsView() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>{t.language === 'pt' ? 'Conclusão de Tarefas (6 meses)' : 'Task Completion (6 months)'}</CardTitle>
+            <CardTitle>
+              {t.language === 'pt' 
+                ? `Conclusão de Tarefas - ${format(dateRange.start, 'dd/MM/yy')} até ${format(dateRange.end, 'dd/MM/yy')}`
+                : `Task Completion - ${format(dateRange.start, 'MM/dd/yy')} to ${format(dateRange.end, 'MM/dd/yy')}`}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {taskCompletionData.every(m => m.concluídas === 0 && m.pendentes === 0) ? (
