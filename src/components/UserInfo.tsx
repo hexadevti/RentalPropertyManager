@@ -25,6 +25,18 @@ export function UserInfo() {
 
   const roleLabel = userProfile.role === 'admin' ? t.roles?.admin || 'Administrador' : t.roles?.guest || 'Hóspede'
   const roleColor = userProfile.role === 'admin' ? 'default' : 'secondary'
+  
+  const statusLabel = userProfile.status === 'pending' 
+    ? 'Pendente' 
+    : userProfile.status === 'approved' 
+    ? 'Aprovado' 
+    : 'Rejeitado'
+  
+  const statusColor = userProfile.status === 'pending'
+    ? 'outline'
+    : userProfile.status === 'approved'
+    ? 'default'
+    : 'destructive'
 
   return (
     <div className="flex items-center gap-3">
@@ -38,9 +50,11 @@ export function UserInfo() {
         <span className="text-sm font-semibold text-foreground">
           {currentUser.login}
         </span>
-        <Badge variant={roleColor} className="w-fit text-xs">
-          {roleLabel}
-        </Badge>
+        <div className="flex items-center gap-1">
+          <Badge variant={roleColor} className="w-fit text-xs">
+            {roleLabel}
+          </Badge>
+        </div>
       </div>
     </div>
   )

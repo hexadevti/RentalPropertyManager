@@ -15,12 +15,14 @@ import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
 import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
-import { AuthProvider } from '@/lib/AuthContext'
+import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { UserInfo } from '@/components/UserInfo'
+import { PendingApproval } from '@/components/PendingApproval'
 
 function AppContent() {
   const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
+  const { isApproved, isPending, isLoading } = useAuth()
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
   
@@ -28,6 +30,21 @@ function AppContent() {
     return (transactions || []).reduce((acc, t) => {
       return t.type === 'income' ? acc + t.amount : acc - t.amount
     }, 0)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isApproved && isPending) {
+    return <PendingApproval />
   }
 
   return (

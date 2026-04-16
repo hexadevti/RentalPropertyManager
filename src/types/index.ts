@@ -121,10 +121,12 @@ export interface Appointment {
 }
 
 export type UserRole = 'admin' | 'guest'
+export type UserStatus = 'pending' | 'approved' | 'rejected'
 
 export interface UserProfile {
   githubLogin: string
   role: UserRole
+  status: UserStatus
   email: string
   avatarUrl: string
   createdAt: string

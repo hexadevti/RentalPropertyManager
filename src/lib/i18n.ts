@@ -458,6 +458,22 @@ export const translations = {
       adminOnly: 'Apenas administradores podem gerenciar usuários',
       you: 'Você',
       noUsers: 'Nenhum usuário cadastrado',
+      pending: 'Pendentes',
+      approved: 'Aprovados',
+      rejected: 'Rejeitados',
+      approve: 'Aprovar',
+      reject: 'Rejeitar',
+      noPendingUsers: 'Nenhum usuário pendente de aprovação',
+      noApprovedUsers: 'Nenhum usuário aprovado',
+      noRejectedUsers: 'Nenhum usuário rejeitado',
+    },
+    
+    pendingApproval: {
+      title: 'Aguardando Aprovação',
+      subtitle: 'Seu acesso está sendo analisado',
+      message: 'Solicitação Enviada',
+      description: 'Um administrador precisa aprovar seu acesso ao sistema. Você receberá uma notificação assim que sua conta for aprovada.',
+      contact: 'Se tiver dúvidas, entre em contato com o administrador do sistema.',
     },
     
     errors: {
@@ -468,6 +484,9 @@ export const translations = {
     
     success: {
       roleUpdated: 'Perfil atualizado com sucesso',
+      userApproved: 'Usuário aprovado com sucesso',
+      userRejected: 'Usuário rejeitado',
+      userPending: 'Status atualizado',
     },
   },
   
@@ -930,6 +949,22 @@ export const translations = {
       adminOnly: 'Only administrators can manage users',
       you: 'You',
       noUsers: 'No users registered',
+      pending: 'Pending',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      approve: 'Approve',
+      reject: 'Reject',
+      noPendingUsers: 'No pending users',
+      noApprovedUsers: 'No approved users',
+      noRejectedUsers: 'No rejected users',
+    },
+    
+    pendingApproval: {
+      title: 'Pending Approval',
+      subtitle: 'Your access is being reviewed',
+      message: 'Request Sent',
+      description: 'An administrator needs to approve your system access. You will receive a notification once your account is approved.',
+      contact: 'If you have any questions, please contact the system administrator.',
     },
     
     errors: {
@@ -940,6 +975,9 @@ export const translations = {
     
     success: {
       roleUpdated: 'Profile updated successfully',
+      userApproved: 'User approved successfully',
+      userRejected: 'User rejected',
+      userPending: 'Status updated',
     },
   },
 } as const

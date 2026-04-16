@@ -2,10 +2,12 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useKV } from '@github/spark/hooks'
 
 type UserRole = 'admin' | 'guest'
+type UserStatus = 'pending' | 'approved' | 'rejected'
 
 interface UserProfile {
   githubLogin: string
   role: UserRole
+  status: UserStatus
   email: string
   avatarUrl: string
   createdAt: string
@@ -25,7 +27,11 @@ interface AuthContextType {
   hasRole: (role: UserRole) => boolean
   isAdmin: boolean
   isGuest: boolean
+  isApproved: boolean
+  isPending: boolean
   updateUserRole: (githubLogin: string, role: UserRole) => Promise<void>
+  updateUserStatus: (githubLogin: string, status: UserStatus) => Promise<void>
+  getAllProfiles: () => UserProfile[]
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -53,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const newProfile: UserProfile = {
             githubLogin: user.login,
             role: user.isOwner ? 'admin' : 'guest',
+            status: user.isOwner ? 'approved' : 'pending',
             email: user.email,
             avatarUrl: user.avatarUrl,
             createdAt: new Date().toISOString(),
@@ -88,12 +95,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const updateUserStatus = async (githubLogin: string, status: UserStatus) => {
+    setProfiles((current) =>
+      (current || []).map((p) =>
+        p.githubLogin === githubLogin
+          ? { ...p, status, updatedAt: new Date().toISOString() }
+          : p
+      )
+    )
+
+    if (userProfile?.githubLogin === githubLogin) {
+      setUserProfile((prev) =>
+        prev ? { ...prev, status, updatedAt: new Date().toISOString() } : null
+      )
+    }
+  }
+
+  const getAllProfiles = () => {
+    return profiles || []
+  }
+
   const hasRole = (role: UserRole) => {
     return userProfile?.role === role
   }
 
   const isAdmin = userProfile?.role === 'admin'
   const isGuest = userProfile?.role === 'guest'
+  const isApproved = userProfile?.status === 'approved'
+  const isPending = userProfile?.status === 'pending'
 
   return (
     <AuthContext.Provider
@@ -104,7 +133,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasRole,
         isAdmin,
         isGuest,
+        isApproved,
+        isPending,
         updateUserRole,
+        updateUserStatus,
+        getAllProfiles,
       }}
     >
       {children}
