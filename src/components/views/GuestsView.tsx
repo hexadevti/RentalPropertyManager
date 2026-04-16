@@ -8,13 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Guest } from '@/types'
+import { Guest, Contract } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { format } from 'date-fns'
 
 export default function GuestsView() {
   const { t } = useLanguage()
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
+  const [contracts] = useKV<Contract[]>('contracts', [])
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null)
@@ -99,6 +100,10 @@ export default function GuestsView() {
   const handleRefresh = () => {
     setGuests((current) => [...(current || [])])
     toast.success('Dados atualizados')
+  }
+
+  const getGuestContracts = (guestId: string) => {
+    return (contracts || []).filter(contract => contract.guestId === guestId)
   }
 
   return (
@@ -257,7 +262,7 @@ export default function GuestsView() {
       ) : (
         <div className="grid gap-4">
           {filteredGuests.map((guest) => {
-            const guestBookings = getGuestBookings(guest.name)
+            const guestContracts = getGuestContracts(guest.id)
             return (
               <Card key={guest.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -330,22 +335,22 @@ export default function GuestsView() {
                       )}
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold mb-2">{t.guests_view.bookings_history}</h4>
-                      {guestBookings.length > 0 ? (
+                      <h4 className="text-sm font-semibold mb-2">{t.guests_view.contracts_history || 'Histórico de Contratos'}</h4>
+                      {guestContracts.length > 0 ? (
                         <div className="space-y-1">
-                          {guestBookings.slice(0, 3).map((booking) => (
-                            <div key={booking.id} className="text-sm text-muted-foreground">
-                              {format(new Date(booking.checkIn), 'dd/MM/yyyy')} - {format(new Date(booking.checkOut), 'dd/MM/yyyy')}
+                          {guestContracts.slice(0, 3).map((contract) => (
+                            <div key={contract.id} className="text-sm text-muted-foreground">
+                              {format(new Date(contract.startDate), 'dd/MM/yyyy')} - {format(new Date(contract.endDate), 'dd/MM/yyyy')}
                             </div>
                           ))}
-                          {guestBookings.length > 3 && (
+                          {guestContracts.length > 3 && (
                             <div className="text-xs text-muted-foreground">
-                              +{guestBookings.length - 3} {t.guests_view.no_bookings}
+                              +{guestContracts.length - 3} {t.guests_view.more_contracts || 'mais contratos'}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground">{t.guests_view.no_bookings}</p>
+                        <p className="text-sm text-muted-foreground">{t.guests_view.no_contracts || 'Nenhum contrato'}</p>
                       )}
                     </div>
                   </div>
