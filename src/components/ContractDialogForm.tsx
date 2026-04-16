@@ -27,14 +27,10 @@ export default function ContractDialogForm({
 }: ContractDialogFormProps) {
   const { t } = useLanguage()
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
-  const [guests, setGuests] = useKV<Guest[]>('guests', [])
+  const [guests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [guestDialogOpen, setGuestDialogOpen] = useState(false)
-  const [localGuests, setLocalGuests] = useState<Guest[]>([])
-
-  useEffect(() => {
-    setLocalGuests(guests || [])
-  }, [guests])
+  const [refreshKey, setRefreshKey] = useState(0)
   
   const [formData, setFormData] = useState({
     guestId: '',
@@ -145,8 +141,7 @@ export default function ContractDialogForm({
   }
 
   const refreshGuestList = async () => {
-    const currentGuests = guests || []
-    setLocalGuests([...currentGuests])
+    setRefreshKey(prev => prev + 1)
     toast.success(t.contracts_view.form.guests_refreshed || 'Lista de hóspedes atualizada')
   }
 
@@ -196,7 +191,7 @@ export default function ContractDialogForm({
                   <SelectValue placeholder={t.contracts_view.form.select_guest} />
                 </SelectTrigger>
                 <SelectContent>
-                  {localGuests.map((guest) => (
+                  {(guests || []).map((guest) => (
                     <SelectItem key={guest.id} value={guest.id}>
                       {guest.name}
                     </SelectItem>
