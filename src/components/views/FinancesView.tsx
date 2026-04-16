@@ -188,12 +188,11 @@ export default function FinancesView() {
 
               <div className="space-y-2">
                 <Label htmlFor="propertyId">{t.finances_view.form.property} {t.finances_view.form.optional}</Label>
-                <Select value={formData.propertyId} onValueChange={(value) => setFormData({ ...formData, propertyId: value })}>
+                <Select value={formData.propertyId || undefined} onValueChange={(value) => setFormData({ ...formData, propertyId: value })}>
                   <SelectTrigger id="propertyId">
                     <SelectValue placeholder={t.finances_view.form.select_property} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{t.finances_view.no_property}</SelectItem>
                     {(properties || []).map((property) => (
                       <SelectItem key={property.id} value={property.id}>
                         {property.name}

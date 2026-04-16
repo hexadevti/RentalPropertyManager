@@ -166,12 +166,11 @@ export default function TasksView() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="propertyId">Property (Optional)</Label>
-                  <Select value={formData.propertyId} onValueChange={(value) => setFormData({ ...formData, propertyId: value })}>
+                  <Select value={formData.propertyId || undefined} onValueChange={(value) => setFormData({ ...formData, propertyId: value })}>
                     <SelectTrigger id="propertyId">
                       <SelectValue placeholder="Select property" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
                       {(properties || []).map((property) => (
                         <SelectItem key={property.id} value={property.id}>
                           {property.name}
