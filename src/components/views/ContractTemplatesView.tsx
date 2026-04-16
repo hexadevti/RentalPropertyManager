@@ -14,8 +14,11 @@ import { ContractTemplate, TemplateType } from '@/types'
 
 const DEFAULT_MONTHLY_TEMPLATE = `CONTRATO DE LOCAÇÃO MENSAL
 
-LOCADOR(A): [Nome do Proprietário]
-Endereço: [Endereço do Proprietário]
+LOCADOR(A): {{ownerName}}
+Documento: {{ownerDocument}}
+E-mail: {{ownerEmail}}
+Telefone: {{ownerPhone}}
+Endereço: {{ownerAddress}}
 
 LOCATÁRIO(A): {{guestName}}
 E-mail: {{guestEmail}}
@@ -64,8 +67,11 @@ _________________________          _________________________
 
 const DEFAULT_SHORT_TERM_TEMPLATE = `CONTRATO DE LOCAÇÃO TEMPORÁRIA
 
-LOCADOR(A): [Nome do Proprietário]
-Endereço: [Endereço do Proprietário]
+LOCADOR(A): {{ownerName}}
+Documento: {{ownerDocument}}
+E-mail: {{ownerEmail}}
+Telefone: {{ownerPhone}}
+Endereço: {{ownerAddress}}
 
 LOCATÁRIO(A): {{guestName}}
 E-mail: {{guestEmail}}
@@ -284,7 +290,7 @@ export default function ContractTemplatesView() {
                     required
                   />
                   <p className="text-xs text-muted-foreground">
-                    Variáveis disponíveis: {'{'}{'{'} guestName {'}'}{'}'},  {'{'}{'{'} guestEmail {'}'}{'}'},  {'{'}{'{'} guestPhone {'}'}{'}'},  {'{'}{'{'} guestDocument {'}'}{'}'},  {'{'}{'{'} guestAddress {'}'}{'}'},  {'{'}{'{'} guestNationality {'}'}{'}'},  {'{'}{'{'} properties {'}'}{'}'},  {'{'}{'{'} startDate {'}'}{'}'},  {'{'}{'{'} endDate {'}'}{'}'},  {'{'}{'{'} monthlyAmount {'}'}{'}'},  {'{'}{'{'} paymentDueDay {'}'}{'}'},  {'{'}{'{'} notes {'}'}{'}'},  {'{'}{'{'} currentDate {'}'}{'}'} 
+                    Variáveis disponíveis: {'{'}{'{'} ownerName {'}'}{'}'},  {'{'}{'{'} ownerEmail {'}'}{'}'},  {'{'}{'{'} ownerPhone {'}'}{'}'},  {'{'}{'{'} ownerDocument {'}'}{'}'},  {'{'}{'{'} ownerAddress {'}'}{'}'},  {'{'}{'{'} ownerDetails {'}'}{'}'},  {'{'}{'{'} guestName {'}'}{'}'},  {'{'}{'{'} guestEmail {'}'}{'}'},  {'{'}{'{'} guestPhone {'}'}{'}'},  {'{'}{'{'} guestDocument {'}'}{'}'},  {'{'}{'{'} guestAddress {'}'}{'}'},  {'{'}{'{'} guestNationality {'}'}{'}'},  {'{'}{'{'} properties {'}'}{'}'},  {'{'}{'{'} startDate {'}'}{'}'},  {'{'}{'{'} endDate {'}'}{'}'},  {'{'}{'{'} monthlyAmount {'}'}{'}'},  {'{'}{'{'} paymentDueDay {'}'}{'}'},  {'{'}{'{'} notes {'}'}{'}'},  {'{'}{'{'} currentDate {'}'}{'}'} 
                   </p>
                 </div>
                 <div className="flex justify-end gap-2">

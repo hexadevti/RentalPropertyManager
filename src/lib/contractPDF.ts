@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import { Contract, Guest, Property, ContractTemplate } from '@/types'
+import { Contract, Guest, Property, ContractTemplate, Owner } from '@/types'
 import { format } from 'date-fns'
 
 export interface ContractPDFData {
@@ -7,12 +7,27 @@ export interface ContractPDFData {
   guest: Guest
   properties: Property[]
   template: ContractTemplate
+  owners: Owner[]
 }
 
 export function generateContractPDF(data: ContractPDFData, formatCurrency: (value: number) => string) {
-  const { contract, guest, properties, template } = data
+  const { contract, guest, properties, template, owners } = data
   
   const propertyList = properties.map(p => `- ${p.name}`).join('\n')
+  
+  const ownerNames = owners.map(o => o.name).join(', ') || ''
+  const ownerEmails = owners.map(o => o.email).join(', ') || ''
+  const ownerPhones = owners.map(o => o.phone).join(', ') || ''
+  const ownerDocuments = owners.map(o => o.document).join(', ') || ''
+  const ownerAddresses = owners.map(o => o.address || '').filter(Boolean).join(', ') || ''
+  
+  const ownerDetailsList = owners.map(o => 
+    `${o.name}\n` +
+    `Documento: ${o.document}\n` +
+    `E-mail: ${o.email}\n` +
+    `Telefone: ${o.phone}` +
+    (o.address ? `\nEndereço: ${o.address}` : '')
+  ).join('\n\n')
   
   const variables: Record<string, string> = {
     '{{guestName}}': guest.name || '',
@@ -21,6 +36,12 @@ export function generateContractPDF(data: ContractPDFData, formatCurrency: (valu
     '{{guestDocument}}': guest.document || '',
     '{{guestAddress}}': guest.address || '',
     '{{guestNationality}}': guest.nationality || '',
+    '{{ownerName}}': ownerNames,
+    '{{ownerEmail}}': ownerEmails,
+    '{{ownerPhone}}': ownerPhones,
+    '{{ownerDocument}}': ownerDocuments,
+    '{{ownerAddress}}': ownerAddresses,
+    '{{ownerDetails}}': ownerDetailsList,
     '{{properties}}': propertyList,
     '{{startDate}}': format(new Date(contract.startDate), 'dd/MM/yyyy'),
     '{{endDate}}': format(new Date(contract.endDate), 'dd/MM/yyyy'),

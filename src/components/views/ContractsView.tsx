@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Contract, Guest, Property, ContractStatus, RentalType, ContractTemplate } from '@/types'
+import { Contract, Guest, Property, ContractStatus, RentalType, ContractTemplate, Owner } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { format } from 'date-fns'
@@ -23,6 +23,7 @@ export default function ContractsView() {
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
+  const [owners] = useKV<Owner[]>('owners', [])
   const [templates] = useKV<ContractTemplate[]>('contract-templates', [])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all')
@@ -214,6 +215,13 @@ export default function ContractsView() {
       selectedContractForPDF.propertyIds.includes(p.id)
     )
 
+    const propertyOwnerIds = new Set<string>()
+    contractProperties.forEach(property => {
+      property.ownerIds?.forEach(ownerId => propertyOwnerIds.add(ownerId))
+    })
+
+    const contractOwners = (owners || []).filter(o => propertyOwnerIds.has(o.id))
+
     try {
       const pdf = generateContractPDF(
         {
@@ -221,6 +229,7 @@ export default function ContractsView() {
           guest,
           properties: contractProperties,
           template,
+          owners: contractOwners,
         },
         formatCurrency
       )
