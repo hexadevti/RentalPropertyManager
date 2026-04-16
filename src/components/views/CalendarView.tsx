@@ -76,13 +76,21 @@ export default function CalendarView() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))}>
+            <Button variant="outline" size="sm" onClick={() => {
+              const newDate = new Date(currentDate)
+              newDate.setMonth(newDate.getMonth() - 1)
+              setCurrentDate(newDate)
+            }}>
               Previous
             </Button>
             <span className="text-sm font-medium min-w-[120px] text-center">
               {format(currentDate, 'MMMM yyyy')}
             </span>
-            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))}>
+            <Button variant="outline" size="sm" onClick={() => {
+              const newDate = new Date(currentDate)
+              newDate.setMonth(newDate.getMonth() + 1)
+              setCurrentDate(newDate)
+            }}>
               Next
             </Button>
           </div>
