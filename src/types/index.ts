@@ -5,6 +5,8 @@ export type TransactionType = 'income' | 'expense'
 export type TaskPriority = 'low' | 'medium' | 'high'
 export type TaskStatus = 'pending' | 'in-progress' | 'completed'
 export type DocumentCategory = 'contract' | 'receipt' | 'insurance' | 'tax' | 'other'
+export type RentalType = 'short-term' | 'monthly'
+export type ContractStatus = 'active' | 'expired' | 'cancelled'
 
 export interface Property {
   id: string
@@ -80,6 +82,20 @@ export interface Guest {
   address?: string
   nationality?: string
   dateOfBirth?: string
+  notes?: string
+  createdAt: string
+}
+
+export interface Contract {
+  id: string
+  guestId: string
+  propertyIds: string[]
+  rentalType: RentalType
+  startDate: string
+  endDate: string
+  paymentDueDay: number
+  monthlyAmount: number
+  status: ContractStatus
   notes?: string
   createdAt: string
 }
