@@ -31,6 +31,7 @@ interface AuthContextType {
   isPending: boolean
   updateUserRole: (githubLogin: string, role: UserRole) => Promise<void>
   updateUserStatus: (githubLogin: string, status: UserStatus) => Promise<void>
+  createUser: (githubLogin: string, email: string, role: UserRole) => Promise<void>
   getAllProfiles: () => UserProfile[]
 }
 
@@ -111,6 +112,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const createUser = async (githubLogin: string, email: string, role: UserRole) => {
+    const newProfile: UserProfile = {
+      githubLogin,
+      role,
+      status: 'approved',
+      email,
+      avatarUrl: `https://github.com/${githubLogin}.png`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    setProfiles((current) => [...(current || []), newProfile])
+  }
+
   const getAllProfiles = () => {
     return profiles || []
   }
@@ -137,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isPending,
         updateUserRole,
         updateUserStatus,
+        createUser,
         getAllProfiles,
       }}
     >

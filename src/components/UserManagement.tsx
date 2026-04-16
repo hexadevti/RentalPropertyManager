@@ -4,18 +4,27 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
-import { User, Shield, ShieldCheck, Clock, CheckCircle, XCircle } from '@phosphor-icons/react'
+import { User, Shield, ShieldCheck, Clock, CheckCircle, XCircle, Plus, UserPlus } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { useState } from 'react'
 
 type UserRole = 'admin' | 'guest'
 type UserStatus = 'pending' | 'approved' | 'rejected'
 
 export function UserManagement() {
-  const { isAdmin, currentUser, updateUserRole, updateUserStatus, getAllProfiles } = useAuth()
+  const { isAdmin, currentUser, updateUserRole, updateUserStatus, getAllProfiles, createUser } = useAuth()
   const { t } = useLanguage()
   const profiles = getAllProfiles()
+  
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [newUserEmail, setNewUserEmail] = useState('')
+  const [newUserRole, setNewUserRole] = useState<UserRole>('guest')
+  const [isCreating, setIsCreating] = useState(false)
   
   const pendingUsers = profiles.filter(p => p.status === 'pending')
   const approvedUsers = profiles.filter(p => p.status === 'approved')
@@ -56,6 +65,34 @@ export function UserManagement() {
       toast.success(statusMessages[newStatus])
     } catch (error) {
       toast.error(t.errors?.updateFailed || 'Erro ao atualizar status')
+    }
+  }
+
+  const handleCreateUser = async () => {
+    if (!newUserEmail.trim()) {
+      toast.error('Por favor, insira um email válido')
+      return
+    }
+
+    const githubLogin = newUserEmail.split('@')[0]
+    
+    const existingUser = profiles.find(p => p.email === newUserEmail || p.githubLogin === githubLogin)
+    if (existingUser) {
+      toast.error('Já existe um usuário com este email')
+      return
+    }
+
+    setIsCreating(true)
+    try {
+      await createUser(githubLogin, newUserEmail, newUserRole)
+      toast.success('Usuário criado com sucesso')
+      setIsCreateDialogOpen(false)
+      setNewUserEmail('')
+      setNewUserRole('guest')
+    } catch (error) {
+      toast.error('Erro ao criar usuário')
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -160,13 +197,104 @@ export function UserManagement() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShieldCheck weight="duotone" size={24} />
-          {t.userManagement?.title || 'Gerenciamento de Usuários'}
-        </CardTitle>
-        <CardDescription>
-          {t.userManagement?.description || 'Gerencie os perfis de acesso dos usuários do sistema'}
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck weight="duotone" size={24} />
+              {t.userManagement?.title || 'Gerenciamento de Usuários'}
+            </CardTitle>
+            <CardDescription>
+              {t.userManagement?.description || 'Gerencie os perfis de acesso dos usuários do sistema'}
+            </CardDescription>
+          </div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <UserPlus size={20} weight="duotone" />
+                Criar Usuário
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <UserPlus size={24} weight="duotone" />
+                  Criar Novo Usuário
+                </DialogTitle>
+                <DialogDescription>
+                  Adicione um novo usuário ao sistema e atribua um perfil de acesso
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="user-email">Email do GitHub</Label>
+                  <Input
+                    id="user-email"
+                    type="email"
+                    placeholder="usuario@github.com"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Este será o email usado para identificar o usuário no sistema
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="user-role">Perfil de Acesso</Label>
+                  <Select value={newUserRole} onValueChange={(value) => setNewUserRole(value as UserRole)}>
+                    <SelectTrigger id="user-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck size={16} weight="duotone" />
+                          {t.roles?.admin || 'Administrador'}
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="guest">
+                        <div className="flex items-center gap-2">
+                          <User size={16} weight="duotone" />
+                          {t.roles?.guest || 'Hóspede'}
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {newUserRole === 'admin' 
+                      ? 'Administradores têm acesso completo ao sistema'
+                      : 'Hóspedes têm acesso limitado às suas informações'}
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCreateDialogOpen(false)}
+                  disabled={isCreating}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleCreateUser}
+                  disabled={isCreating || !newUserEmail.trim()}
+                  className="gap-2"
+                >
+                  {isCreating ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} weight="bold" />
+                      Criar Usuário
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="pending" className="w-full">
