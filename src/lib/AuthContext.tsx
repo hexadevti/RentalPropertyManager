@@ -29,6 +29,7 @@ interface AuthContextType {
   isGuest: boolean
   isApproved: boolean
   isPending: boolean
+  isRejected: boolean
   updateUserRole: (githubLogin: string, role: UserRole) => Promise<void>
   updateUserStatus: (githubLogin: string, status: UserStatus) => Promise<void>
   createUser: (githubLogin: string, email: string, role: UserRole) => Promise<void>
@@ -79,6 +80,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     loadUser()
   }, [])
+
+  useEffect(() => {
+    if (currentUser) {
+      const updatedProfile = (profiles || []).find(
+        (p) => p.githubLogin === currentUser.login
+      )
+      if (updatedProfile && JSON.stringify(updatedProfile) !== JSON.stringify(userProfile)) {
+        setUserProfile(updatedProfile)
+      }
+    }
+  }, [profiles, currentUser])
 
   const updateUserRole = async (githubLogin: string, role: UserRole) => {
     setProfiles((current) =>
@@ -144,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isGuest = userProfile?.role === 'guest'
   const isApproved = userProfile?.status === 'approved'
   const isPending = userProfile?.status === 'pending'
+  const isRejected = userProfile?.status === 'rejected'
 
   return (
     <AuthContext.Provider
@@ -156,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isGuest,
         isApproved,
         isPending,
+        isRejected,
         updateUserRole,
         updateUserStatus,
         createUser,

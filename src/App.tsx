@@ -18,11 +18,12 @@ import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { UserInfo } from '@/components/UserInfo'
 import { PendingApproval } from '@/components/PendingApproval'
+import { Rejected } from '@/components/Rejected'
 
 function AppContent() {
   const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
-  const { isApproved, isPending, isLoading } = useAuth()
+  const { isApproved, isPending, isRejected, isLoading, isAdmin, isGuest } = useAuth()
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
   
@@ -43,7 +44,15 @@ function AppContent() {
     )
   }
 
+  if (isRejected) {
+    return <Rejected />
+  }
+
   if (!isApproved && isPending) {
+    return <PendingApproval />
+  }
+
+  if (!isApproved) {
     return <PendingApproval />
   }
 
@@ -60,58 +69,74 @@ function AppContent() {
             </div>
             <div className="flex items-center gap-8">
               <UserInfo />
-              <div className="h-12 w-px bg-border" />
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.balance}</p>
-                <p className={`text-2xl font-bold ${calculateBalance() >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  {formatCurrency(calculateBalance())}
-                </p>
-              </div>
-              <div className="h-12 w-px bg-border" />
-              <div className="text-right">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.properties}</p>
-                <p className="text-2xl font-bold text-foreground">{(properties || []).length}</p>
-              </div>
+              {isAdmin && (
+                <>
+                  <div className="h-12 w-px bg-border" />
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.balance}</p>
+                    <p className={`text-2xl font-bold ${calculateBalance() >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {formatCurrency(calculateBalance())}
+                    </p>
+                  </div>
+                  <div className="h-12 w-px bg-border" />
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.properties}</p>
+                    <p className="text-2xl font-bold text-foreground">{(properties || []).length}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-6 py-6">
-        <Tabs defaultValue="properties" className="w-full">
-          <TabsList className="grid w-full grid-cols-10 h-auto p-1 bg-card border border-border">
-            <TabsTrigger value="properties" className="flex items-center gap-2 py-3">
-              <House weight="duotone" size={20} />
-              <span className="hidden sm:inline">{t.tabs.properties}</span>
-            </TabsTrigger>
-            <TabsTrigger value="finances" className="flex items-center gap-2 py-3">
-              <Wallet weight="duotone" size={20} />
-              <span className="hidden sm:inline">{t.tabs.finances}</span>
-            </TabsTrigger>
+        <Tabs defaultValue={isGuest ? "calendar" : "properties"} className="w-full">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-10' : 'grid-cols-4'} h-auto p-1 bg-card border border-border`}>
+            {isAdmin && (
+              <TabsTrigger value="properties" className="flex items-center gap-2 py-3">
+                <House weight="duotone" size={20} />
+                <span className="hidden sm:inline">{t.tabs.properties}</span>
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="finances" className="flex items-center gap-2 py-3">
+                <Wallet weight="duotone" size={20} />
+                <span className="hidden sm:inline">{t.tabs.finances}</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="calendar" className="flex items-center gap-2 py-3">
               <Calendar weight="duotone" size={20} />
               <span className="hidden sm:inline">{t.tabs.calendar}</span>
             </TabsTrigger>
-            <TabsTrigger value="tasks" className="flex items-center gap-2 py-3">
-              <CheckSquare weight="duotone" size={20} />
-              <span className="hidden sm:inline">{t.tabs.tasks}</span>
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="flex items-center gap-2 py-3">
-              <ChartBar weight="duotone" size={20} />
-              <span className="hidden sm:inline">{t.tabs.reports}</span>
-            </TabsTrigger>
-            <TabsTrigger value="guests" className="flex items-center gap-2 py-3">
-              <User weight="duotone" size={20} />
-              <span className="hidden sm:inline">{t.tabs.guests}</span>
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="tasks" className="flex items-center gap-2 py-3">
+                <CheckSquare weight="duotone" size={20} />
+                <span className="hidden sm:inline">{t.tabs.tasks}</span>
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="reports" className="flex items-center gap-2 py-3">
+                <ChartBar weight="duotone" size={20} />
+                <span className="hidden sm:inline">{t.tabs.reports}</span>
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="guests" className="flex items-center gap-2 py-3">
+                <User weight="duotone" size={20} />
+                <span className="hidden sm:inline">{t.tabs.guests}</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="contracts" className="flex items-center gap-2 py-3">
               <Files weight="duotone" size={20} />
               <span className="hidden sm:inline">{t.tabs.contracts}</span>
             </TabsTrigger>
-            <TabsTrigger value="providers" className="flex items-center gap-2 py-3">
-              <Wrench weight="duotone" size={20} />
-              <span className="hidden sm:inline">Prestadores</span>
-            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="providers" className="flex items-center gap-2 py-3">
+                <Wrench weight="duotone" size={20} />
+                <span className="hidden sm:inline">Prestadores</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="appointments" className="flex items-center gap-2 py-3">
               <CalendarCheck weight="duotone" size={20} />
               <span className="hidden sm:inline">{t.tabs.appointments}</span>
@@ -123,30 +148,42 @@ function AppContent() {
           </TabsList>
 
           <div className="mt-6">
-            <TabsContent value="properties" className="mt-0">
-              <PropertiesView />
-            </TabsContent>
-            <TabsContent value="finances" className="mt-0">
-              <FinancesView />
-            </TabsContent>
+            {isAdmin && (
+              <TabsContent value="properties" className="mt-0">
+                <PropertiesView />
+              </TabsContent>
+            )}
+            {isAdmin && (
+              <TabsContent value="finances" className="mt-0">
+                <FinancesView />
+              </TabsContent>
+            )}
             <TabsContent value="calendar" className="mt-0">
               <CalendarView />
             </TabsContent>
-            <TabsContent value="tasks" className="mt-0">
-              <TasksView />
-            </TabsContent>
-            <TabsContent value="reports" className="mt-0">
-              <ReportsView />
-            </TabsContent>
-            <TabsContent value="guests" className="mt-0">
-              <GuestsView />
-            </TabsContent>
+            {isAdmin && (
+              <TabsContent value="tasks" className="mt-0">
+                <TasksView />
+              </TabsContent>
+            )}
+            {isAdmin && (
+              <TabsContent value="reports" className="mt-0">
+                <ReportsView />
+              </TabsContent>
+            )}
+            {isAdmin && (
+              <TabsContent value="guests" className="mt-0">
+                <GuestsView />
+              </TabsContent>
+            )}
             <TabsContent value="contracts" className="mt-0">
               <ContractsView />
             </TabsContent>
-            <TabsContent value="providers" className="mt-0">
-              <ServiceProvidersView />
-            </TabsContent>
+            {isAdmin && (
+              <TabsContent value="providers" className="mt-0">
+                <ServiceProvidersView />
+              </TabsContent>
+            )}
             <TabsContent value="appointments" className="mt-0">
               <AppointmentsView />
             </TabsContent>
