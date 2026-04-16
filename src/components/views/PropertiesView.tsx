@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useKV } from '@github/spark/hooks'
-import { Property, PropertyType, PropertyStatus } from '@/types'
+import { Property, PropertyType, PropertyStatus, Contract } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -19,6 +19,7 @@ export default function PropertiesView() {
   const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
   const [properties, setProperties] = useKV<Property[]>('properties', [])
+  const [contracts] = useKV<Contract[]>('contracts', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -30,9 +31,17 @@ export default function PropertiesView() {
     capacity: 1,
     pricePerNight: 0,
     pricePerMonth: 0,
-    status: 'available' as PropertyStatus,
     description: ''
   })
+
+  const getPropertyStatus = (propertyId: string): PropertyStatus => {
+    const activeContracts = (contracts || []).filter(contract => 
+      contract.status === 'active' && 
+      contract.propertyIds.includes(propertyId)
+    )
+    
+    return activeContracts.length > 0 ? 'occupied' : 'available'
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,7 +49,7 @@ export default function PropertiesView() {
     if (editingProperty) {
       setProperties((current) => 
         (current || []).map(p => p.id === editingProperty.id 
-          ? { ...formData, id: p.id, createdAt: p.createdAt }
+          ? { ...formData, id: p.id, createdAt: p.createdAt, status: getPropertyStatus(p.id) }
           : p
         )
       )
@@ -49,7 +58,8 @@ export default function PropertiesView() {
       const newProperty: Property = {
         ...formData,
         id: Date.now().toString(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        status: 'available'
       }
       setProperties((current) => [...(current || []), newProperty])
       toast.success(t.properties_view.form.created_success)
@@ -65,7 +75,6 @@ export default function PropertiesView() {
       capacity: 1,
       pricePerNight: 0,
       pricePerMonth: 0,
-      status: 'available',
       description: ''
     })
     setEditingProperty(null)
@@ -80,7 +89,6 @@ export default function PropertiesView() {
       capacity: property.capacity,
       pricePerNight: property.pricePerNight,
       pricePerMonth: property.pricePerMonth,
-      status: property.status,
       description: property.description
     })
     setIsDialogOpen(true)
@@ -202,20 +210,6 @@ export default function PropertiesView() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">{t.properties_view.form.status}</Label>
-                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as PropertyStatus })}>
-                  <SelectTrigger id="status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="available">{t.properties_view.status.available}</SelectItem>
-                    <SelectItem value="occupied">{t.properties_view.status.occupied}</SelectItem>
-                    <SelectItem value="maintenance">{t.properties_view.status.maintenance}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="description">{t.properties_view.form.description}</Label>
                 <Textarea
                   id="description"
@@ -251,7 +245,9 @@ export default function PropertiesView() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {properties.map((property) => (
+          {properties.map((property) => {
+            const currentStatus = getPropertyStatus(property.id)
+            return (
             <Card key={property.id} className="hover:shadow-lg transition-shadow duration-200">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -264,8 +260,8 @@ export default function PropertiesView() {
                       <CardDescription>{t.properties_view.type[property.type]}</CardDescription>
                     </div>
                   </div>
-                  <Badge className={getStatusColor(property.status)}>
-                    {t.properties_view.status[property.status]}
+                  <Badge className={getStatusColor(currentStatus)}>
+                    {t.properties_view.status[currentStatus]}
                   </Badge>
                 </div>
               </CardHeader>
@@ -297,7 +293,8 @@ export default function PropertiesView() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+            )
+          })}
         </div>
       )}
 
