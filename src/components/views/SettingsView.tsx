@@ -9,6 +9,7 @@ import { ContractTemplate } from '@/types'
 import { toast } from 'sonner'
 import { Globe, CurrencyCircleDollar, FileText } from '@phosphor-icons/react'
 import { UserManagement } from '@/components/UserManagement'
+import { MenuConfiguration } from '@/components/MenuConfiguration'
 
 export default function SettingsView() {
   const { t, language, setLanguage } = useLanguage()
@@ -144,6 +145,8 @@ _________________________          _________________________
         <h2 className="text-3xl font-bold tracking-tight">{t.settings_view.title}</h2>
         <p className="text-muted-foreground mt-1">{t.settings_view.subtitle}</p>
       </div>
+
+      <MenuConfiguration />
 
       <UserManagement />
 
