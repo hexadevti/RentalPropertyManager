@@ -9,6 +9,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { Contract, Guest, Property, RentalType } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
+import { Plus } from '@phosphor-icons/react'
+import GuestDialogForm from './GuestDialogForm'
 
 interface ContractDialogFormProps {
   open: boolean
@@ -27,6 +29,7 @@ export default function ContractDialogForm({
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
   const [guests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false)
   
   const [formData, setFormData] = useState({
     guestId: '',
@@ -127,6 +130,13 @@ export default function ContractDialogForm({
     }))
   }
 
+  const handleGuestCreated = (guestId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      guestId: guestId
+    }))
+  }
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       onOpenChange(isOpen)
@@ -139,7 +149,19 @@ export default function ContractDialogForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <Label htmlFor="contract-guest">{t.contracts_view.form.guest}</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="contract-guest">{t.contracts_view.form.guest}</Label>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-1.5 h-7 text-xs"
+                  onClick={() => setGuestDialogOpen(true)}
+                >
+                  <Plus size={14} weight="bold" />
+                  {t.contracts_view.form.new_guest}
+                </Button>
+              </div>
               <Select
                 value={formData.guestId}
                 onValueChange={(value) => setFormData({ ...formData, guestId: value })}
@@ -269,6 +291,12 @@ export default function ContractDialogForm({
           </div>
         </form>
       </DialogContent>
+      
+      <GuestDialogForm
+        open={guestDialogOpen}
+        onOpenChange={setGuestDialogOpen}
+        onGuestCreated={handleGuestCreated}
+      />
     </Dialog>
   )
 }
