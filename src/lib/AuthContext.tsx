@@ -26,7 +26,7 @@ interface AuthContextType {
   hasRole: (role: UserRole) => boolean
   updateUserRole: (githubLogin: string, role: UserRole) => void
   updateUserStatus: (githubLogin: string, status: UserStatus) => void
-  createUser: (githubLogin: string, role: UserRole) => void
+  createUser: (githubLogin: string, email: string, role: UserRole) => void
   deleteUser: (githubLogin: string) => void
   getAllProfiles: () => UserProfile[]
 }
@@ -121,13 +121,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
   }
 
-  const createUser = (githubLogin: string, role: UserRole) => {
+  const createUser = (githubLogin: string, email: string, role: UserRole) => {
     const newProfile: UserProfile = {
       githubLogin,
       role,
-      status: 'pending',
-      email: '',
-      avatarUrl: '',
+      status: 'approved',
+      email,
+      avatarUrl: `https://github.com/${githubLogin}.png`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }

@@ -8,14 +8,13 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Guest, Booking } from '@/types'
+import { Guest } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { format } from 'date-fns'
 
 export default function GuestsView() {
   const { t } = useLanguage()
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
-  const [bookings] = useKV<Booking[]>('bookings', [])
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null)
@@ -89,10 +88,6 @@ export default function GuestsView() {
   const handleDelete = (id: string) => {
     setGuests((currentGuests) => (currentGuests || []).filter(g => g.id !== id))
     toast.success(t.guests_view.deleted_success)
-  }
-
-  const getGuestBookings = (guestName: string) => {
-    return (bookings || []).filter(b => b.guestName === guestName)
   }
 
   const filteredGuests = (guests || []).filter(guest =>

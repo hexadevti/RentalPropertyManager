@@ -19,6 +19,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { UserInfo } from '@/components/UserInfo'
 import { PendingApproval } from '@/components/PendingApproval'
 import { Rejected } from '@/components/Rejected'
+import { useKVCleanup } from '@/hooks/use-kv-cleanup'
 
 function AppContent() {
   const { t } = useLanguage()
@@ -26,6 +27,8 @@ function AppContent() {
   const { isApproved, isPending, isRejected, isLoading, isAdmin, isGuest } = useAuth()
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
+  
+  useKVCleanup()
   
   const calculateBalance = () => {
     return (transactions || []).reduce((acc, t) => {
