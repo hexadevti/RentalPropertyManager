@@ -238,11 +238,12 @@ export default function FinancesView() {
 
               <div className="space-y-2">
                 <Label htmlFor="propertyId">{t.finances_view.form.property} {t.finances_view.form.optional}</Label>
-                <Select value={formData.propertyId || undefined} onValueChange={(value) => setFormData({ ...formData, propertyId: value })}>
+                <Select value={formData.propertyId || 'none'} onValueChange={(value) => setFormData({ ...formData, propertyId: value === 'none' ? '' : value })}>
                   <SelectTrigger id="propertyId">
                     <SelectValue placeholder={t.finances_view.form.select_property} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Nenhuma</SelectItem>
                     {(properties || []).map((property) => (
                       <SelectItem key={property.id} value={property.id}>
                         {property.name}
@@ -255,11 +256,12 @@ export default function FinancesView() {
               {formData.type === 'income' && (
                 <div className="space-y-2">
                   <Label htmlFor="contractId">Contrato (opcional)</Label>
-                  <Select value={formData.contractId || undefined} onValueChange={(value) => setFormData({ ...formData, contractId: value })}>
+                  <Select value={formData.contractId || 'none'} onValueChange={(value) => setFormData({ ...formData, contractId: value === 'none' ? '' : value })}>
                     <SelectTrigger id="contractId">
                       <SelectValue placeholder="Selecione um contrato" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {(contracts || []).map((contract) => {
                         const guest = (guests || []).find(g => g.id === contract.guestId)
                         const contractProperties = (properties || []).filter(p => contract.propertyIds.includes(p.id))
@@ -277,11 +279,12 @@ export default function FinancesView() {
               {formData.type === 'expense' && (
                 <div className="space-y-2">
                   <Label htmlFor="serviceProviderId">Prestador de Serviço (opcional)</Label>
-                  <Select value={formData.serviceProviderId || undefined} onValueChange={(value) => setFormData({ ...formData, serviceProviderId: value })}>
+                  <Select value={formData.serviceProviderId || 'none'} onValueChange={(value) => setFormData({ ...formData, serviceProviderId: value === 'none' ? '' : value })}>
                     <SelectTrigger id="serviceProviderId">
                       <SelectValue placeholder="Selecione um prestador" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {(serviceProviders || []).map((provider) => (
                         <SelectItem key={provider.id} value={provider.id}>
                           {provider.name} - {provider.service}

@@ -159,7 +159,7 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
                   {t.appointments_view.form.provider} {t.appointments_view.form.optional}
                 </Label>
                 <Select
-                  value={formData.serviceProviderId || 'none'}
+                  value={formData.serviceProviderId ?? 'none'}
                   onValueChange={(value) => setFormData({ 
                     ...formData, 
                     serviceProviderId: value === 'none' ? undefined : value,
@@ -186,7 +186,7 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
                   {t.appointments_view.form.contract} {t.appointments_view.form.optional}
                 </Label>
                 <Select
-                  value={formData.contractId || 'none'}
+                  value={formData.contractId ?? 'none'}
                   onValueChange={(value) => setFormData({ 
                     ...formData, 
                     contractId: value === 'none' ? undefined : value,
@@ -216,7 +216,7 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
                   {t.appointments_view.form.guest} {t.appointments_view.form.optional}
                 </Label>
                 <Select
-                  value={formData.guestId || 'none'}
+                  value={formData.guestId ?? 'none'}
                   onValueChange={(value) => setFormData({ 
                     ...formData, 
                     guestId: value === 'none' ? undefined : value,
@@ -243,7 +243,7 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
                   {t.appointments_view.form.property} {t.appointments_view.form.optional}
                 </Label>
                 <Select
-                  value={formData.propertyId || 'none'}
+                  value={formData.propertyId ?? 'none'}
                   onValueChange={(value) => setFormData({ ...formData, propertyId: value === 'none' ? undefined : value })}
                 >
                   <SelectTrigger id="propertyId">
