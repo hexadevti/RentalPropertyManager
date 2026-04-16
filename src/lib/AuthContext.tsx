@@ -1,9 +1,9 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useKV } from '@github/spark/hooks'
 
+type UserRole = 'admin' | 'guest'
 
-  githubLogin: string
-
-  createdAt: string
+interface UserProfile {
   githubLogin: string
   role: UserRole
   email: string
@@ -34,6 +34,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AuthContextType['currentUser']>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [profiles, setProfiles] = useKV<UserProfile[]>('user-profiles', [])
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const user = await spark.user()
+        setCurrentUser(user)
+
+        const existingProfile = (profiles || []).find(
+          (p) => p.githubLogin === user.login
         )
 
         if (existingProfile) {
