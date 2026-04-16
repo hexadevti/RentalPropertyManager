@@ -446,6 +446,29 @@ export const translations = {
       currency_label: 'Moeda Corrente',
       currency_updated: 'Moeda atualizada com sucesso',
     },
+    
+    roles: {
+      admin: 'Administrador',
+      guest: 'Hóspede',
+    },
+    
+    userManagement: {
+      title: 'Gerenciamento de Usuários',
+      description: 'Gerencie os perfis de acesso dos usuários do sistema',
+      adminOnly: 'Apenas administradores podem gerenciar usuários',
+      you: 'Você',
+      noUsers: 'Nenhum usuário cadastrado',
+    },
+    
+    errors: {
+      unauthorized: 'Não autorizado',
+      cannotChangeOwnRole: 'Você não pode alterar seu próprio perfil',
+      updateFailed: 'Erro ao atualizar perfil',
+    },
+    
+    success: {
+      roleUpdated: 'Perfil atualizado com sucesso',
+    },
   },
   
   en: {
@@ -894,6 +917,29 @@ export const translations = {
       currency_description: 'Set the default system currency',
       currency_label: 'Current Currency',
       currency_updated: 'Currency updated successfully',
+    },
+    
+    roles: {
+      admin: 'Administrator',
+      guest: 'Guest',
+    },
+    
+    userManagement: {
+      title: 'User Management',
+      description: 'Manage system user access profiles',
+      adminOnly: 'Only administrators can manage users',
+      you: 'You',
+      noUsers: 'No users registered',
+    },
+    
+    errors: {
+      unauthorized: 'Unauthorized',
+      cannotChangeOwnRole: 'You cannot change your own role',
+      updateFailed: 'Failed to update profile',
+    },
+    
+    success: {
+      roleUpdated: 'Profile updated successfully',
     },
   },
 } as const

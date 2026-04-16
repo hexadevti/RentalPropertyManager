@@ -1,16 +1,23 @@
 # Planning Guide
 
-**Experience Qualities**: 
+A comprehensive property management platform designed to help property managers track rentals, finances, guests, contracts, and maintenance with user authentication via GitHub.
 
 **Experience Qualities**: 
-This is a full property management platform with multiple interconnected modules including property management, fi
-## Essential Features
-### Property Registration
+1. **Professional & Trustworthy** - Inspire confidence through clean design and reliable functionality
+2. **Efficient & Organized** - Enable quick access to information with intuitive navigation
+3. **Secure & Role-Based** - Protect sensitive data with GitHub authentication and role-based access control
 
 **Complexity Level**: Complex Application (advanced functionality, likely with multiple views)
-This is a full property management platform with multiple interconnected modules including property management, financial tracking, calendar/scheduling, document management, and reporting capabilities.
+This is a full property management platform with multiple interconnected modules including property management, financial tracking, calendar/scheduling, document management, reporting capabilities, and user role management with GitHub authentication.
 
 ## Essential Features
+
+### User Authentication & Role Management
+- **Functionality**: GitHub OAuth authentication with automatic user profile creation. Role-based access control with two profiles: Administrator and Guest
+- **Purpose**: Secure access control and personalized experience based on user roles
+- **Trigger**: Automatic on app load via spark.user() API
+- **Progression**: Load GitHub user → Check existing profile → Create/retrieve user profile → Assign role (owner=admin, others=guest) → Display user info in header
+- **Success criteria**: User sees their GitHub avatar, username, and role badge in the header. Admins can manage user roles in Settings
 
 ### Property Registration
 - **Functionality**: Add, edit, and manage properties (rooms, apartments, houses) with details like name, type, capacity, pricing

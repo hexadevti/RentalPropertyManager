@@ -119,3 +119,14 @@ export interface Appointment {
   completedAt?: string
   createdAt: string
 }
+
+export type UserRole = 'admin' | 'guest'
+
+export interface UserProfile {
+  githubLogin: string
+  role: UserRole
+  email: string
+  avatarUrl: string
+  createdAt: string
+  updatedAt: string
+}

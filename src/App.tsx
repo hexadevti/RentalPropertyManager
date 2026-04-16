@@ -15,6 +15,8 @@ import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
 import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
+import { AuthProvider } from '@/lib/AuthContext'
+import { UserInfo } from '@/components/UserInfo'
 
 function AppContent() {
   const { t } = useLanguage()
@@ -40,6 +42,8 @@ function AppContent() {
               <p className="text-sm text-muted-foreground mt-0.5">{t.appSubtitle}</p>
             </div>
             <div className="flex items-center gap-8">
+              <UserInfo />
+              <div className="h-12 w-px bg-border" />
               <div className="text-right">
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.balance}</p>
                 <p className={`text-2xl font-bold ${calculateBalance() >= 0 ? 'text-success' : 'text-destructive'}`}>
@@ -141,11 +145,13 @@ function AppContent() {
 
 function App() {
   return (
-    <LanguageProvider>
-      <CurrencyProvider>
-        <AppContent />
-      </CurrencyProvider>
-    </LanguageProvider>
+    <AuthProvider>
+      <LanguageProvider>
+        <CurrencyProvider>
+          <AppContent />
+        </CurrencyProvider>
+      </LanguageProvider>
+    </AuthProvider>
   )
 }
 

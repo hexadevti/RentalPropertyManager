@@ -5,6 +5,7 @@ import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency, currencies, Currency } from '@/lib/CurrencyContext'
 import { toast } from 'sonner'
 import { Globe, CurrencyCircleDollar } from '@phosphor-icons/react'
+import { UserManagement } from '@/components/UserManagement'
 
 export default function SettingsView() {
   const { t, language, setLanguage } = useLanguage()
@@ -26,6 +27,8 @@ export default function SettingsView() {
         <h2 className="text-3xl font-bold tracking-tight">{t.settings_view.title}</h2>
         <p className="text-muted-foreground mt-1">{t.settings_view.subtitle}</p>
       </div>
+
+      <UserManagement />
 
       <Card>
         <CardHeader>
