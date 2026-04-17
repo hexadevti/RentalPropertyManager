@@ -3,6 +3,7 @@ import { useKV } from '@/lib/useSupabaseKV'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -111,11 +112,10 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="date">{t.appointments_view.form.date}</Label>
-              <Input
+              <DateInput
                 id="date"
-                type="date"
                 value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, date: value })}
                 required
               />
             </div>

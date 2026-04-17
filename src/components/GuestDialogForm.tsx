@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -174,11 +175,10 @@ export default function GuestDialogForm({
 
             <div>
               <Label htmlFor="guest-dob">{t.guests_view.form.date_of_birth} {t.guests_view.form.optional}</Label>
-              <Input
+              <DateInput
                 id="guest-dob"
-                type="date"
                 value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, dateOfBirth: value })}
               />
             </div>
 

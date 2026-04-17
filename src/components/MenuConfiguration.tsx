@@ -6,11 +6,12 @@ import { menuItems } from '@/components/AppSidebar'
 import { PushPin, PushPinSlash } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useLanguage } from '@/lib/LanguageContext'
 
 export function MenuConfiguration() {
   const { isAdmin, currentUser } = useAuth()
   const [pinnedItems, setPinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login}`, [])
-
+  const { t } = useLanguage()
   const visibleItems = menuItems.filter(item => {
     if (item.adminOnly && !isAdmin) return false
     return true
@@ -66,7 +67,7 @@ export function MenuConfiguration() {
                     size={20}
                     className={isPinned ? "text-accent" : "text-muted-foreground"}
                   />
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <span className="text-sm font-medium">{t.tabs[item.value as keyof typeof t.tabs] || item.value}</span>
                 </div>
                 <Button
                   variant={isPinned ? "default" : "outline"}

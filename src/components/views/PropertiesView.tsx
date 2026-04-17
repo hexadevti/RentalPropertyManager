@@ -29,6 +29,8 @@ export default function PropertiesView() {
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null)
   const [contractDialogOpen, setContractDialogOpen] = useState(false)
   const [selectedPropertyForContract, setSelectedPropertyForContract] = useState<string | undefined>(undefined)
+  const [furnitureInput, setFurnitureInput] = useState('')
+  const [editingFurnitureIndex, setEditingFurnitureIndex] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -36,6 +38,10 @@ export default function PropertiesView() {
     capacity: 1,
     pricePerNight: 0,
     pricePerMonth: 0,
+    address: '',
+    city: '',
+    conservationState: '',
+    furnitureItems: [] as string[],
     description: '',
     ownerIds: [] as string[]
   })
@@ -82,9 +88,15 @@ export default function PropertiesView() {
       capacity: 1,
       pricePerNight: 0,
       pricePerMonth: 0,
+      address: '',
+      city: '',
+      conservationState: '',
+      furnitureItems: [],
       description: '',
       ownerIds: []
     })
+    setFurnitureInput('')
+    setEditingFurnitureIndex(null)
     setEditingProperty(null)
     setIsDialogOpen(false)
   }
@@ -97,10 +109,55 @@ export default function PropertiesView() {
       capacity: property.capacity,
       pricePerNight: property.pricePerNight,
       pricePerMonth: property.pricePerMonth,
+      address: property.address || '',
+      city: property.city || '',
+      conservationState: property.conservationState || '',
+      furnitureItems: property.furnitureItems || [],
       description: property.description,
       ownerIds: property.ownerIds || []
     })
+    setFurnitureInput('')
+    setEditingFurnitureIndex(null)
     setIsDialogOpen(true)
+  }
+
+  const handleAddOrUpdateFurniture = () => {
+    const normalized = furnitureInput.trim()
+    if (!normalized) return
+
+    if (editingFurnitureIndex === null) {
+      setFormData((current) => ({
+        ...current,
+        furnitureItems: [...current.furnitureItems, normalized],
+      }))
+    } else {
+      setFormData((current) => ({
+        ...current,
+        furnitureItems: current.furnitureItems.map((item, index) =>
+          index === editingFurnitureIndex ? normalized : item
+        ),
+      }))
+    }
+
+    setFurnitureInput('')
+    setEditingFurnitureIndex(null)
+  }
+
+  const handleEditFurniture = (index: number) => {
+    setFurnitureInput(formData.furnitureItems[index] || '')
+    setEditingFurnitureIndex(index)
+  }
+
+  const handleRemoveFurniture = (index: number) => {
+    setFormData((current) => ({
+      ...current,
+      furnitureItems: current.furnitureItems.filter((_item, itemIndex) => itemIndex !== index),
+    }))
+
+    if (editingFurnitureIndex === index) {
+      setFurnitureInput('')
+      setEditingFurnitureIndex(null)
+    }
   }
 
   const handleOwnerToggle = (ownerId: string) => {
@@ -129,6 +186,39 @@ export default function PropertiesView() {
   const handleGenerateContract = (propertyId: string) => {
     setSelectedPropertyForContract(propertyId)
     setContractDialogOpen(true)
+  }
+
+  const buildDuplicatePropertyName = (baseName: string, existingNames: string[]) => {
+    const copyLabel = t.language === 'pt' ? 'Cópia' : 'Copy'
+    let candidate = `${baseName} (${copyLabel})`
+    let index = 2
+
+    while (existingNames.includes(candidate)) {
+      candidate = `${baseName} (${copyLabel} ${index})`
+      index += 1
+    }
+
+    return candidate
+  }
+
+  const handleDuplicateProperty = (property: Property) => {
+    setProperties((current) => {
+      const currentList = current || []
+      const existingNames = currentList.map((item) => item.name)
+      const duplicatedProperty: Property = {
+        ...property,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+        status: 'available',
+        name: buildDuplicatePropertyName(property.name, existingNames),
+        furnitureItems: [...(property.furnitureItems || [])],
+        ownerIds: [...(property.ownerIds || [])],
+      }
+
+      return [...currentList, duplicatedProperty]
+    })
+
+    toast.success(t.language === 'pt' ? 'Imóvel duplicado com sucesso' : 'Property duplicated successfully')
   }
 
   const getStatusColor = (status: PropertyStatus) => {
@@ -243,6 +333,36 @@ export default function PropertiesView() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="address">{t.language === 'pt' ? 'Endereço' : 'Address'}</Label>
+                <Input
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  placeholder={t.language === 'pt' ? 'Digite o endereço do imóvel' : 'Enter property address'}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="conservationState">{t.language === 'pt' ? 'Estado de conservação' : 'Conservation state'}</Label>
+                <Input
+                  id="conservationState"
+                  value={formData.conservationState}
+                  onChange={(e) => setFormData({ ...formData, conservationState: e.target.value })}
+                  placeholder={t.language === 'pt' ? 'Ex.: Ótimo, Bom, Regular' : 'E.g.: Excellent, Good, Fair'}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="city">{t.language === 'pt' ? 'Cidade' : 'City'}</Label>
+                <Input
+                  id="city"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  placeholder={t.language === 'pt' ? 'Ex.: São Paulo' : 'E.g.: Sao Paulo'}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="description">{t.properties_view.form.description}</Label>
                 <Textarea
                   id="description"
@@ -251,6 +371,49 @@ export default function PropertiesView() {
                   placeholder={t.properties_view.form.description_placeholder}
                   rows={3}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t.language === 'pt' ? 'Mobília' : 'Furniture'}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={furnitureInput}
+                    onChange={(e) => setFurnitureInput(e.target.value)}
+                    placeholder={t.language === 'pt' ? 'Ex.: Cama box queen' : 'E.g.: Queen bed'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddOrUpdateFurniture()
+                      }
+                    }}
+                  />
+                  <Button type="button" onClick={handleAddOrUpdateFurniture}>
+                    {editingFurnitureIndex === null
+                      ? (t.language === 'pt' ? 'Adicionar' : 'Add')
+                      : (t.language === 'pt' ? 'Alterar' : 'Update')}
+                  </Button>
+                </div>
+                {formData.furnitureItems.length > 0 ? (
+                  <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                    {formData.furnitureItems.map((item, index) => (
+                      <div key={`${item}-${index}`} className="flex items-center justify-between gap-2">
+                        <span className="text-sm">{item}</span>
+                        <div className="flex items-center gap-1">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleEditFurniture(index)}>
+                            <Pencil size={14} />
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleRemoveFurniture(index)}>
+                            <Trash size={14} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t.language === 'pt' ? 'Nenhum item de mobília adicionado' : 'No furniture items added'}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -328,7 +491,14 @@ export default function PropertiesView() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground line-clamp-2">{property.description || t.properties_view.form.description_placeholder}</p>
+                {property.address && (
+                  <p className="text-sm text-muted-foreground">{property.address}</p>
+                )}
+                {property.city && (
+                  <p className="text-sm text-muted-foreground">
+                    {property.city}
+                  </p>
+                )}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">{t.properties_view.capacity}:</span>
                   <span className="font-medium">{property.capacity} {t.properties_view.people}</span>
@@ -357,6 +527,15 @@ export default function PropertiesView() {
                     <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleEdit(property)}>
                       <Pencil size={14} />
                       {t.properties_view.edit}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => handleDuplicateProperty(property)}
+                    >
+                      <Plus size={14} />
+                      {t.language === 'pt' ? 'Duplicar' : 'Duplicate'}
                     </Button>
                     <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(property)}>
                       <Trash size={14} />

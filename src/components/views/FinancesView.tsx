@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -226,11 +227,10 @@ export default function FinancesView() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="date">{t.finances_view.form.date}</Label>
-                  <Input
+                  <DateInput
                     id="date"
-                    type="date"
                     value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, date: value })}
                     required
                   />
                 </div>

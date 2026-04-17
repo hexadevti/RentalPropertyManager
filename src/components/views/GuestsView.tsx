@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -25,8 +26,11 @@ export default function GuestsView() {
     email: '',
     phone: '',
     document: '',
+    documentType: '',
     address: '',
     nationality: '',
+    maritalStatus: '',
+    profession: '',
     dateOfBirth: '',
     notes: '',
   })
@@ -37,8 +41,11 @@ export default function GuestsView() {
       email: '',
       phone: '',
       document: '',
+      documentType: '',
       address: '',
       nationality: '',
+      maritalStatus: '',
+      profession: '',
       dateOfBirth: '',
       notes: '',
     })
@@ -78,8 +85,11 @@ export default function GuestsView() {
       email: guest.email,
       phone: guest.phone,
       document: guest.document,
+      documentType: guest.documentType || '',
       address: guest.address || '',
       nationality: guest.nationality || '',
+      maritalStatus: guest.maritalStatus || '',
+      profession: guest.profession || '',
       dateOfBirth: guest.dateOfBirth || '',
       notes: guest.notes || '',
     })
@@ -179,12 +189,42 @@ export default function GuestsView() {
                 </div>
 
                 <div>
+                  <Label htmlFor="guest-document-type">{t.language === 'pt' ? 'Tipo de Documento' : 'Document Type'} {t.guests_view.form.optional}</Label>
+                  <Input
+                    id="guest-document-type"
+                    value={formData.documentType}
+                    onChange={(e) => setFormData({ ...formData, documentType: e.target.value })}
+                    placeholder={t.language === 'pt' ? 'Ex.: RG, CPF, Passaporte' : 'E.g. ID, Tax ID, Passport'}
+                  />
+                </div>
+
+                <div>
                   <Label htmlFor="guest-nationality">{t.guests_view.form.nationality} {t.guests_view.form.optional}</Label>
                   <Input
                     id="guest-nationality"
                     value={formData.nationality}
                     onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
                     placeholder={t.guests_view.form.nationality_placeholder}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="guest-marital-status">{t.language === 'pt' ? 'Estado Civil' : 'Marital Status'} {t.guests_view.form.optional}</Label>
+                  <Input
+                    id="guest-marital-status"
+                    value={formData.maritalStatus}
+                    onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
+                    placeholder={t.language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
+                  />
+                </div>
+
+                <div className="col-span-2">
+                  <Label htmlFor="guest-profession">{t.language === 'pt' ? 'Profissão' : 'Profession'} {t.guests_view.form.optional}</Label>
+                  <Input
+                    id="guest-profession"
+                    value={formData.profession}
+                    onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+                    placeholder={t.language === 'pt' ? 'Ex.: Arquiteto(a)' : 'E.g. Architect'}
                   />
                 </div>
 
@@ -200,11 +240,10 @@ export default function GuestsView() {
 
                 <div>
                   <Label htmlFor="guest-dob">{t.guests_view.form.date_of_birth} {t.guests_view.form.optional}</Label>
-                  <Input
+                  <DateInput
                     id="guest-dob"
-                    type="date"
                     value={formData.dateOfBirth}
-                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, dateOfBirth: value })}
                   />
                 </div>
 
@@ -284,7 +323,7 @@ export default function GuestsView() {
                           </div>
                           <div className="flex items-center gap-1.5">
                             <IdentificationCard size={16} weight="duotone" />
-                            {guest.document}
+                            {guest.documentType ? `${guest.documentType}: ` : ''}{guest.document}
                           </div>
                         </div>
                       </div>
@@ -307,54 +346,7 @@ export default function GuestsView() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      {guest.address && (
-                        <div className="flex items-start gap-2 text-sm">
-                          <MapPin size={16} weight="duotone" className="text-muted-foreground mt-0.5" />
-                          <span className="text-foreground">{guest.address}</span>
-                        </div>
-                      )}
-                      {guest.nationality && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Flag size={16} weight="duotone" className="text-muted-foreground" />
-                          <span className="text-foreground">{guest.nationality}</span>
-                        </div>
-                      )}
-                      {guest.dateOfBirth && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Cake size={16} weight="duotone" className="text-muted-foreground" />
-                          <span className="text-foreground">{format(new Date(guest.dateOfBirth), 'dd/MM/yyyy')}</span>
-                        </div>
-                      )}
-                      {guest.notes && (
-                        <div className="text-sm text-muted-foreground mt-2">
-                          <p className="italic">{guest.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">{t.guests_view.contracts_history || 'Histórico de Contratos'}</h4>
-                      {guestContracts.length > 0 ? (
-                        <div className="space-y-1">
-                          {guestContracts.slice(0, 3).map((contract) => (
-                            <div key={contract.id} className="text-sm text-muted-foreground">
-                              {format(new Date(contract.startDate), 'dd/MM/yyyy')} - {format(new Date(contract.endDate), 'dd/MM/yyyy')}
-                            </div>
-                          ))}
-                          {guestContracts.length > 3 && (
-                            <div className="text-xs text-muted-foreground">
-                              +{guestContracts.length - 3} {t.guests_view.more_contracts || 'mais contratos'}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">{t.guests_view.no_contracts || 'Nenhum contrato'}</p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
+                
               </Card>
             )
           })}

@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
-import { Contract, Guest, Property, RentalType } from '@/types'
+import { Contract, Guest, Property, RentalType, ContractTemplate } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { Plus, ArrowsClockwise } from '@phosphor-icons/react'
 import GuestDialogForm from './GuestDialogForm'
@@ -29,6 +30,7 @@ export default function ContractDialogForm({
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
   const [guests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
+  const [templates] = useKV<ContractTemplate[]>('contract-templates', [])
   const [guestDialogOpen, setGuestDialogOpen] = useState(false)
   const [guestSelectKey, setGuestSelectKey] = useState(0)
   const [pendingGuestId, setPendingGuestId] = useState<string | null>(null)
@@ -39,9 +41,12 @@ export default function ContractDialogForm({
     rentalType: 'monthly' as RentalType,
     startDate: '',
     endDate: '',
+    closeDate: '',
     paymentDueDay: 5,
     monthlyAmount: 0,
+    specialPaymentCondition: '',
     notes: '',
+    templateId: '',
   })
 
   useEffect(() => {
@@ -52,9 +57,12 @@ export default function ContractDialogForm({
         rentalType: editingContract.rentalType,
         startDate: editingContract.startDate,
         endDate: editingContract.endDate,
+        closeDate: editingContract.closeDate || '',
         paymentDueDay: editingContract.paymentDueDay,
         monthlyAmount: editingContract.monthlyAmount,
+        specialPaymentCondition: editingContract.specialPaymentCondition || '',
         notes: editingContract.notes || '',
+        templateId: editingContract.templateId || '',
       })
     } else if (preSelectedPropertyId) {
       setFormData(prev => ({
@@ -86,11 +94,14 @@ export default function ContractDialogForm({
       rentalType: 'monthly',
       startDate: '',
       endDate: '',
+      closeDate: '',
       paymentDueDay: 5,
       monthlyAmount: preSelectedPropertyId 
         ? properties?.find(p => p.id === preSelectedPropertyId)?.pricePerMonth || 0
         : 0,
+      specialPaymentCondition: '',
       notes: '',
+      templateId: '',
     })
   }
 
@@ -116,7 +127,8 @@ export default function ContractDialogForm({
                 ...formData, 
                 id: c.id, 
                 status: calculateStatus(formData.startDate, formData.endDate),
-                createdAt: c.createdAt 
+                createdAt: c.createdAt,
+                templateId: formData.templateId || undefined
               }
             : c
         )
@@ -128,6 +140,7 @@ export default function ContractDialogForm({
         id: Date.now().toString(),
         status: calculateStatus(formData.startDate, formData.endDate),
         createdAt: new Date().toISOString(),
+        templateId: formData.templateId || undefined,
       }
       setContracts((currentContracts) => [...(currentContracts || []), newContract])
       toast.success(t.contracts_view.form.created_success)
@@ -153,6 +166,14 @@ export default function ContractDialogForm({
   const refreshGuestList = () => {
     setGuestSelectKey(prev => prev + 1)
     toast.success(t.contracts_view.form.guests_refreshed || 'Lista de hóspedes atualizada')
+  }
+
+  const getMatchingTemplates = (rentalType: RentalType) => {
+    const typeMap: Record<RentalType, string> = {
+      'monthly': 'monthly',
+      'short-term': 'short-term',
+    }
+    return (templates || []).filter(t => t.type === typeMap[rentalType])
   }
 
   return (
@@ -265,23 +286,30 @@ export default function ContractDialogForm({
 
             <div>
               <Label htmlFor="contract-start-date">{t.contracts_view.form.start_date}</Label>
-              <Input
+              <DateInput
                 id="contract-start-date"
-                type="date"
                 value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, startDate: value })}
                 required
               />
             </div>
 
             <div>
               <Label htmlFor="contract-end-date">{t.contracts_view.form.end_date}</Label>
-              <Input
+              <DateInput
                 id="contract-end-date"
-                type="date"
                 value={formData.endDate}
-                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                onChange={(value) => setFormData({ ...formData, endDate: value })}
                 required
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="contract-close-date">{t.language === 'pt' ? 'Data de fechamento do contrato' : 'Contract close date'} {t.contracts_view.form.optional}</Label>
+              <DateInput
+                id="contract-close-date"
+                value={formData.closeDate}
+                onChange={(value) => setFormData({ ...formData, closeDate: value })}
               />
             </div>
 
@@ -300,6 +328,19 @@ export default function ContractDialogForm({
             </div>
 
             <div className="col-span-2">
+              <Label htmlFor="contract-special-payment">
+                {t.language === 'pt' ? 'Condição especial de pagamento' : 'Special payment condition'} {t.contracts_view.form.optional}
+              </Label>
+              <Textarea
+                id="contract-special-payment"
+                value={formData.specialPaymentCondition}
+                onChange={(e) => setFormData({ ...formData, specialPaymentCondition: e.target.value })}
+                placeholder={t.language === 'pt' ? 'Ex.: 50% na assinatura e 50% em 15 dias' : 'E.g.: 50% on signing and 50% in 15 days'}
+                rows={2}
+              />
+            </div>
+
+            <div className="col-span-2">
               <Label htmlFor="contract-notes">{t.contracts_view.form.notes} {t.contracts_view.form.optional}</Label>
               <Textarea
                 id="contract-notes"
@@ -308,6 +349,31 @@ export default function ContractDialogForm({
                 placeholder={t.contracts_view.form.notes_placeholder}
                 rows={3}
               />
+            </div>
+
+            <div className="col-span-2">
+              <Label htmlFor="contract-template">{t.language === 'pt' ? 'Template de Contrato' : 'Contract Template'} {t.contracts_view.form.optional}</Label>
+              <Select
+                value={formData.templateId}
+                onValueChange={(value) => setFormData({ ...formData, templateId: value })}
+              >
+                <SelectTrigger id="contract-template">
+                  <SelectValue placeholder={t.language === 'pt' ? 'Selecione um template' : 'Select a template'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {getMatchingTemplates(formData.rentalType).length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      {t.language === 'pt' ? 'Nenhum template disponível' : 'No templates available'}
+                    </div>
+                  ) : (
+                    getMatchingTemplates(formData.rentalType).map(template => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

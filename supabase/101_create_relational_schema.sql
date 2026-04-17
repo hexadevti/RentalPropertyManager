@@ -61,6 +61,10 @@ create table if not exists public.owners (
   email text not null,
   phone text not null,
   document text not null,
+  document_type text,
+  nationality text,
+  marital_status text,
+  profession text,
   address text,
   notes text,
   created_at timestamptz not null default timezone('utc', now()),
@@ -76,6 +80,9 @@ create table if not exists public.properties (
   price_per_night numeric(12,2) not null default 0,
   price_per_month numeric(12,2) not null default 0,
   status text not null check (status in ('available', 'occupied', 'maintenance')),
+  address text,
+  city text,
+  conservation_state text,
   description text not null default '',
   created_at timestamptz not null default timezone('utc', now()),
   primary key (auth_user_id, id)
@@ -90,6 +97,16 @@ create table if not exists public.property_owners (
   foreign key (auth_user_id, owner_id) references public.owners(auth_user_id, id) on delete cascade
 );
 
+create table if not exists public.property_furniture (
+  auth_user_id uuid not null references auth.users(id) on delete cascade,
+  property_id text not null,
+  item_order integer not null,
+  item_name text not null,
+  primary key (auth_user_id, property_id, item_order),
+  foreign key (auth_user_id, property_id) references public.properties(auth_user_id, id) on delete cascade,
+  constraint property_furniture_item_order_positive check (item_order > 0)
+);
+
 create table if not exists public.guests (
   auth_user_id uuid not null references auth.users(id) on delete cascade,
   id text not null,
@@ -97,8 +114,11 @@ create table if not exists public.guests (
   email text not null,
   phone text not null,
   document text not null,
+  document_type text,
   address text,
   nationality text,
+  marital_status text,
+  profession text,
   date_of_birth text,
   notes text,
   created_at timestamptz not null default timezone('utc', now()),
@@ -112,8 +132,10 @@ create table if not exists public.contracts (
   rental_type text not null check (rental_type in ('short-term', 'monthly')),
   start_date text not null,
   end_date text not null,
+  close_date text,
   payment_due_day integer not null,
   monthly_amount numeric(12,2) not null default 0,
+  special_payment_condition text,
   status text not null check (status in ('active', 'expired', 'cancelled')),
   notes text,
   created_at timestamptz not null default timezone('utc', now()),
@@ -227,6 +249,7 @@ create table if not exists public.documents (
 
 create index if not exists idx_owners_auth_user_id on public.owners(auth_user_id);
 create index if not exists idx_properties_auth_user_id on public.properties(auth_user_id);
+create index if not exists idx_property_furniture_auth_user_id on public.property_furniture(auth_user_id);
 create index if not exists idx_guests_auth_user_id on public.guests(auth_user_id);
 create index if not exists idx_contracts_auth_user_id on public.contracts(auth_user_id);
 create index if not exists idx_transactions_auth_user_id on public.transactions(auth_user_id);
@@ -240,6 +263,7 @@ alter table public.user_settings enable row level security;
 alter table public.owners enable row level security;
 alter table public.properties enable row level security;
 alter table public.property_owners enable row level security;
+alter table public.property_furniture enable row level security;
 alter table public.guests enable row level security;
 alter table public.contracts enable row level security;
 alter table public.contract_properties enable row level security;
@@ -292,6 +316,12 @@ with check (auth_user_id = auth.uid());
 
 drop policy if exists property_owners_all on public.property_owners;
 create policy property_owners_all on public.property_owners
+for all to authenticated
+using (auth_user_id = auth.uid())
+with check (auth_user_id = auth.uid());
+
+drop policy if exists property_furniture_all on public.property_furniture;
+create policy property_furniture_all on public.property_furniture
 for all to authenticated
 using (auth_user_id = auth.uid())
 with check (auth_user_id = auth.uid());
