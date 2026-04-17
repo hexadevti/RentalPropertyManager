@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -13,13 +14,15 @@ import { toast } from 'sonner'
 import { Contract, Guest, Property, ContractStatus, RentalType, ContractTemplate, Owner } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
+import { useDateFormat } from '@/lib/DateFormatContext'
 import { format } from 'date-fns'
 import GuestDialogForm from '../GuestDialogForm'
 import { generateContractPDF, downloadPDF, openPDFInNewTab } from '@/lib/contractPDF'
 
 export default function ContractsView() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { formatCurrency } = useCurrency()
+  const { formatDate } = useDateFormat()
   const [contracts, setContracts] = useKV<Contract[]>('contracts', [])
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [properties] = useKV<Property[]>('properties', [])
@@ -45,9 +48,12 @@ export default function ContractsView() {
     rentalType: 'monthly' as RentalType,
     startDate: '',
     endDate: '',
+    closeDate: '',
     paymentDueDay: 5,
     monthlyAmount: 0,
+    specialPaymentCondition: '',
     notes: '',
+    templateId: '',
   })
 
   const resetForm = () => {
@@ -57,9 +63,12 @@ export default function ContractsView() {
       rentalType: 'monthly',
       startDate: '',
       endDate: '',
+      closeDate: '',
       paymentDueDay: 5,
       monthlyAmount: 0,
+      specialPaymentCondition: '',
       notes: '',
+      templateId: '',
     })
     setEditingContract(null)
   }
@@ -86,7 +95,8 @@ export default function ContractsView() {
                 ...formData, 
                 id: c.id, 
                 status: calculateStatus(formData.startDate, formData.endDate),
-                createdAt: c.createdAt 
+                createdAt: c.createdAt,
+                templateId: formData.templateId || undefined
               }
             : c
         )
@@ -98,6 +108,7 @@ export default function ContractsView() {
         id: Date.now().toString(),
         status: calculateStatus(formData.startDate, formData.endDate),
         createdAt: new Date().toISOString(),
+        templateId: formData.templateId || undefined,
       }
       setContracts((currentContracts) => [...(currentContracts || []), newContract])
       toast.success(t.contracts_view.form.created_success)
@@ -115,9 +126,12 @@ export default function ContractsView() {
       rentalType: contract.rentalType,
       startDate: contract.startDate,
       endDate: contract.endDate,
+      closeDate: contract.closeDate || '',
       paymentDueDay: contract.paymentDueDay,
       monthlyAmount: contract.monthlyAmount,
+      specialPaymentCondition: contract.specialPaymentCondition || '',
       notes: contract.notes || '',
+      templateId: contract.templateId || '',
     })
     setDialogOpen(true)
   }
@@ -189,7 +203,8 @@ export default function ContractsView() {
 
   const handleGeneratePDF = (contract: Contract) => {
     setSelectedContractForPDF(contract)
-    setSelectedTemplateId('')
+    // Pre-select the saved template if it exists
+    setSelectedTemplateId(contract.templateId || '')
     setPdfDialogOpen(true)
   }
 
@@ -231,7 +246,8 @@ export default function ContractsView() {
           template,
           owners: contractOwners,
         },
-        formatCurrency
+        formatCurrency,
+        formatDate
       )
 
       if (action === 'download') {
@@ -385,23 +401,30 @@ export default function ContractsView() {
 
                 <div>
                   <Label htmlFor="contract-start-date">{t.contracts_view.form.start_date}</Label>
-                  <Input
+                  <DateInput
                     id="contract-start-date"
-                    type="date"
                     value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, startDate: value })}
                     required
                   />
                 </div>
 
                 <div>
                   <Label htmlFor="contract-end-date">{t.contracts_view.form.end_date}</Label>
-                  <Input
+                  <DateInput
                     id="contract-end-date"
-                    type="date"
                     value={formData.endDate}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                    onChange={(value) => setFormData({ ...formData, endDate: value })}
                     required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="contract-close-date">{language === 'pt' ? 'Data de fechamento do contrato' : 'Contract close date'} {t.contracts_view.form.optional}</Label>
+                  <DateInput
+                    id="contract-close-date"
+                    value={formData.closeDate}
+                    onChange={(value) => setFormData({ ...formData, closeDate: value })}
                   />
                 </div>
 
@@ -420,6 +443,19 @@ export default function ContractsView() {
                 </div>
 
                 <div className="col-span-2">
+                  <Label htmlFor="contract-special-payment">
+                    {language === 'pt' ? 'Condição especial de pagamento' : 'Special payment condition'} {t.contracts_view.form.optional}
+                  </Label>
+                  <Textarea
+                    id="contract-special-payment"
+                    value={formData.specialPaymentCondition}
+                    onChange={(e) => setFormData({ ...formData, specialPaymentCondition: e.target.value })}
+                    placeholder={language === 'pt' ? 'Ex.: 50% na assinatura e 50% em 15 dias' : 'E.g.: 50% on signing and 50% in 15 days'}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="col-span-2">
                   <Label htmlFor="contract-notes">{t.contracts_view.form.notes} {t.contracts_view.form.optional}</Label>
                   <Textarea
                     id="contract-notes"
@@ -428,6 +464,31 @@ export default function ContractsView() {
                     placeholder={t.contracts_view.form.notes_placeholder}
                     rows={3}
                   />
+                </div>
+
+                <div className="col-span-2">
+                  <Label htmlFor="contract-template">{language === 'pt' ? 'Template de Contrato' : 'Contract Template'} {t.contracts_view.form.optional}</Label>
+                  <Select
+                    value={formData.templateId}
+                    onValueChange={(value) => setFormData({ ...formData, templateId: value })}
+                  >
+                    <SelectTrigger id="contract-template">
+                      <SelectValue placeholder={language === 'pt' ? 'Selecione um template' : 'Select a template'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getMatchingTemplates(formData.rentalType).length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          {language === 'pt' ? 'Nenhum template disponível' : 'No templates available'}
+                        </div>
+                      ) : (
+                        getMatchingTemplates(formData.rentalType).map(template => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -538,6 +599,22 @@ export default function ContractsView() {
                     {contract.notes && (
                       <div className="mt-3 pt-3 border-t border-border">
                         <p className="text-sm text-muted-foreground italic">{contract.notes}</p>
+                      </div>
+                    )}
+                    {contract.specialPaymentCondition && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {language === 'pt' ? 'Condição especial de pagamento' : 'Special payment condition'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{contract.specialPaymentCondition}</p>
+                      </div>
+                    )}
+                    {contract.closeDate && (
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {language === 'pt' ? 'Data de fechamento do contrato' : 'Contract close date'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{format(new Date(contract.closeDate), 'dd/MM/yyyy')}</p>
                       </div>
                     )}
                   </div>

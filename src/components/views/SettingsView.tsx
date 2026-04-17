@@ -3,14 +3,16 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency, currencies, Currency } from '@/lib/CurrencyContext'
+import { useDateFormat, dateFormats, DateFormat } from '@/lib/DateFormatContext'
 import { toast } from 'sonner'
-import { Globe, CurrencyCircleDollar } from '@phosphor-icons/react'
+import { Globe, CurrencyCircleDollar, CalendarBlank } from '@phosphor-icons/react'
 import { UserManagement } from '@/components/UserManagement'
 import { MenuConfiguration } from '@/components/MenuConfiguration'
 
 export default function SettingsView() {
   const { t, language, setLanguage } = useLanguage()
   const { currency, setCurrency } = useCurrency()
+  const { dateFormat, setDateFormat } = useDateFormat()
 
   const handleLanguageChange = (newLang: string) => {
     setLanguage(newLang as 'pt' | 'en')
@@ -20,6 +22,11 @@ export default function SettingsView() {
   const handleCurrencyChange = (newCurrency: string) => {
     setCurrency(newCurrency as Currency)
     toast.success(t.settings_view.currency_updated)
+  }
+
+  const handleDateFormatChange = (newDateFormat: string) => {
+    setDateFormat(newDateFormat as DateFormat)
+    toast.success(t.settings_view.date_format_updated)
   }
 
   return (
@@ -74,20 +81,42 @@ export default function SettingsView() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="currency">{t.settings_view.currency_label}</Label>
-            <Select value={currency} onValueChange={handleCurrencyChange}>
-              <SelectTrigger id="currency" className="w-full sm:w-64">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(currencies).map(([code, config]) => (
-                  <SelectItem key={code} value={code}>
-                    {config.symbol} - {config.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="currency">{t.settings_view.currency_label}</Label>
+              <Select value={currency} onValueChange={handleCurrencyChange}>
+                <SelectTrigger id="currency" className="w-full sm:w-64">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(currencies).map(([code, config]) => (
+                    <SelectItem key={code} value={code}>
+                      {config.symbol} - {config.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <CalendarBlank size={16} className="text-muted-foreground" />
+                <Label htmlFor="date-format">{t.settings_view.date_format_label}</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">{t.settings_view.date_format_description}</p>
+              <Select value={dateFormat} onValueChange={handleDateFormatChange}>
+                <SelectTrigger id="date-format" className="w-full sm:w-64">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(dateFormats).map(([pattern, config]) => (
+                    <SelectItem key={pattern} value={pattern}>
+                      {config.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>

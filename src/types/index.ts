@@ -13,6 +13,10 @@ export interface Owner {
   email: string
   phone: string
   document: string
+  documentType?: string
+  nationality?: string
+  maritalStatus?: string
+  profession?: string
   address?: string
   notes?: string
   createdAt: string
@@ -26,6 +30,10 @@ export interface Property {
   pricePerNight: number
   pricePerMonth: number
   status: PropertyStatus
+  address?: string
+  city?: string
+  conservationState?: string
+  furnitureItems?: string[]
   description: string
   ownerIds: string[]
   createdAt: string
@@ -70,8 +78,11 @@ export interface Guest {
   email: string
   phone: string
   document: string
+  documentType?: string
   address?: string
   nationality?: string
+  maritalStatus?: string
+  profession?: string
   dateOfBirth?: string
   notes?: string
   createdAt: string
@@ -84,10 +95,13 @@ export interface Contract {
   rentalType: RentalType
   startDate: string
   endDate: string
+  closeDate?: string
   paymentDueDay: number
   monthlyAmount: number
+  specialPaymentCondition?: string
   status: ContractStatus
   notes?: string
+  templateId?: string
   createdAt: string
 }
 

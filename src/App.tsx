@@ -17,6 +17,7 @@ import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
 import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
+import { DateFormatProvider } from '@/lib/DateFormatContext'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { UserInfo } from '@/components/UserInfo'
 import { Login } from '@/components/Login'
@@ -152,7 +153,9 @@ function App() {
     <AuthProvider>
       <LanguageProvider>
         <CurrencyProvider>
-          <AppContent />
+          <DateFormatProvider>
+            <AppContent />
+          </DateFormatProvider>
         </CurrencyProvider>
       </LanguageProvider>
     </AuthProvider>

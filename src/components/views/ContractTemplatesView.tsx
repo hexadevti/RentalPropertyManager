@@ -18,19 +18,32 @@ const TEMPLATE_VARIABLES = [
   { token: '{{ownerEmail}}', meaning: 'E-mail(s) do(s) proprietário(s). Também aceita índice: {{ownerEmail.1}}, {{ownerEmail.2}}...', sample: 'joao@email.com, maria@email.com\nCom índice: {{ownerEmail.2}} => maria@email.com' },
   { token: '{{ownerPhone}}', meaning: 'Telefone(s) do(s) proprietário(s). Também aceita índice: {{ownerPhone.1}}, {{ownerPhone.2}}...', sample: '(11) 99999-0000, (11) 98888-1111\nCom índice: {{ownerPhone.1}} => (11) 99999-0000' },
   { token: '{{ownerDocument}}', meaning: 'Documento(s) do(s) proprietário(s). Também aceita índice: {{ownerDocument.1}}, {{ownerDocument.2}}...', sample: '123.456.789-00, 987.654.321-00\nCom índice: {{ownerDocument.2}} => 987.654.321-00' },
+  { token: '{{ownerDocumentType}}', meaning: 'Tipo(s) de documento do(s) proprietário(s). Também aceita índice: {{ownerDocumentType.1}}, {{ownerDocumentType.2}}...', sample: 'CPF, Passaporte\nCom índice: {{ownerDocumentType.1}} => CPF' },
+  { token: '{{ownerNationality}}', meaning: 'Nacionalidade(s) do(s) proprietário(s). Também aceita índice: {{ownerNationality.1}}, {{ownerNationality.2}}...', sample: 'Brasileira, Portuguesa\nCom índice: {{ownerNationality.2}} => Portuguesa' },
+  { token: '{{ownerMaritalStatus}}', meaning: 'Estado(s) civil(is) do(s) proprietário(s). Também aceita índice: {{ownerMaritalStatus.1}}, {{ownerMaritalStatus.2}}...', sample: 'Solteira, Casado\nCom índice: {{ownerMaritalStatus.1}} => Solteira' },
+  { token: '{{ownerProfession}}', meaning: 'Profissão(ões) do(s) proprietário(s). Também aceita índice: {{ownerProfession.1}}, {{ownerProfession.2}}...', sample: 'Advogada, Engenheiro\nCom índice: {{ownerProfession.2}} => Engenheiro' },
   { token: '{{ownerAddress}}', meaning: 'Endereço(s) do(s) proprietário(s). Também aceita índice: {{ownerAddress.1}}, {{ownerAddress.2}}...', sample: 'Rua A, 100 - Centro - Sao Paulo/SP\nCom índice: {{ownerAddress.1}} => Rua A, 100 - Centro - Sao Paulo/SP' },
   { token: '{{ownerDetails}}', meaning: 'Bloco completo com dados do(s) proprietário(s). Também aceita índice: {{ownerDetails.1}}, {{ownerDetails.2}}...', sample: 'João Silva\nDocumento: 123.456.789-00\nE-mail: joao@email.com\nTelefone: (11) 99999-0000' },
   { token: '{{guestName}}', meaning: 'Nome do hóspede/locatário', sample: 'Carlos Pereira' },
   { token: '{{guestEmail}}', meaning: 'E-mail do hóspede/locatário', sample: 'carlos@email.com' },
   { token: '{{guestPhone}}', meaning: 'Telefone do hóspede/locatário', sample: '(11) 97777-2222' },
   { token: '{{guestDocument}}', meaning: 'Documento do hóspede/locatário', sample: '111.222.333-44' },
+  { token: '{{guestDocumentType}}', meaning: 'Tipo de documento do hóspede/locatário', sample: 'Passaporte' },
   { token: '{{guestAddress}}', meaning: 'Endereço do hóspede/locatário', sample: 'Av. Principal, 250 - Rio de Janeiro/RJ' },
   { token: '{{guestNationality}}', meaning: 'Nacionalidade do hóspede/locatário', sample: 'Brasileiro(a)' },
+  { token: '{{guestMaritalStatus}}', meaning: 'Estado civil do hóspede/locatário', sample: 'Casado(a)' },
+  { token: '{{guestProfession}}', meaning: 'Profissão do hóspede/locatário', sample: 'Médico(a)' },
   { token: '{{properties}}', meaning: 'Lista de imóveis vinculados ao contrato. Também aceita índice: {{properties.1}}, {{properties.2}}...', sample: '- Apartamento 101\n- Casa de Praia\nCom índice: {{properties.2}} => Casa de Praia' },
+  { token: '{{propertyAddress}}', meaning: 'Endereço(s) do(s) imóvel(is). Também aceita índice: {{propertyAddress.1}}, {{propertyAddress.2}}...', sample: 'Rua das Flores, 12, Centro\nAv. Atlântica, 500\nCom índice: {{propertyAddress.1}} => Rua das Flores, 12, Centro' },
+  { token: '{{propertyCity}}', meaning: 'Cidade(s) do(s) imóvel(is). Também aceita índice: {{propertyCity.1}}, {{propertyCity.2}}...', sample: 'São Paulo, Rio de Janeiro\nCom índice: {{propertyCity.1}} => São Paulo' },
+  { token: '{{propertyConservationState}}', meaning: 'Estado(s) de conservação do(s) imóvel(is). Também aceita índice: {{propertyConservationState.1}}, {{propertyConservationState.2}}...', sample: 'Ótimo, Bom\nCom índice: {{propertyConservationState.1}} => Ótimo' },
+  { token: '{{propertyFurniture}}', meaning: 'Lista de mobília dos imóveis em formato com bolinha. Também aceita índice: {{propertyFurniture.1}}, {{propertyFurniture.2}}...', sample: '• Cama casal\n• Guarda-roupa\n• Geladeira\nCom índice: {{propertyFurniture.1}} => mobília do primeiro imóvel' },
   { token: '{{startDate}}', meaning: 'Data de início do contrato', sample: '01/05/2026' },
   { token: '{{endDate}}', meaning: 'Data de fim do contrato', sample: '30/04/2027' },
+  { token: '{{contractCloseDate}}', meaning: 'Data de fechamento do contrato', sample: '15/05/2026' },
   { token: '{{monthlyAmount}}', meaning: 'Valor da locação formatado em moeda', sample: 'R$ 2.500,00' },
   { token: '{{paymentDueDay}}', meaning: 'Dia do vencimento do pagamento', sample: '10' },
+  { token: '{{specialPaymentCondition}}', meaning: 'Condição especial de pagamento do contrato', sample: 'Pagamento em 2 parcelas: 50% na assinatura e 50% em 15 dias.' },
   { token: '{{notes}}', meaning: 'Observações do contrato', sample: 'OBSERVAÇÕES:\nSem pets. Visitas mediante aviso prévio.' },
   { token: '{{currentDate}}', meaning: 'Data atual no momento da geração do PDF', sample: '17/04/2026' },
 ] as const
@@ -42,6 +55,7 @@ export default function ContractTemplatesView() {
   const [helpDialogOpen, setHelpDialogOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [variableFilter, setVariableFilter] = useState('')
   const editorRef = useRef<RichTextEditorHandle | null>(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -61,6 +75,9 @@ export default function ContractTemplatesView() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null
+    const shouldKeepOpen = submitter?.value === 'continue'
+
     if (editingTemplate) {
       setTemplates((currentTemplates) =>
         (currentTemplates || []).map((t) =>
@@ -73,7 +90,7 @@ export default function ContractTemplatesView() {
             : t
         )
       )
-      toast.success('Template atualizado com sucesso')
+      toast.success(shouldKeepOpen ? 'Template salvo. Continue editando.' : 'Template atualizado com sucesso')
     } else {
       const newTemplate: ContractTemplate = {
         id: Date.now().toString(),
@@ -82,11 +99,20 @@ export default function ContractTemplatesView() {
         updatedAt: new Date().toISOString(),
       }
       setTemplates((currentTemplates) => [...(currentTemplates || []), newTemplate])
-      toast.success('Template criado com sucesso')
+      if (shouldKeepOpen) {
+        setEditingTemplate(newTemplate)
+        toast.success('Template salvo. Continue editando.')
+      } else {
+        toast.success('Template criado com sucesso')
+      }
     }
 
-    setDialogOpen(false)
-    resetForm()
+    if (!shouldKeepOpen) {
+      setDialogOpen(false)
+      resetForm()
+    } else {
+      restoreEditorFocus()
+    }
   }
 
   const handleEdit = (template: ContractTemplate) => {
@@ -155,6 +181,15 @@ export default function ContractTemplatesView() {
     template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     template.type.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const filteredVariables = TEMPLATE_VARIABLES.filter((variable) => {
+    const query = variableFilter.trim().toLowerCase()
+    if (!query) return true
+
+    return variable.token.toLowerCase().includes(query)
+      || variable.meaning.toLowerCase().includes(query)
+      || variable.sample.toLowerCase().includes(query)
+  })
 
   const isHTML = (content: string) => /<[a-z][\s\S]*>/i.test(content)
 
@@ -228,6 +263,7 @@ export default function ContractTemplatesView() {
                       }
                       setHelpDialogOpen(open)
                       if (!open) {
+                        setVariableFilter('')
                         restoreEditorFocus()
                       }
                     }}>
@@ -253,10 +289,26 @@ export default function ContractTemplatesView() {
                           <DialogTitle>Variáveis disponíveis no template</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-3 px-6 pb-6 overflow-y-auto max-h-[calc(85vh-76px)]">
+                          <div className="sticky top-0 z-10 bg-background pt-4 pb-1">
+                            <div className="relative">
+                              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                              <Input
+                                value={variableFilter}
+                                onChange={(e) => setVariableFilter(e.target.value)}
+                                placeholder="Filtrar variáveis..."
+                                className="pl-9"
+                              />
+                            </div>
+                          </div>
                           <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
                             Use índices começando em 1 para variáveis com múltiplos registros, por exemplo: {'{{ownerPhone.1}}'} ou {'{{properties.2}}'}. Se o índice pedido não existir, o PDF renderiza: [indice de variavel inexistente. i = n].
                           </div>
-                          {TEMPLATE_VARIABLES.map((variable) => (
+                          {filteredVariables.length === 0 && (
+                            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                              Nenhuma variável encontrada para esse filtro.
+                            </div>
+                          )}
+                          {filteredVariables.map((variable) => (
                             <div key={variable.token} className="border rounded-md p-3">
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div>
@@ -303,8 +355,11 @@ export default function ContractTemplatesView() {
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancelar
                   </Button>
+                  <Button type="submit" variant="outline" name="submit-intent" value="continue">
+                    Salvar e continuar
+                  </Button>
                   <Button type="submit">
-                    {editingTemplate ? t.common.update : t.common.create}
+                    {editingTemplate ? 'Salvar e fechar' : t.common.create}
                   </Button>
                 </div>
               </form>

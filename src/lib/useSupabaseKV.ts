@@ -142,6 +142,10 @@ async function loadOwners() {
     email: owner.email,
     phone: owner.phone,
     document: owner.document,
+    documentType: owner.document_type || undefined,
+    nationality: owner.nationality || undefined,
+    maritalStatus: owner.marital_status || undefined,
+    profession: owner.profession || undefined,
     address: owner.address || undefined,
     notes: owner.notes || undefined,
     createdAt: owner.created_at,
@@ -152,7 +156,11 @@ async function loadProperties() {
   const authUserId = await getAuthUserId()
   if (!authUserId) return []
 
-  const [{ data: properties, error: propertiesError }, { data: propertyOwners, error: ownersError }] = await Promise.all([
+  const [
+    { data: properties, error: propertiesError },
+    { data: propertyOwners, error: ownersError },
+    { data: propertyFurniture, error: furnitureError },
+  ] = await Promise.all([
     supabase
       .from('properties')
       .select('*')
@@ -162,14 +170,28 @@ async function loadProperties() {
       .from('property_owners')
       .select('property_id, owner_id')
       .eq('auth_user_id', authUserId),
+    supabase
+      .from('property_furniture')
+      .select('property_id, item_order, item_name')
+      .eq('auth_user_id', authUserId)
+      .order('property_id', { ascending: true })
+      .order('item_order', { ascending: true }),
   ])
 
   if (propertiesError) throw propertiesError
   if (ownersError) throw ownersError
+  if (furnitureError) throw furnitureError
 
   const ownerMap = new Map<string, string[]>()
   for (const row of propertyOwners || []) {
     ownerMap.set(row.property_id, [...(ownerMap.get(row.property_id) || []), row.owner_id])
+  }
+
+  const furnitureMap = new Map<string, string[]>()
+  for (const row of propertyFurniture || []) {
+    const currentItems = furnitureMap.get(row.property_id) || []
+    currentItems.push(row.item_name)
+    furnitureMap.set(row.property_id, currentItems)
   }
 
   return (properties || []).map((property) => ({
@@ -180,6 +202,10 @@ async function loadProperties() {
     pricePerNight: property.price_per_night,
     pricePerMonth: property.price_per_month,
     status: property.status,
+    address: property.address || undefined,
+    city: property.city || undefined,
+    conservationState: property.conservation_state || undefined,
+    furnitureItems: furnitureMap.get(property.id) || [],
     description: property.description,
     ownerIds: ownerMap.get(property.id) || [],
     createdAt: property.created_at,
@@ -204,8 +230,11 @@ async function loadGuests() {
     email: guest.email,
     phone: guest.phone,
     document: guest.document,
+    documentType: guest.document_type || undefined,
     address: guest.address || undefined,
     nationality: guest.nationality || undefined,
+    maritalStatus: guest.marital_status || undefined,
+    profession: guest.profession || undefined,
     dateOfBirth: guest.date_of_birth || undefined,
     notes: guest.notes || undefined,
     createdAt: guest.created_at,
@@ -243,8 +272,10 @@ async function loadContracts() {
     rentalType: contract.rental_type,
     startDate: contract.start_date,
     endDate: contract.end_date,
+    closeDate: contract.close_date || undefined,
     paymentDueDay: contract.payment_due_day,
     monthlyAmount: contract.monthly_amount,
+    specialPaymentCondition: contract.special_payment_condition || undefined,
     status: contract.status,
     notes: contract.notes || undefined,
     createdAt: contract.created_at,
@@ -523,6 +554,10 @@ async function persistOwners(value: any[]) {
     email: owner.email,
     phone: owner.phone,
     document: owner.document,
+    document_type: owner.documentType || null,
+    nationality: owner.nationality || null,
+    marital_status: owner.maritalStatus || null,
+    profession: owner.profession || null,
     address: owner.address || null,
     notes: owner.notes || null,
     created_at: owner.createdAt,
@@ -542,6 +577,9 @@ async function persistProperties(value: any[]) {
     price_per_night: property.pricePerNight,
     price_per_month: property.pricePerMonth,
     status: property.status,
+    address: property.address || null,
+    city: property.city || null,
+    conservation_state: property.conservationState || null,
     description: property.description,
     created_at: property.createdAt,
   })))
@@ -568,6 +606,33 @@ async function persistProperties(value: any[]) {
 
     if (error) throw error
   }
+
+  const { error: deleteFurnitureError } = await supabase
+    .from('property_furniture')
+    .delete()
+    .eq('auth_user_id', authUserId)
+
+  if (deleteFurnitureError) throw deleteFurnitureError
+
+  const propertyFurniture = value.flatMap((property) =>
+    (property.furnitureItems || [])
+      .map((itemName: string) => itemName.trim())
+      .filter(Boolean)
+      .map((itemName: string, index: number) => ({
+        auth_user_id: authUserId,
+        property_id: property.id,
+        item_order: index + 1,
+        item_name: itemName,
+      }))
+  )
+
+  if (propertyFurniture.length > 0) {
+    const { error } = await supabase
+      .from('property_furniture')
+      .insert(propertyFurniture)
+
+    if (error) throw error
+  }
 }
 
 async function persistGuests(value: any[]) {
@@ -581,8 +646,11 @@ async function persistGuests(value: any[]) {
     email: guest.email,
     phone: guest.phone,
     document: guest.document,
+    document_type: guest.documentType || null,
     address: guest.address || null,
     nationality: guest.nationality || null,
+    marital_status: guest.maritalStatus || null,
+    profession: guest.profession || null,
     date_of_birth: guest.dateOfBirth || null,
     notes: guest.notes || null,
     created_at: guest.createdAt,
@@ -600,8 +668,10 @@ async function persistContracts(value: any[]) {
     rental_type: contract.rentalType,
     start_date: contract.startDate,
     end_date: contract.endDate,
+    close_date: contract.closeDate || null,
     payment_due_day: contract.paymentDueDay,
     monthly_amount: contract.monthlyAmount,
+    special_payment_condition: contract.specialPaymentCondition || null,
     status: contract.status,
     notes: contract.notes || null,
     created_at: contract.createdAt,

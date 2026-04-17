@@ -454,6 +454,9 @@ export const translations = {
       currency_description: 'Defina a moeda padrão do sistema',
       currency_label: 'Moeda Corrente',
       currency_updated: 'Moeda atualizada com sucesso',
+      date_format_label: 'Formato de Data',
+      date_format_description: 'Defina o formato padrão das datas no sistema',
+      date_format_updated: 'Formato de data atualizado com sucesso',
     },
     
     roles: {
@@ -962,6 +965,9 @@ export const translations = {
       currency_description: 'Set the default system currency',
       currency_label: 'Current Currency',
       currency_updated: 'Currency updated successfully',
+      date_format_label: 'Date Format',
+      date_format_description: 'Set the default date format in the system',
+      date_format_updated: 'Date format updated successfully',
     },
     
     roles: {

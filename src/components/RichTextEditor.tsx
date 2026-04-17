@@ -43,6 +43,98 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
 }
 
+function sanitizePastedHtml(html: string): string {
+  const cleanedHtml = html
+    .replace(/<!--\s*StartFragment\s*-->/gi, '')
+    .replace(/<!--\s*EndFragment\s*-->/gi, '')
+
+  const parser = new DOMParser()
+  const document = parser.parseFromString(cleanedHtml, 'text/html')
+
+  document.querySelectorAll('script, style, meta, link, iframe, object, embed').forEach((node) => {
+    node.remove()
+  })
+
+  const sanitizeStyle = (styleValue: string) => {
+    const allowed = new Set([
+      'font-size',
+      'font-weight',
+      'font-style',
+      'text-decoration',
+      'text-align',
+    ])
+
+    return styleValue
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .filter((part) => {
+        const [property] = part.split(':')
+        return allowed.has((property || '').trim().toLowerCase())
+      })
+      .join('; ')
+  }
+
+  document.querySelectorAll<HTMLElement>('*').forEach((element) => {
+    Array.from(element.attributes).forEach((attribute) => {
+      const attributeName = attribute.name.toLowerCase()
+      if (attributeName.startsWith('on')) {
+        element.removeAttribute(attribute.name)
+      }
+
+      if (attributeName === 'style') {
+        const safeStyle = sanitizeStyle(attribute.value)
+        if (safeStyle) {
+          element.setAttribute('style', safeStyle)
+        } else {
+          element.removeAttribute('style')
+        }
+      }
+    })
+
+    // Convert style-based formatting commonly found in PDF clipboard HTML
+    // into semantic tags that TipTap preserves as marks.
+    const weight = element.style.fontWeight
+    if (weight && (weight === 'bold' || Number(weight) >= 600)) {
+      const strong = document.createElement('strong')
+      while (element.firstChild) strong.appendChild(element.firstChild)
+      element.appendChild(strong)
+      element.style.fontWeight = ''
+    }
+
+    if (element.style.fontStyle === 'italic') {
+      const em = document.createElement('em')
+      while (element.firstChild) em.appendChild(element.firstChild)
+      element.appendChild(em)
+      element.style.fontStyle = ''
+    }
+
+    if (element.style.textDecoration.toLowerCase().includes('underline')) {
+      const u = document.createElement('u')
+      while (element.firstChild) u.appendChild(element.firstChild)
+      element.appendChild(u)
+      element.style.textDecoration = element.style.textDecoration
+        .replace(/underline/gi, '')
+        .trim()
+    }
+  })
+
+  return document.body.innerHTML
+}
+
+function textToHtmlPreservingBreaks(text: string): string {
+  const normalized = text.replace(/\r\n/g, '\n')
+  const paragraphs = normalized.split('\n\n')
+
+  return paragraphs
+    .map((paragraph) => {
+      const escaped = escapeHtml(paragraph)
+      const withLineBreaks = escaped.replace(/\n/g, '<br>')
+      return `<p>${withLineBreaks || '<br>'}</p>`
+    })
+    .join('')
+}
+
 const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor(
   { content, onChange },
   ref
@@ -68,6 +160,27 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
       }
     },
     editorProps: {
+      transformPastedHTML(html) {
+        return sanitizePastedHtml(html)
+      },
+      handlePaste(_view, event) {
+        const clipboard = event.clipboardData
+        if (!clipboard) return false
+
+        const html = clipboard.getData('text/html')
+        if (html && /<[a-z][\s\S]*>/i.test(html)) {
+          const safeHtml = sanitizePastedHtml(html)
+          editor?.chain().focus().insertContent(safeHtml).run()
+          return true
+        }
+
+        const text = clipboard.getData('text/plain')
+        if (!text) return false
+
+        const safeHtmlFromText = textToHtmlPreservingBreaks(text)
+        editor?.chain().focus().insertContent(safeHtmlFromText).run()
+        return true
+      },
       attributes: {
         class: 'outline-none min-h-[420px] p-3 text-sm',
       },

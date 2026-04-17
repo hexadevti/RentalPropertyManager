@@ -27,6 +27,10 @@ export default function OwnersView() {
     email: '',
     phone: '',
     document: '',
+    documentType: '',
+    nationality: '',
+    maritalStatus: '',
+    profession: '',
     address: '',
     notes: ''
   })
@@ -65,6 +69,10 @@ export default function OwnersView() {
       email: '',
       phone: '',
       document: '',
+      documentType: '',
+      nationality: '',
+      maritalStatus: '',
+      profession: '',
       address: '',
       notes: ''
     })
@@ -79,6 +87,10 @@ export default function OwnersView() {
       email: owner.email,
       phone: owner.phone,
       document: owner.document,
+      documentType: owner.documentType || '',
+      nationality: owner.nationality || '',
+      maritalStatus: owner.maritalStatus || '',
+      profession: owner.profession || '',
       address: owner.address || '',
       notes: owner.notes || ''
     })
@@ -168,6 +180,42 @@ export default function OwnersView() {
                     required
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="documentType">{t.language === 'pt' ? 'Tipo de Documento' : 'Document Type'}</Label>
+                  <Input
+                    id="documentType"
+                    value={formData.documentType}
+                    onChange={(e) => setFormData({ ...formData, documentType: e.target.value })}
+                    placeholder={t.language === 'pt' ? 'Ex.: CPF, CNPJ, Passaporte' : 'E.g. ID, Tax ID, Passport'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nationality">{t.language === 'pt' ? 'Nacionalidade' : 'Nationality'}</Label>
+                  <Input
+                    id="nationality"
+                    value={formData.nationality}
+                    onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                    placeholder={t.language === 'pt' ? 'Ex.: Brasileira' : 'E.g. Brazilian'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="maritalStatus">{t.language === 'pt' ? 'Estado Civil' : 'Marital Status'}</Label>
+                  <Input
+                    id="maritalStatus"
+                    value={formData.maritalStatus}
+                    onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
+                    placeholder={t.language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="profession">{t.language === 'pt' ? 'Profissão' : 'Profession'}</Label>
+                  <Input
+                    id="profession"
+                    value={formData.profession}
+                    onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+                    placeholder={t.language === 'pt' ? 'Ex.: Engenheiro(a)' : 'E.g. Engineer'}
+                  />
+                </div>
                 <div className="space-y-2 col-span-2">
                   <Label htmlFor="address">{t.language === 'pt' ? 'Endereço' : 'Address'}</Label>
                   <Input
@@ -249,9 +297,17 @@ export default function OwnersView() {
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <IdentificationCard size={16} />
-                      <span>{owner.document}</span>
+                      <span>{owner.documentType ? `${owner.documentType}: ` : ''}{owner.document}</span>
                     </div>
                   </div>
+
+                  {(owner.nationality || owner.maritalStatus || owner.profession) && (
+                    <div className="space-y-1 text-xs text-muted-foreground pt-2 border-t">
+                      {owner.nationality && <p>{t.language === 'pt' ? 'Nacionalidade:' : 'Nationality:'} {owner.nationality}</p>}
+                      {owner.maritalStatus && <p>{t.language === 'pt' ? 'Estado civil:' : 'Marital status:'} {owner.maritalStatus}</p>}
+                      {owner.profession && <p>{t.language === 'pt' ? 'Profissão:' : 'Profession:'} {owner.profession}</p>}
+                    </div>
+                  )}
 
                   {owner.address && (
                     <p className="text-xs text-muted-foreground pt-2 border-t line-clamp-2">
