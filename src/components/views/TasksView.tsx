@@ -13,8 +13,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Plus, CheckSquare, Trash, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
+import { useLanguage } from '@/lib/LanguageContext'
 
 export default function TasksView() {
+  const { t } = useLanguage()
   const [tasks, setTasks] = useKV<Task[]>('tasks', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -87,7 +89,7 @@ export default function TasksView() {
 
   const handleRefresh = () => {
     setTasks((current) => [...(current || [])])
-    toast.success('Dados atualizados')
+    toast.success(t.common.refreshed_success)
   }
 
   return (
@@ -100,7 +102,7 @@ export default function TasksView() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
-            Atualizar
+            {t.common.refresh}
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>

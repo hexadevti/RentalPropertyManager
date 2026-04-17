@@ -397,7 +397,7 @@ export default function ReportsView() {
           
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
-            {t.language === 'pt' ? 'Atualizar' : 'Refresh'}
+            {t.common.refresh}
           </Button>
         </div>
       </div>

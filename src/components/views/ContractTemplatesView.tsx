@@ -3,7 +3,6 @@ import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Pencil, Trash, Copy, MagnifyingGlass, FileText } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { ContractTemplate, TemplateType } from '@/types'
+import { useLanguage } from '@/lib/LanguageContext'
+import RichTextEditor, { plainTextToHTML } from '@/components/RichTextEditor'
 
 const DEFAULT_MONTHLY_TEMPLATE = `CONTRATO DE LOCAÇÃO MENSAL
 
@@ -119,6 +120,7 @@ _________________________          _________________________
     Locador(a)                         Locatário(a)`
 
 export default function ContractTemplatesView() {
+  const { t } = useLanguage()
   const [templates, setTemplates] = useKV<ContractTemplate[]>('contract-templates', [])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null)
@@ -174,7 +176,7 @@ export default function ContractTemplatesView() {
     setFormData({
       name: template.name,
       type: template.type,
-      content: template.content,
+      content: plainTextToHTML(template.content),
     })
     setDialogOpen(true)
   }
@@ -204,7 +206,7 @@ export default function ContractTemplatesView() {
       id: Date.now().toString(),
       name: templateName,
       type: type,
-      content: defaultContent,
+      content: plainTextToHTML(defaultContent),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -217,6 +219,8 @@ export default function ContractTemplatesView() {
     template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     template.type.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const isHTML = (content: string) => /<[a-z][\s\S]*>/i.test(content)
 
   const getTypeBadgeClass = (type: TemplateType) => {
     return type === 'monthly' 
@@ -248,7 +252,7 @@ export default function ContractTemplatesView() {
                 Novo Template
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {editingTemplate ? 'Editar Template' : 'Novo Template'}
@@ -280,14 +284,10 @@ export default function ContractTemplatesView() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="content">Conteúdo do Contrato</Label>
-                  <Textarea
-                    id="content"
-                    value={formData.content}
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    rows={20}
-                    className="font-mono text-sm"
-                    required
+                  <Label>Conteúdo do Contrato</Label>
+                  <RichTextEditor
+                    content={formData.content}
+                    onChange={(html) => setFormData({ ...formData, content: html })}
                   />
                   <p className="text-xs text-muted-foreground">
                     Variáveis disponíveis: {'{'}{'{'} ownerName {'}'}{'}'},  {'{'}{'{'} ownerEmail {'}'}{'}'},  {'{'}{'{'} ownerPhone {'}'}{'}'},  {'{'}{'{'} ownerDocument {'}'}{'}'},  {'{'}{'{'} ownerAddress {'}'}{'}'},  {'{'}{'{'} ownerDetails {'}'}{'}'},  {'{'}{'{'} guestName {'}'}{'}'},  {'{'}{'{'} guestEmail {'}'}{'}'},  {'{'}{'{'} guestPhone {'}'}{'}'},  {'{'}{'{'} guestDocument {'}'}{'}'},  {'{'}{'{'} guestAddress {'}'}{'}'},  {'{'}{'{'} guestNationality {'}'}{'}'},  {'{'}{'{'} properties {'}'}{'}'},  {'{'}{'{'} startDate {'}'}{'}'},  {'{'}{'{'} endDate {'}'}{'}'},  {'{'}{'{'} monthlyAmount {'}'}{'}'},  {'{'}{'{'} paymentDueDay {'}'}{'}'},  {'{'}{'{'} notes {'}'}{'}'},  {'{'}{'{'} currentDate {'}'}{'}'} 
@@ -298,7 +298,7 @@ export default function ContractTemplatesView() {
                     Cancelar
                   </Button>
                   <Button type="submit">
-                    {editingTemplate ? 'Atualizar' : 'Criar'}
+                    {editingTemplate ? t.common.update : t.common.create}
                   </Button>
                 </div>
               </form>
@@ -409,10 +409,11 @@ export default function ContractTemplatesView() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="mt-3 p-4 bg-muted/50 rounded-md">
-                <pre className="text-xs whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
-                  {template.content}
-                </pre>
+              <div className="mt-3 p-4 bg-white border rounded-md max-h-64 overflow-y-auto text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
+                {isHTML(template.content)
+                  ? <div dangerouslySetInnerHTML={{ __html: template.content }} />
+                  : <pre className="text-xs whitespace-pre-wrap font-mono">{template.content}</pre>
+                }
               </div>
             </CardContent>
           </Card>
