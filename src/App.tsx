@@ -1,4 +1,4 @@
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/useSupabaseKV'
 import { useState } from 'react'
 import { House, Wallet, Calendar, CheckSquare, ChartBar, User, Gear, Files, Wrench, CalendarCheck, FileText, Users } from '@phosphor-icons/react'
 import PropertiesView from './components/views/PropertiesView'

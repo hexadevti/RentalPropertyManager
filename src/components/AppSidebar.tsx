@@ -1,6 +1,6 @@
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/useSupabaseKV'
 import { 
   House, 
   Wallet, 

@@ -1,5 +1,5 @@
 import { useAuth } from '@/lib/AuthContext'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/useSupabaseKV'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { menuItems } from '@/components/AppSidebar'

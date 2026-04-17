@@ -1,5 +1,5 @@
 import { createContext, useContext, ReactNode } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/useSupabaseKV'
 import { translations, Language } from './i18n'
 
 type Translations = typeof translations.pt | typeof translations.en

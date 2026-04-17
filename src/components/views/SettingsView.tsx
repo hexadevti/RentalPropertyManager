@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency, currencies, Currency } from '@/lib/CurrencyContext'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/useSupabaseKV'
 import { ContractTemplate } from '@/types'
 import { toast } from 'sonner'
 import { Globe, CurrencyCircleDollar, FileText } from '@phosphor-icons/react'

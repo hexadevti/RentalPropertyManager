@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/useSupabaseKV'
 import { Property } from '@/types'
 
 export function usePropertyMigration() {

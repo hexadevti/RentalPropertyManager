@@ -1,5 +1,5 @@
 import { createContext, useContext, ReactNode } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/useSupabaseKV'
 
 export type Currency = 'BRL' | 'USD' | 'EUR' | 'GBP'
 

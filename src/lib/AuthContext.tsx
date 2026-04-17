@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useKV } from '@/lib/useSupabaseKV'
 
 type UserRole = 'admin' | 'guest'
 type UserStatus = 'pending' | 'approved' | 'rejected'
