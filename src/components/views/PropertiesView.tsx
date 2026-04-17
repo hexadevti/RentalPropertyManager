@@ -11,14 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise } from '@phosphor-icons/react'
+import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, Compass, SquaresFour } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import ContractDialogForm from '@/components/ContractDialogForm'
+import PropertyMapView from '@/components/PropertyMapView'
 
 export default function PropertiesView() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { formatCurrency } = useCurrency()
   const [properties, setProperties] = useKV<Property[]>('properties', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
@@ -28,6 +29,8 @@ export default function PropertiesView() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null)
   const [contractDialogOpen, setContractDialogOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
+  const [focusPropertyId, setFocusPropertyId] = useState<string | null>(null)
   const [selectedPropertyForContract, setSelectedPropertyForContract] = useState<string | undefined>(undefined)
   const [furnitureInput, setFurnitureInput] = useState('')
   const [editingFurnitureIndex, setEditingFurnitureIndex] = useState<number | null>(null)
@@ -253,6 +256,22 @@ export default function PropertiesView() {
             <ArrowsClockwise weight="bold" size={16} />
             {t.common.refresh}
           </Button>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => setViewMode('list')}
+            title={language === 'pt' ? 'Lista' : 'List'}
+          >
+            <SquaresFour size={16} />
+          </Button>
+          <Button
+            variant={viewMode === 'map' ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => setViewMode('map')}
+            title={language === 'pt' ? 'Mapa' : 'Map'}
+          >
+            <Compass size={16} />
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -458,6 +477,10 @@ export default function PropertiesView() {
         </div>
       </div>
 
+      {viewMode === 'map' && properties && properties.length > 0 && (
+        <PropertyMapView properties={properties} getPropertyStatus={getPropertyStatus} focusPropertyId={focusPropertyId} />
+      )}
+
       {!properties || properties.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -468,7 +491,7 @@ export default function PropertiesView() {
             </Button>
           </CardContent>
         </Card>
-      ) : (
+      ) : viewMode === 'list' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {properties.map((property) => {
             const currentStatus = getPropertyStatus(property.id)
@@ -514,10 +537,21 @@ export default function PropertiesView() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 pt-2">
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    className="w-full gap-2" 
+                  {(property.address || property.city) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2"
+                      onClick={() => { setFocusPropertyId(property.id); setViewMode('map') }}
+                    >
+                      <Compass size={14} />
+                      {language === 'pt' ? 'Mostrar no mapa' : 'Show on map'}
+                    </Button>
+                  )}
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-full gap-2"
                     onClick={() => handleGenerateContract(property.id)}
                   >
                     <FileText size={14} />
@@ -548,7 +582,7 @@ export default function PropertiesView() {
             )
           })}
         </div>
-      )}
+      ) : null}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
