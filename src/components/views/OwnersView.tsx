@@ -279,7 +279,7 @@ export default function OwnersView() {
                         <CardTitle className="text-lg">{owner.name}</CardTitle>
                         <CardDescription className="flex items-center gap-1 mt-1">
                           <House size={12} />
-                          {ownerProperties.length} {t.language === 'pt' ? 'propriedade(s)' : 'propertie(s)'}
+                          {ownerProperties.length} {t.language === 'pt' ? 'propriedade(s)' : 'property(ies)'}
                         </CardDescription>
                       </div>
                     </div>
@@ -300,21 +300,6 @@ export default function OwnersView() {
                       <span>{owner.documentType ? `${owner.documentType}: ` : ''}{owner.document}</span>
                     </div>
                   </div>
-
-                  {(owner.nationality || owner.maritalStatus || owner.profession) && (
-                    <div className="space-y-1 text-xs text-muted-foreground pt-2 border-t">
-                      {owner.nationality && <p>{t.language === 'pt' ? 'Nacionalidade:' : 'Nationality:'} {owner.nationality}</p>}
-                      {owner.maritalStatus && <p>{t.language === 'pt' ? 'Estado civil:' : 'Marital status:'} {owner.maritalStatus}</p>}
-                      {owner.profession && <p>{t.language === 'pt' ? 'Profissão:' : 'Profession:'} {owner.profession}</p>}
-                    </div>
-                  )}
-
-                  {owner.address && (
-                    <p className="text-xs text-muted-foreground pt-2 border-t line-clamp-2">
-                      {owner.address}
-                    </p>
-                  )}
-
                   {ownerProperties.length > 0 && (
                     <div className="pt-2 border-t">
                       <p className="text-xs font-medium text-muted-foreground mb-2">

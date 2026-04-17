@@ -346,66 +346,7 @@ export default function GuestsView() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      {guest.address && (
-                        <div className="flex items-start gap-2 text-sm">
-                          <MapPin size={16} weight="duotone" className="text-muted-foreground mt-0.5" />
-                          <span className="text-foreground">{guest.address}</span>
-                        </div>
-                      )}
-                      {guest.nationality && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Flag size={16} weight="duotone" className="text-muted-foreground" />
-                          <span className="text-foreground">{guest.nationality}</span>
-                        </div>
-                      )}
-                      {guest.maritalStatus && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-muted-foreground">{t.language === 'pt' ? 'Estado civil:' : 'Marital status:'}</span>
-                          <span className="text-foreground">{guest.maritalStatus}</span>
-                        </div>
-                      )}
-                      {guest.profession && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-muted-foreground">{t.language === 'pt' ? 'Profissão:' : 'Profession:'}</span>
-                          <span className="text-foreground">{guest.profession}</span>
-                        </div>
-                      )}
-                      {guest.dateOfBirth && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <Cake size={16} weight="duotone" className="text-muted-foreground" />
-                          <span className="text-foreground">{format(new Date(guest.dateOfBirth), 'dd/MM/yyyy')}</span>
-                        </div>
-                      )}
-                      {guest.notes && (
-                        <div className="text-sm text-muted-foreground mt-2">
-                          <p className="italic">{guest.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold mb-2">{t.guests_view.contracts_history || 'Histórico de Contratos'}</h4>
-                      {guestContracts.length > 0 ? (
-                        <div className="space-y-1">
-                          {guestContracts.slice(0, 3).map((contract) => (
-                            <div key={contract.id} className="text-sm text-muted-foreground">
-                              {format(new Date(contract.startDate), 'dd/MM/yyyy')} - {format(new Date(contract.endDate), 'dd/MM/yyyy')}
-                            </div>
-                          ))}
-                          {guestContracts.length > 3 && (
-                            <div className="text-xs text-muted-foreground">
-                              +{guestContracts.length - 3} {t.guests_view.more_contracts || 'mais contratos'}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">{t.guests_view.no_contracts || 'Nenhum contrato'}</p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
+                
               </Card>
             )
           })}

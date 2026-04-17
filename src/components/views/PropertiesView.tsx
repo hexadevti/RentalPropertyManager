@@ -491,40 +491,13 @@ export default function PropertiesView() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground line-clamp-2">{property.description || t.properties_view.form.description_placeholder}</p>
                 {property.address && (
                   <p className="text-sm text-muted-foreground">{property.address}</p>
                 )}
                 {property.city && (
                   <p className="text-sm text-muted-foreground">
-                    {t.language === 'pt' ? 'Cidade: ' : 'City: '}
                     {property.city}
                   </p>
-                )}
-                {property.conservationState && (
-                  <p className="text-sm text-muted-foreground">
-                    {t.language === 'pt' ? 'Estado de conservação: ' : 'Conservation state: '}
-                    {property.conservationState}
-                  </p>
-                )}
-                {property.furnitureItems && property.furnitureItems.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      {t.language === 'pt' ? 'Mobília' : 'Furniture'}
-                    </p>
-                    <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-0.5">
-                      {property.furnitureItems.slice(0, 4).map((item, index) => (
-                        <li key={`${property.id}-furniture-${index}`}>{item}</li>
-                      ))}
-                    </ul>
-                    {property.furnitureItems.length > 4 && (
-                      <p className="text-xs text-muted-foreground">
-                        {t.language === 'pt'
-                          ? `+${property.furnitureItems.length - 4} item(ns)`
-                          : `+${property.furnitureItems.length - 4} more item(s)`}
-                      </p>
-                    )}
-                  </div>
                 )}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">{t.properties_view.capacity}:</span>
