@@ -7,6 +7,8 @@ import { useLanguage } from '@/lib/LanguageContext'
 export function PendingApproval() {
   const { currentUser } = useAuth()
   const { t } = useLanguage()
+  const login = currentUser?.login || 'user'
+  const initials = login.slice(0, 2).toUpperCase()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-accent/10 flex items-center justify-center p-6">
@@ -33,14 +35,14 @@ export function PendingApproval() {
         <CardContent className="space-y-8">
           <div className="flex items-center justify-center gap-4 p-6 bg-muted/50 rounded-lg border">
             <Avatar className="h-16 w-16 border-2 border-accent">
-              <AvatarImage src={currentUser?.avatarUrl} alt={currentUser?.login} />
+              <AvatarImage src={currentUser?.avatarUrl} alt={login} />
               <AvatarFallback className="text-xl font-bold">
-                {currentUser?.login.substring(0, 2).toUpperCase()}
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="text-left">
               <p className="text-lg font-semibold text-foreground">
-                {currentUser?.login}
+                {login}
               </p>
               <p className="text-sm text-muted-foreground">
                 {currentUser?.email}

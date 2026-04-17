@@ -1,6 +1,5 @@
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
-import { useKV } from '@/lib/useSupabaseKV'
 import { 
   House, 
   Wallet, 
@@ -14,7 +13,10 @@ import {
   CalendarCheck, 
   FileText, 
   Users,
-  PushPin
+  PushPin,
+  Sidebar,
+  CaretDoubleLeft,
+  CaretDoubleRight
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -46,12 +48,14 @@ export const menuItems: MenuItem[] = [
 interface AppSidebarProps {
   activeTab: string
   onTabChange: (value: string) => void
+  collapsed: boolean
+  onToggleCollapsed: () => void
+  pinnedItems: string[]
 }
 
-export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
-  const { isAdmin, currentUser } = useAuth()
+export function AppSidebar({ activeTab, onTabChange, collapsed, onToggleCollapsed, pinnedItems }: AppSidebarProps) {
+  const { isAdmin } = useAuth()
   const { t } = useLanguage()
-  const [pinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login}`, [])
 
   const visibleItems = menuItems.filter(item => {
     if (item.adminOnly && !isAdmin) return false
@@ -69,8 +73,10 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
       <button
         key={item.id}
         onClick={() => onTabChange(item.value)}
+        title={collapsed ? item.label : undefined}
         className={cn(
-          "w-full flex items-center gap-3 px-4 py-3 text-left transition-all rounded-lg group",
+          "w-full flex items-center py-3 text-left transition-all duration-200 ease-out rounded-lg group relative overflow-hidden",
+          collapsed ? "justify-center px-2" : "gap-3 px-4",
           isActive
             ? "bg-primary text-primary-foreground shadow-sm"
             : "hover:bg-accent text-foreground"
@@ -90,27 +96,60 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
           weight={isActive ? "fill" : "duotone"} 
           size={20}
           className={cn(
+            "transition-all duration-200 ease-out",
+            collapsed ? "scale-105" : "scale-100",
             isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
           )}
         />
         <span className={cn(
-          "text-sm font-medium",
+          "text-sm font-medium whitespace-nowrap transition-all duration-200 ease-out origin-left",
+          collapsed ? "max-w-0 opacity-0 -translate-x-2" : "max-w-[180px] opacity-100 translate-x-0",
           isActive ? "text-primary-foreground" : ""
         )}>
-          {item.label}
-        </span>
+            {item.label}
+          </span>
       </button>
     )
   }
 
   return (
-    <aside className="w-64 border-r border-border bg-card/50 backdrop-blur-sm flex flex-col h-screen sticky top-0">
-      <div className="p-6 border-b border-border">
-        <h2 className="text-xl font-bold text-foreground">{t.appName}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">{t.appSubtitle}</p>
+    <aside className={cn(
+      "border-r border-border bg-card/50 backdrop-blur-sm flex flex-col h-screen sticky top-0 transition-[width] duration-300 ease-out",
+      collapsed ? "w-20" : "w-64"
+    )}>
+      <div className={cn("border-b border-border transition-all duration-300 ease-out", collapsed ? "px-3 py-4" : "p-6")}>
+        <div className={cn("flex items-start transition-all duration-300 ease-out", collapsed ? "justify-center" : "justify-between gap-3")}>
+          <div className={cn(
+            "transition-all duration-300 ease-out overflow-hidden",
+            collapsed ? "max-w-10" : "max-w-[180px]"
+          )}>
+            {collapsed ? (
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Sidebar size={22} weight="duotone" className="text-primary" />
+              </div>
+            ) : (
+              <div className="animate-in fade-in-0 slide-in-from-left-1 duration-200">
+                <h2 className="text-xl font-bold text-foreground whitespace-nowrap">{t.appName}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap">{t.appSubtitle}</p>
+              </div>
+            )}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapsed}
+            className={cn("shrink-0 transition-transform duration-200 ease-out", collapsed ? "ml-0" : "ml-2")}
+            title={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          >
+            <span className={cn("transition-transform duration-300 ease-out", collapsed ? "rotate-0" : "rotate-0")}>
+              {collapsed ? <CaretDoubleRight size={18} /> : <CaretDoubleLeft size={18} />}
+            </span>
+          </Button>
+        </div>
       </div>
 
-      <ScrollArea className="flex-1 px-3 py-4">
+      <ScrollArea className={cn("flex-1 py-4", collapsed ? "px-2" : "px-3")}>
         <nav className="space-y-1">
           {pinnedMenuItems.length > 0 && (
             <>

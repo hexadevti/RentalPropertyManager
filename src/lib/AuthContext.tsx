@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
+import { supabase } from '@/lib/supabase'
 
 type UserRole = 'admin' | 'guest'
 type UserStatus = 'pending' | 'approved' | 'rejected'
@@ -18,6 +19,7 @@ interface AuthContextType {
   currentUser: any | null
   userProfile: UserProfile | null
   isLoading: boolean
+  isAuthenticated: boolean
   isAdmin: boolean
   isGuest: boolean
   isApproved: boolean
@@ -29,12 +31,39 @@ interface AuthContextType {
   createUser: (githubLogin: string, email: string, role: UserRole) => void
   deleteUser: (githubLogin: string) => void
   getAllProfiles: () => UserProfile[]
+  signInWithGitHub: () => Promise<void>
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+type AppUser = {
+  id: string
+  login: string
+  email: string
+  avatarUrl: string
+  isOwner: boolean
+}
+
+function toAppUser(user: any): AppUser {
+  const metadata = user?.user_metadata || {}
+  const email = user?.email || ''
+  const loginFromMetadata = metadata.user_name || metadata.username || metadata.login
+  const loginFromEmail = email ? email.split('@')[0] : ''
+  const login = loginFromMetadata || loginFromEmail || `user-${String(user?.id || 'anon').slice(0, 8)}`
+  const avatarUrl = metadata.avatar_url || metadata.picture || `https://github.com/${login}.png`
+
+  return {
+    id: String(user?.id || login),
+    login,
+    email,
+    avatarUrl,
+    isOwner: false,
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<any | null>(null)
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [profiles, setProfiles] = useKV<UserProfile[]>('user-profiles', [])
@@ -42,36 +71,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true
 
-    const loadUser = async () => {
+    const setFromSupabaseUser = (supabaseUser: any | null) => {
+      if (!isMounted) return
+      setCurrentUser(supabaseUser ? toAppUser(supabaseUser) : null)
+    }
+
+    const initAuth = async () => {
       try {
-        const user = await spark.user()
-        
-        if (!isMounted) return
-        
-        setCurrentUser(user)
-        
-        const existingProfile = (profiles || []).find(
-          (p) => p.githubLogin === user.login
-        )
-        
-        if (existingProfile) {
-          setUserProfile(existingProfile)
-        } else {
-          const newProfile: UserProfile = {
-            githubLogin: user.login,
-            role: user.isOwner ? 'admin' : 'guest',
-            status: user.isOwner ? 'approved' : 'pending',
-            email: user.email || '',
-            avatarUrl: user.avatarUrl,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-          
-          setProfiles((currentProfiles) => [...currentProfiles, newProfile])
-          setUserProfile(newProfile)
+        const { data, error } = await supabase.auth.getSession()
+        if (error) {
+          console.error('Failed to read Supabase session:', error)
         }
+
+        setFromSupabaseUser(data.session?.user ?? null)
       } catch (error) {
-        console.error('Failed to load user:', error)
+        console.error('Failed to initialize auth:', error)
       } finally {
         if (isMounted) {
           setIsLoading(false)
@@ -79,23 +93,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    loadUser()
+    void initAuth()
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      void setFromSupabaseUser(session?.user ?? null)
+    })
 
     return () => {
       isMounted = false
+      authListener.subscription.unsubscribe()
     }
   }, [])
 
   useEffect(() => {
-    if (currentUser && profiles.length > 0) {
-      const updatedProfile = profiles.find(
-        (p) => p.githubLogin === currentUser.login
-      )
-      if (updatedProfile) {
-        setUserProfile(updatedProfile)
-      }
+    if (!currentUser) {
+      setUserProfile(null)
+      return
     }
-  }, [profiles, currentUser])
+
+    const safeProfiles = profiles || []
+    const existingProfile = safeProfiles.find((p) => p.githubLogin === currentUser.login)
+
+    if (existingProfile) {
+      setUserProfile(existingProfile)
+      return
+    }
+
+    const firstUser = safeProfiles.length === 0
+    const now = new Date().toISOString()
+    const newProfile: UserProfile = {
+      githubLogin: currentUser.login,
+      role: firstUser ? 'admin' : 'guest',
+      status: firstUser ? 'approved' : 'pending',
+      email: currentUser.email || '',
+      avatarUrl: currentUser.avatarUrl,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    setProfiles((currentProfiles) => {
+      const current = currentProfiles || []
+      const alreadyExists = current.some((p) => p.githubLogin === newProfile.githubLogin)
+      return alreadyExists ? current : [...current, newProfile]
+    })
+    setUserProfile(newProfile)
+  }, [currentUser, profiles, setProfiles])
 
   const hasRole = (role: UserRole) => {
     return userProfile?.role === role
@@ -144,10 +186,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return profiles || []
   }
 
+  const signInWithGitHub = async () => {
+    const redirectTo = import.meta.env.VITE_AUTH_REDIRECT_URL || `${window.location.origin}/`
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo,
+        scopes: 'read:user user:email',
+      },
+    })
+
+    if (error) {
+      throw error
+    }
+  }
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      throw error
+    }
+  }
+
   const value: AuthContextType = {
     currentUser,
     userProfile,
     isLoading,
+    isAuthenticated: !!currentUser,
     hasRole,
     isAdmin: userProfile?.role === 'admin',
     isGuest: userProfile?.role === 'guest',
@@ -158,7 +224,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateUserStatus,
     createUser,
     deleteUser,
-    getAllProfiles
+    getAllProfiles,
+    signInWithGitHub,
+    signOut,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

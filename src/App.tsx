@@ -19,6 +19,7 @@ import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
 import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { UserInfo } from '@/components/UserInfo'
+import { Login } from '@/components/Login'
 import { PendingApproval } from '@/components/PendingApproval'
 import { Rejected } from '@/components/Rejected'
 import { useKVCleanup } from '@/hooks/use-kv-cleanup'
@@ -28,10 +29,12 @@ import { AppSidebar } from '@/components/AppSidebar'
 function AppContent() {
   const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
-  const { isApproved, isPending, isRejected, isLoading, isAdmin, isGuest } = useAuth()
+  const { isApproved, isPending, isRejected, isLoading, isAdmin, isGuest, isAuthenticated, currentUser } = useAuth()
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
   const [activeTab, setActiveTab] = useState<string>(isGuest ? 'calendar' : 'properties')
+  const [pinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
+  const [sidebarCollapsed, setSidebarCollapsed] = useKV<boolean>(`sidebar-collapsed-${currentUser?.login ?? 'anonymous'}`, false)
   
   useKVCleanup()
   usePropertyMigration()
@@ -57,6 +60,10 @@ function AppContent() {
     return <Rejected />
   }
 
+  if (!isAuthenticated) {
+    return <Login />
+  }
+
   if (!isApproved && isPending) {
     return <PendingApproval />
   }
@@ -69,7 +76,13 @@ function AppContent() {
     <div className="min-h-screen bg-background flex">
       <Toaster />
       
-      <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <AppSidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+        pinnedItems={pinnedItems || []}
+      />
 
       <div className="flex-1 flex flex-col">
         <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
