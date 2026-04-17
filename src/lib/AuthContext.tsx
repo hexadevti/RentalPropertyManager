@@ -112,9 +112,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const safeProfiles = profiles || []
-    const existingProfile = safeProfiles.find((p) => p.githubLogin === currentUser.login)
+    const existingProfile = safeProfiles.find(
+      (p) => p.githubLogin === currentUser.login || p.email === currentUser.email
+    )
 
     if (existingProfile) {
+      if (
+        existingProfile.githubLogin !== currentUser.login
+        || existingProfile.email !== currentUser.email
+        || existingProfile.avatarUrl !== currentUser.avatarUrl
+      ) {
+        const updatedProfile: UserProfile = {
+          ...existingProfile,
+          githubLogin: currentUser.login,
+          email: currentUser.email || existingProfile.email,
+          avatarUrl: currentUser.avatarUrl,
+          updatedAt: new Date().toISOString(),
+        }
+
+        setProfiles((currentProfiles) =>
+          (currentProfiles || []).map((profile) =>
+            profile.githubLogin === existingProfile.githubLogin ? updatedProfile : profile
+          )
+        )
+        setUserProfile(updatedProfile)
+        return
+      }
+
       setUserProfile(existingProfile)
       return
     }

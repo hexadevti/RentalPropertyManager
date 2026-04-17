@@ -133,3 +133,14 @@ export interface ContractTemplate {
   createdAt: string
   updatedAt: string
 }
+
+export type DocumentCategory = 'contract' | 'receipt' | 'insurance' | 'tax' | 'other'
+
+export interface Document {
+  id: string
+  name: string
+  category: DocumentCategory
+  notes?: string
+  propertyId?: string
+  uploadDate: string
+}

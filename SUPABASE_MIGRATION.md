@@ -4,22 +4,25 @@
 
 1. Create a new Supabase project.
 2. Open SQL Editor in Supabase.
-3. Run scripts in this order:
-   - `supabase/001_create_app_kv.sql`
-   - `supabase/002_seed_defaults.sql` (optional)
-   - `supabase/003_import_kv_json.sql` (optional, after replacing JSON payload)
-4. In Supabase Dashboard, enable GitHub provider:
+3. First-phase compatibility scripts:
+  - `supabase/001_create_app_kv.sql`
+  - `supabase/002_seed_defaults.sql` (optional)
+  - `supabase/003_import_kv_json.sql` (optional, after replacing JSON payload)
+4. Second-phase relational scripts:
+  - `supabase/101_create_relational_schema.sql`
+  - `supabase/102_migrate_app_kv_to_relational.sql` (optional, after replacing `YOUR_AUTH_USER_UUID`)
+5. In Supabase Dashboard, enable GitHub provider:
   - Authentication -> Providers -> GitHub -> Enable
   - Configure GitHub OAuth App with callback URL:
     - `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`
-5. In Supabase Dashboard, set allowed redirect URLs:
+6. In Supabase Dashboard, set allowed redirect URLs:
   - Authentication -> URL Configuration -> Redirect URLs
   - Add at least:
     - `http://localhost:5000`
     - `http://localhost:5000/`
     - `http://localhost:5001`
     - `http://localhost:5001/`
-6. In Supabase Dashboard, set Site URL:
+7. In Supabase Dashboard, set Site URL:
    - Authentication -> URL Configuration -> Site URL
    - Example (dev): `http://localhost:5001`
 
@@ -53,6 +56,13 @@ console.log(JSON.stringify(payload, null, 2))
 
 Paste the JSON into `supabase/003_import_kv_json.sql` and run that script in Supabase.
 
+If you are migrating to the normalized relational model, then:
+
+1. Run `supabase/003_import_kv_json.sql`
+2. Find your authenticated user UUID in Supabase Authentication
+3. Replace `YOUR_AUTH_USER_UUID` inside `supabase/102_migrate_app_kv_to_relational.sql`
+4. Run `supabase/102_migrate_app_kv_to_relational.sql`
+
 ## 4) Run app
 
 Install dependencies and start the app:
@@ -62,11 +72,13 @@ npm install
 npm run dev
 ```
 
-The app now persists all `useKV` keys in Supabase table `public.app_kv`.
+The app now reads and writes domain data from normalized Supabase tables.
+The legacy `public.app_kv` table is only used as an optional migration source.
 
 ## Notes
 
 - This migration keeps the existing KV-shaped data contract used by the app.
 - Existing component logic using `useKV` does not need to be rewritten.
-- Current policies allow `anon` and `authenticated` roles to read/write all keys; tighten RLS policies before production if needed.
+- Domain tables now use per-user ownership with RLS based on `auth.uid()`.
+- `user_profiles` allows self-access and admin moderation; all other business tables are isolated per authenticated user.
 - The app now uses Supabase Auth with explicit login via GitHub OAuth instead of `spark.user()`.
