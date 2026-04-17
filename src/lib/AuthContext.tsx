@@ -32,6 +32,7 @@ interface AuthContextType {
   deleteUser: (githubLogin: string) => void
   getAllProfiles: () => UserProfile[]
   signInWithGitHub: () => Promise<void>
+  signInWithDevCredentials: (email: string, userId: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -78,6 +79,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       try {
+        // Check for dev mode user first
+        const devModeUser = localStorage.getItem('dev-mode-user')
+        if (devModeUser) {
+          const user = JSON.parse(devModeUser)
+          if (isMounted) {
+            setCurrentUser(user)
+          }
+          if (isMounted) {
+            setIsLoading(false)
+          }
+          return
+        }
+
         const { data, error } = await supabase.auth.getSession()
         if (error) {
           console.error('Failed to read Supabase session:', error)
@@ -226,7 +240,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const signInWithDevCredentials = async (email: string, userId: string) => {
+    const login = email.split('@')[0]
+    const mockUser = {
+      id: userId,
+      login,
+      email,
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(login)}&background=random`,
+      isOwner: false,
+    }
+
+    setCurrentUser(mockUser)
+    
+    // Store in localStorage so session persists
+    localStorage.setItem('dev-mode-user', JSON.stringify(mockUser))
+  }
+
   const signOut = async () => {
+    setCurrentUser(null)
+    setUserProfile(null)
+    localStorage.removeItem('dev-mode-user')
     const { error } = await supabase.auth.signOut()
     if (error) {
       throw error
@@ -250,6 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     deleteUser,
     getAllProfiles,
     signInWithGitHub,
+    signInWithDevCredentials,
     signOut,
   }
 

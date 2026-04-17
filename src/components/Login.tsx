@@ -5,9 +5,13 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/AuthContext'
 
 export function Login() {
-  const { signInWithGitHub } = useAuth()
+  const { signInWithGitHub, signInWithDevCredentials } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const isDevMode = import.meta.env.VITE_DEV_MODE === 'true'
+  const devUserEmail = import.meta.env.VITE_DEV_USER_EMAIL
+  const devUserId = import.meta.env.VITE_DEV_USER_ID
 
   const handleGitHubLogin = async () => {
     setIsSubmitting(true)
@@ -18,6 +22,20 @@ export function Login() {
     } catch (error) {
       console.error('GitHub login failed:', error)
       setErrorMessage('Nao foi possivel autenticar com GitHub. Verifique as configuracoes do provider no Supabase.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDevLogin = async () => {
+    setIsSubmitting(true)
+    setErrorMessage(null)
+
+    try {
+      await signInWithDevCredentials(devUserEmail, devUserId)
+    } catch (error) {
+      console.error('Dev login failed:', error)
+      setErrorMessage('Nao foi possivel fazer login no modo de desenvolvimento.')
     } finally {
       setIsSubmitting(false)
     }
@@ -41,6 +59,19 @@ export function Login() {
             <SignIn size={18} />
             {isSubmitting ? 'Redirecionando...' : 'Entrar com GitHub'}
           </Button>
+
+          {isDevMode && (
+            <Button 
+              className="w-full gap-2" 
+              size="lg" 
+              onClick={handleDevLogin} 
+              disabled={isSubmitting}
+              variant="outline"
+            >
+              <SignIn size={18} />
+              Dev Login
+            </Button>
+          )}
 
           {errorMessage && (
             <p className="text-sm text-destructive text-center">{errorMessage}</p>

@@ -121,13 +121,9 @@ export function AppSidebar({ activeTab, onTabChange, collapsed, onToggleCollapse
         <div className={cn("flex items-start transition-all duration-300 ease-out", collapsed ? "justify-center" : "justify-between gap-3")}>
           <div className={cn(
             "transition-all duration-300 ease-out overflow-hidden",
-            collapsed ? "max-w-10" : "max-w-[180px]"
+            collapsed ? "max-w-0" : "max-w-[180px]"
           )}>
-            {collapsed ? (
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Sidebar size={22} weight="duotone" className="text-primary" />
-              </div>
-            ) : (
+            {!collapsed && (
               <div className="animate-in fade-in-0 slide-in-from-left-1 duration-200">
                 <h2 className="text-xl font-bold text-foreground whitespace-nowrap">{t.appName}</h2>
                 <p className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap">{t.appSubtitle}</p>
