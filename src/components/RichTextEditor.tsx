@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -21,6 +21,12 @@ interface RichTextEditorProps {
   onChange: (html: string) => void
 }
 
+export interface RichTextEditorHandle {
+  insertTokenAtCursor: (token: string) => void
+  focusAtLastSelection: () => void
+  captureCurrentSelection: () => void
+}
+
 /** Convert legacy plain-text template content to HTML for TipTap */
 export function plainTextToHTML(text: string): string {
   if (/<[a-z][\s\S]*>/i.test(text)) return text // already HTML
@@ -37,7 +43,12 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
 }
 
-export default function RichTextEditor({ content, onChange }: RichTextEditorProps) {
+const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor(
+  { content, onChange },
+  ref
+) {
+  const lastSelectionRef = useRef({ from: 1, to: 1 })
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: false }),
@@ -49,6 +60,12 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
     content,
     onUpdate({ editor }) {
       onChange(editor.getHTML())
+    },
+    onSelectionUpdate({ editor }) {
+      lastSelectionRef.current = {
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+      }
     },
     editorProps: {
       attributes: {
@@ -63,6 +80,29 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       editor.commands.setContent(content, false)
     }
   }, [content]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useImperativeHandle(ref, () => ({
+    insertTokenAtCursor(token: string) {
+      if (!editor) return
+      editor.chain().focus().insertContent(token).run()
+    },
+    focusAtLastSelection() {
+      if (!editor) return
+
+      const docSize = editor.state.doc.content.size
+      const from = Math.max(1, Math.min(lastSelectionRef.current.from, docSize))
+      const to = Math.max(1, Math.min(lastSelectionRef.current.to, docSize))
+
+      editor.chain().focus().setTextSelection({ from, to }).run()
+    },
+    captureCurrentSelection() {
+      if (!editor) return
+      lastSelectionRef.current = {
+        from: editor.state.selection.from,
+        to: editor.state.selection.to,
+      }
+    },
+  }), [editor])
 
   if (!editor) return null
 
@@ -187,4 +227,6 @@ export default function RichTextEditor({ content, onChange }: RichTextEditorProp
       </div>
     </div>
   )
-}
+})
+
+export default RichTextEditor
