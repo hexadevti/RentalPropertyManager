@@ -14,19 +14,19 @@ import { useLanguage } from '@/lib/LanguageContext'
 import RichTextEditor, { plainTextToHTML, RichTextEditorHandle } from '@/components/RichTextEditor'
 
 const TEMPLATE_VARIABLES = [
-  { token: '{{ownerName}}', meaning: 'Nome(s) do(s) proprietário(s)', sample: 'João Silva, Maria Santos' },
-  { token: '{{ownerEmail}}', meaning: 'E-mail(s) do(s) proprietário(s)', sample: 'joao@email.com, maria@email.com' },
-  { token: '{{ownerPhone}}', meaning: 'Telefone(s) do(s) proprietário(s)', sample: '(11) 99999-0000, (11) 98888-1111' },
-  { token: '{{ownerDocument}}', meaning: 'Documento(s) do(s) proprietário(s)', sample: '123.456.789-00, 987.654.321-00' },
-  { token: '{{ownerAddress}}', meaning: 'Endereço(s) do(s) proprietário(s)', sample: 'Rua A, 100 - Centro - Sao Paulo/SP' },
-  { token: '{{ownerDetails}}', meaning: 'Bloco completo com dados do(s) proprietário(s)', sample: 'João Silva\nDocumento: 123.456.789-00\nE-mail: joao@email.com\nTelefone: (11) 99999-0000' },
+  { token: '{{ownerName}}', meaning: 'Nome(s) do(s) proprietário(s). Também aceita índice: {{ownerName.1}}, {{ownerName.2}}...', sample: 'João Silva, Maria Santos\nCom índice: {{ownerName.1}} => João Silva' },
+  { token: '{{ownerEmail}}', meaning: 'E-mail(s) do(s) proprietário(s). Também aceita índice: {{ownerEmail.1}}, {{ownerEmail.2}}...', sample: 'joao@email.com, maria@email.com\nCom índice: {{ownerEmail.2}} => maria@email.com' },
+  { token: '{{ownerPhone}}', meaning: 'Telefone(s) do(s) proprietário(s). Também aceita índice: {{ownerPhone.1}}, {{ownerPhone.2}}...', sample: '(11) 99999-0000, (11) 98888-1111\nCom índice: {{ownerPhone.1}} => (11) 99999-0000' },
+  { token: '{{ownerDocument}}', meaning: 'Documento(s) do(s) proprietário(s). Também aceita índice: {{ownerDocument.1}}, {{ownerDocument.2}}...', sample: '123.456.789-00, 987.654.321-00\nCom índice: {{ownerDocument.2}} => 987.654.321-00' },
+  { token: '{{ownerAddress}}', meaning: 'Endereço(s) do(s) proprietário(s). Também aceita índice: {{ownerAddress.1}}, {{ownerAddress.2}}...', sample: 'Rua A, 100 - Centro - Sao Paulo/SP\nCom índice: {{ownerAddress.1}} => Rua A, 100 - Centro - Sao Paulo/SP' },
+  { token: '{{ownerDetails}}', meaning: 'Bloco completo com dados do(s) proprietário(s). Também aceita índice: {{ownerDetails.1}}, {{ownerDetails.2}}...', sample: 'João Silva\nDocumento: 123.456.789-00\nE-mail: joao@email.com\nTelefone: (11) 99999-0000' },
   { token: '{{guestName}}', meaning: 'Nome do hóspede/locatário', sample: 'Carlos Pereira' },
   { token: '{{guestEmail}}', meaning: 'E-mail do hóspede/locatário', sample: 'carlos@email.com' },
   { token: '{{guestPhone}}', meaning: 'Telefone do hóspede/locatário', sample: '(11) 97777-2222' },
   { token: '{{guestDocument}}', meaning: 'Documento do hóspede/locatário', sample: '111.222.333-44' },
   { token: '{{guestAddress}}', meaning: 'Endereço do hóspede/locatário', sample: 'Av. Principal, 250 - Rio de Janeiro/RJ' },
   { token: '{{guestNationality}}', meaning: 'Nacionalidade do hóspede/locatário', sample: 'Brasileiro(a)' },
-  { token: '{{properties}}', meaning: 'Lista de imóveis vinculados ao contrato', sample: '- Apartamento 101\n- Casa de Praia' },
+  { token: '{{properties}}', meaning: 'Lista de imóveis vinculados ao contrato. Também aceita índice: {{properties.1}}, {{properties.2}}...', sample: '- Apartamento 101\n- Casa de Praia\nCom índice: {{properties.2}} => Casa de Praia' },
   { token: '{{startDate}}', meaning: 'Data de início do contrato', sample: '01/05/2026' },
   { token: '{{endDate}}', meaning: 'Data de fim do contrato', sample: '30/04/2027' },
   { token: '{{monthlyAmount}}', meaning: 'Valor da locação formatado em moeda', sample: 'R$ 2.500,00' },
@@ -253,6 +253,9 @@ export default function ContractTemplatesView() {
                           <DialogTitle>Variáveis disponíveis no template</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-3 px-6 pb-6 overflow-y-auto max-h-[calc(85vh-76px)]">
+                          <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
+                            Use índices começando em 1 para variáveis com múltiplos registros, por exemplo: {'{{ownerPhone.1}}'} ou {'{{properties.2}}'}. Se o índice pedido não existir, o PDF renderiza: [indice de variavel inexistente. i = n].
+                          </div>
                           {TEMPLATE_VARIABLES.map((variable) => (
                             <div key={variable.token} className="border rounded-md p-3">
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

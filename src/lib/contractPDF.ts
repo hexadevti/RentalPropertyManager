@@ -11,6 +11,8 @@ export interface ContractPDFData {
   owners: Owner[]
 }
 
+const MISSING_INDEX_TEMPLATE = '[indice de variavel inexistente. i = {{index}}]'
+
 function isHTML(content: string): boolean {
   return /<[a-z][\s\S]*>/i.test(content)
 }
@@ -56,6 +58,52 @@ function buildVariables(
     '{{notes}}': contract.notes ? `OBSERVAÇÕES:\n${contract.notes}` : '',
     '{{currentDate}}': format(new Date(), 'dd/MM/yyyy'),
   }
+}
+
+function buildIndexedVariables(data: ContractPDFData): Record<string, string[]> {
+  const { owners, properties } = data
+
+  return {
+    ownerName: owners.map((owner) => owner.name || ''),
+    ownerEmail: owners.map((owner) => owner.email || ''),
+    ownerPhone: owners.map((owner) => owner.phone || ''),
+    ownerDocument: owners.map((owner) => owner.document || ''),
+    ownerAddress: owners.map((owner) => owner.address || ''),
+    ownerDetails: owners.map(
+      (owner) =>
+        `${owner.name}\nDocumento: ${owner.document}\nE-mail: ${owner.email}\nTelefone: ${owner.phone}` +
+        (owner.address ? `\nEndereço: ${owner.address}` : '')
+    ),
+    properties: properties.map((property) => property.name || ''),
+  }
+}
+
+function renderTemplateVariables(
+  content: string,
+  variables: Record<string, string>,
+  indexedVariables: Record<string, string[]>
+) {
+  let resolvedContent = content
+
+  for (const [key, value] of Object.entries(variables)) {
+    resolvedContent = resolvedContent.split(key).join(value)
+  }
+
+  return resolvedContent.replace(/\{\{([a-zA-Z]+)\.(\d+)\}\}/g, (_match, variableName: string, indexText: string) => {
+    const variableValues = indexedVariables[variableName]
+    if (!variableValues) {
+      return _match
+    }
+
+    const requestedIndex = Number(indexText)
+    const arrayIndex = requestedIndex - 1
+
+    if (!Number.isInteger(requestedIndex) || arrayIndex < 0 || arrayIndex >= variableValues.length) {
+      return MISSING_INDEX_TEMPLATE.replace('{{index}}', indexText)
+    }
+
+    return variableValues[arrayIndex]
+  })
 }
 
 // ── HTML-based PDF generation (rich text templates) ──────────────────────────
@@ -192,11 +240,9 @@ export async function generateContractPDF(
   formatCurrency: (value: number) => string
 ): Promise<jsPDF> {
   const variables = buildVariables(data, formatCurrency)
+  const indexedVariables = buildIndexedVariables(data)
 
-  let content = data.template.content
-  for (const [key, value] of Object.entries(variables)) {
-    content = content.replaceAll(key, value)
-  }
+  const content = renderTemplateVariables(data.template.content, variables, indexedVariables)
 
   if (isHTML(content)) {
     return generatePDFFromHTML(content)
