@@ -34,7 +34,21 @@ function AppContent() {
   const [transactions] = useKV<Transaction[]>('transactions', [])
   const [activeTab, setActiveTab] = useState<string>(isGuest ? 'calendar' : 'properties')
   const [pinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
-  const [sidebarCollapsed, setSidebarCollapsed] = useKV<boolean>(`sidebar-collapsed-${currentUser?.login ?? 'anonymous'}`, false)
+
+  const tabTitleMap: Record<string, string> = {
+    properties: t.tabs.properties,
+    owners: t.tabs.owners,
+    finances: t.tabs.finances,
+    calendar: t.tabs.calendar,
+    tasks: t.tabs.tasks,
+    reports: t.tabs.reports,
+    guests: t.tabs.guests,
+    contracts: t.tabs.contracts,
+    templates: t.tabs.templates,
+    providers: t.tabs.providers,
+    appointments: t.tabs.appointments,
+    settings: t.tabs.settings,
+  }
   
   useKVCleanup()
   usePropertyMigration()
@@ -73,35 +87,22 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background">
       <Toaster />
       
       <AppSidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
         pinnedItems={pinnedItems || []}
       />
 
-      <div className="flex-1 flex flex-col">
+      <div className="min-h-screen pl-20 flex flex-col">
         <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  {activeTab === 'properties' && 'Propriedades'}
-                  {activeTab === 'owners' && 'Proprietários'}
-                  {activeTab === 'finances' && 'Finanças'}
-                  {activeTab === 'calendar' && 'Calendário'}
-                  {activeTab === 'tasks' && 'Tarefas'}
-                  {activeTab === 'reports' && 'Relatórios'}
-                  {activeTab === 'guests' && 'Hóspedes'}
-                  {activeTab === 'contracts' && 'Contratos'}
-                  {activeTab === 'templates' && 'Templates'}
-                  {activeTab === 'providers' && 'Prestadores'}
-                  {activeTab === 'appointments' && 'Compromissos'}
-                  {activeTab === 'settings' && 'Configurações'}
+                  {tabTitleMap[activeTab] || t.appName}
                 </h1>
               </div>
               <div className="flex items-center gap-8">

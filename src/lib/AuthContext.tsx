@@ -131,16 +131,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 
     if (existingProfile) {
+      const nextEmail = currentUser.email || existingProfile.email
+      const nextAvatarUrl = currentUser.avatarUrl || existingProfile.avatarUrl
+
       if (
-        existingProfile.githubLogin !== currentUser.login
-        || existingProfile.email !== currentUser.email
-        || existingProfile.avatarUrl !== currentUser.avatarUrl
+        existingProfile.email !== nextEmail
+        || existingProfile.avatarUrl !== nextAvatarUrl
       ) {
         const updatedProfile: UserProfile = {
           ...existingProfile,
-          githubLogin: currentUser.login,
-          email: currentUser.email || existingProfile.email,
-          avatarUrl: currentUser.avatarUrl,
+          email: nextEmail,
+          avatarUrl: nextAvatarUrl,
           updatedAt: new Date().toISOString(),
         }
 

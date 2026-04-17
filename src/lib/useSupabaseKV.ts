@@ -6,6 +6,7 @@ const cache = new Map<string, unknown>()
 const subscribers = new Map<string, Set<(value: unknown) => void>>()
 const inflightLoads = new Map<string, Promise<unknown>>()
 const metadataCache = new Map<string, unknown>()
+const ignoredPersistWarnings = new Set<string>()
 
 const COLLECTION_KEYS = new Set([
   'appointments',
@@ -36,6 +37,14 @@ function normalizeSettingKey(key: string) {
   if (key.startsWith('pinned-items-')) return 'pinned-items'
   if (key.startsWith('sidebar-collapsed-')) return 'sidebar-collapsed'
   return key
+}
+
+function shouldIgnorePersistError(key: string, error: any) {
+  if (key !== 'user-profiles') return false
+  return error?.code === '54001'
+    || error?.code === '42501'
+    || String(error?.message || '').includes('stack depth limit exceeded')
+    || String(error?.message || '').toLowerCase().includes('row-level security policy')
 }
 
 function notifySubscribers(key: string, value: unknown) {
@@ -389,9 +398,13 @@ async function loadDocuments() {
 }
 
 async function loadProfiles() {
+  const authUserId = await getAuthUserId()
+  if (!authUserId) return []
+
   const { data, error } = await supabase
     .from('user_profiles')
     .select('*')
+    .eq('auth_user_id', authUserId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
@@ -727,48 +740,36 @@ async function persistProfiles(value: any[]) {
   if (!currentAuthUser) return
 
   const existingProfiles = (metadataCache.get('user-profiles-raw') as any[] | undefined) || []
-  const existingByLogin = new Map(existingProfiles.map((profile) => [profile.github_login, profile]))
-  const nextLogins = value.map((profile) => profile.githubLogin)
-  const removedLogins = existingProfiles
-    .map((profile) => profile.github_login)
-    .filter((login) => !nextLogins.includes(login))
+  const loginFromMetadata = currentAuthUser.user_metadata?.user_name || currentAuthUser.user_metadata?.preferred_username
 
-  if (removedLogins.length > 0) {
-    const { error } = await supabase
-      .from('user_profiles')
-      .delete()
-      .in('github_login', removedLogins)
+  const matchingProfiles = value.filter((profile) =>
+    profile.githubLogin === loginFromMetadata || profile.email === currentAuthUser.email
+  )
 
-    if (error) throw error
+  const targetProfile = matchingProfiles[0]
+  if (!targetProfile) return
+
+  const existing = existingProfiles.find((profile) => profile.auth_user_id === currentAuthUser.id)
+    || existingProfiles.find((profile) => profile.github_login === targetProfile.githubLogin)
+
+  const nextProfile = {
+    auth_user_id: currentAuthUser.id,
+    github_login: targetProfile.githubLogin,
+    role: targetProfile.role,
+    status: targetProfile.status,
+    email: targetProfile.email,
+    avatar_url: targetProfile.avatarUrl,
+    created_at: existing?.created_at || targetProfile.createdAt || new Date().toISOString(),
+    updated_at: targetProfile.updatedAt || new Date().toISOString(),
   }
 
-  const nextProfiles = value.map((profile) => {
-    const existing = existingByLogin.get(profile.githubLogin)
-    const shouldBindToCurrentUser = existing?.auth_user_id === currentAuthUser.id
-      || profile.email === currentAuthUser.email
-      || profile.githubLogin === (currentAuthUser.user_metadata?.user_name || currentAuthUser.user_metadata?.preferred_username)
+  const { error } = await supabase
+    .from('user_profiles')
+    .upsert(nextProfile, { onConflict: 'github_login' })
 
-    return {
-      auth_user_id: existing?.auth_user_id || (shouldBindToCurrentUser ? currentAuthUser.id : null),
-      github_login: profile.githubLogin,
-      role: profile.role,
-      status: profile.status,
-      email: profile.email,
-      avatar_url: profile.avatarUrl,
-      created_at: existing?.created_at || profile.createdAt || new Date().toISOString(),
-      updated_at: profile.updatedAt || new Date().toISOString(),
-    }
-  })
+  if (error) throw error
 
-  if (nextProfiles.length > 0) {
-    const { error } = await supabase
-      .from('user_profiles')
-      .upsert(nextProfiles, { onConflict: 'github_login' })
-
-    if (error) throw error
-  }
-
-  metadataCache.set('user-profiles-raw', nextProfiles)
+  metadataCache.set('user-profiles-raw', [nextProfile])
 }
 
 async function persistCollection(key: string, value: unknown) {
@@ -858,6 +859,16 @@ export function useKV<T>(key: string, defaultValue: T): [T, Dispatch<SetStateAct
       notifySubscribers(key, resolved)
 
       void persistValue(key, resolved).catch((error) => {
+        if (shouldIgnorePersistError(key, error)) {
+          if (!ignoredPersistWarnings.has(key)) {
+            console.warn(
+              'Skipping user-profiles persistence for this session due to Supabase policy restrictions. Apply the latest user_profiles RLS migrations in the supabase folder to fix permanently.'
+            )
+            ignoredPersistWarnings.add(key)
+          }
+          return
+        }
+
         console.error(`Failed to persist key "${key}" to relational Supabase tables`, error)
       })
 

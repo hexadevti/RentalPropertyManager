@@ -288,7 +288,7 @@ export default function CalendarView() {
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
-            Atualizar
+            {t.common.refresh}
           </Button>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => {

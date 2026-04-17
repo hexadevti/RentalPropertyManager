@@ -184,7 +184,7 @@ export default function ContractsView() {
 
   const handleRefresh = () => {
     setContracts((current) => [...(current || [])])
-    toast.success('Dados atualizados')
+    toast.success(t.common.refreshed_success)
   }
 
   const handleGeneratePDF = (contract: Contract) => {
@@ -193,7 +193,7 @@ export default function ContractsView() {
     setPdfDialogOpen(true)
   }
 
-  const handlePDFGeneration = (action: 'download' | 'view') => {
+  const handlePDFGeneration = async (action: 'download' | 'view') => {
     if (!selectedContractForPDF || !selectedTemplateId) {
       toast.error('Selecione um template')
       return
@@ -223,7 +223,7 @@ export default function ContractsView() {
     const contractOwners = (owners || []).filter(o => propertyOwnerIds.has(o.id))
 
     try {
-      const pdf = generateContractPDF(
+      const pdf = await generateContractPDF(
         {
           contract: selectedContractForPDF,
           guest,
@@ -269,7 +269,7 @@ export default function ContractsView() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
-            Atualizar
+            {t.common.refresh}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)

@@ -158,7 +158,7 @@ export default function FinancesView() {
 
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1)
-    toast.success('Dados atualizados')
+    toast.success(t.common.refreshed_success)
   }
 
   return (
@@ -171,7 +171,7 @@ export default function FinancesView() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
-            Atualizar
+            {t.common.refresh}
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>

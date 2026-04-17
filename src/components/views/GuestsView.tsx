@@ -99,7 +99,7 @@ export default function GuestsView() {
 
   const handleRefresh = () => {
     setGuests((current) => [...(current || [])])
-    toast.success('Dados atualizados')
+    toast.success(t.common.refreshed_success)
   }
 
   const getGuestContracts = (guestId: string) => {
@@ -115,7 +115,7 @@ export default function GuestsView() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
-            Atualizar
+            {t.common.refresh}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)

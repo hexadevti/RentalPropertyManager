@@ -106,7 +106,7 @@ export default function ServiceProvidersView() {
 
   const handleRefresh = () => {
     setProviders((current) => [...(current || [])])
-    toast.success('Dados atualizados')
+    toast.success(t.common.refreshed_success)
   }
 
   return (
@@ -118,7 +118,7 @@ export default function ServiceProvidersView() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
-            Atualizar
+            {t.common.refresh}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
