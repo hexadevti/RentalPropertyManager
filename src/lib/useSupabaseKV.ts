@@ -82,7 +82,12 @@ async function getAuthUser() {
 
 async function getAuthUserId() {
   const user = await getAuthUser()
-  return user?.id ?? null
+  if (user?.id) return user.id
+  try {
+    const devUser = localStorage.getItem('dev-mode-user')
+    if (devUser) return (JSON.parse(devUser) as { id: string }).id
+  } catch {}
+  return null
 }
 
 async function loadUserSetting<T>(key: string, defaultValue: T): Promise<T> {
