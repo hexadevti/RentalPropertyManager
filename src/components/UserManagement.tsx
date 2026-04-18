@@ -89,8 +89,8 @@ export function UserManagement() {
       setIsCreateDialogOpen(false)
       setNewUserEmail('')
       setNewUserRole('guest')
-    } catch (error) {
-      toast.error('Erro ao criar usuário')
+    } catch (error: any) {
+      toast.error(error?.message || 'Erro ao criar usuário')
     } finally {
       setIsCreating(false)
     }

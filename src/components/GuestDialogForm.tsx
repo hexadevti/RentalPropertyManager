@@ -6,8 +6,9 @@ import { DateInput } from '@/components/ui/date-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Plus, Trash, IdentificationCard } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Guest } from '@/types'
+import { Guest, GuestDocument } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 
 interface GuestDialogFormProps {
@@ -23,19 +24,38 @@ export default function GuestDialogForm({
   onGuestCreated,
   editingGuest 
 }: GuestDialogFormProps) {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    document: '',
+    documents: [] as GuestDocument[],
     address: '',
     nationality: '',
     dateOfBirth: '',
     notes: '',
   })
+  const [newDocType, setNewDocType] = useState('')
+  const [newDocNumber, setNewDocNumber] = useState('')
+
+  const addDocument = () => {
+    if (!newDocNumber.trim()) return
+    setFormData((prev) => ({
+      ...prev,
+      documents: [...prev.documents, { type: newDocType.trim(), number: newDocNumber.trim() }],
+    }))
+    setNewDocType('')
+    setNewDocNumber('')
+  }
+
+  const removeDocument = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      documents: prev.documents.filter((_, i) => i !== index),
+    }))
+  }
 
   useEffect(() => {
     if (editingGuest) {
@@ -43,12 +63,14 @@ export default function GuestDialogForm({
         name: editingGuest.name,
         email: editingGuest.email,
         phone: editingGuest.phone,
-        document: editingGuest.document,
+        documents: editingGuest.documents || [],
         address: editingGuest.address || '',
         nationality: editingGuest.nationality || '',
         dateOfBirth: editingGuest.dateOfBirth || '',
         notes: editingGuest.notes || '',
       })
+      setNewDocType('')
+      setNewDocNumber('')
     }
   }, [editingGuest])
 
@@ -57,12 +79,14 @@ export default function GuestDialogForm({
       name: '',
       email: '',
       phone: '',
-      document: '',
+      documents: [],
       address: '',
       nationality: '',
       dateOfBirth: '',
       notes: '',
     })
+    setNewDocType('')
+    setNewDocNumber('')
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -142,15 +166,34 @@ export default function GuestDialogForm({
               />
             </div>
 
-            <div>
-              <Label htmlFor="guest-document">{t.guests_view.form.document}</Label>
-              <Input
-                id="guest-document"
-                value={formData.document}
-                onChange={(e) => setFormData({ ...formData, document: e.target.value })}
-                placeholder={t.guests_view.form.document_placeholder}
-                required
-              />
+            <div className="col-span-2 space-y-2">
+              <Label>{language === 'pt' ? 'Documentos' : 'Documents'}</Label>
+              {formData.documents.map((doc, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                  <IdentificationCard size={16} className="text-muted-foreground shrink-0" />
+                  <span className="flex-1">{doc.type ? `${doc.type}: ${doc.number}` : doc.number}</span>
+                  <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeDocument(i)}>
+                    <Trash size={14} className="text-destructive" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <Input
+                  value={newDocType}
+                  onChange={(e) => setNewDocType(e.target.value)}
+                  placeholder={language === 'pt' ? 'Tipo (CPF, RG...)' : 'Type (ID, Passport...)'}
+                  className="w-36 shrink-0"
+                />
+                <Input
+                  value={newDocNumber}
+                  onChange={(e) => setNewDocNumber(e.target.value)}
+                  placeholder={language === 'pt' ? 'Número do documento' : 'Document number'}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDocument() } }}
+                />
+                <Button type="button" variant="outline" onClick={addDocument} className="shrink-0">
+                  <Plus weight="bold" size={16} />
+                </Button>
+              </div>
             </div>
 
             <div>

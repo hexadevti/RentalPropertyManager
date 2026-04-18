@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import { Owner, Property } from '@/types'
+import { Owner, Property, GuestDocument } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 
 export default function OwnersView() {
-  const { t } = useLanguage()
+  const { language } = useLanguage()
   const [owners, setOwners] = useKV<Owner[]>('owners', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -26,14 +26,32 @@ export default function OwnersView() {
     name: '',
     email: '',
     phone: '',
-    document: '',
-    documentType: '',
+    documents: [] as GuestDocument[],
     nationality: '',
     maritalStatus: '',
     profession: '',
     address: '',
     notes: ''
   })
+  const [newDocType, setNewDocType] = useState('')
+  const [newDocNumber, setNewDocNumber] = useState('')
+
+  const addDocument = () => {
+    if (!newDocNumber.trim()) return
+    setFormData((prev) => ({
+      ...prev,
+      documents: [...prev.documents, { type: newDocType.trim(), number: newDocNumber.trim() }],
+    }))
+    setNewDocType('')
+    setNewDocNumber('')
+  }
+
+  const removeDocument = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      documents: prev.documents.filter((_, i) => i !== index),
+    }))
+  }
 
   const getOwnerProperties = (ownerId: string) => {
     return (properties || []).filter(p => p.ownerIds?.includes(ownerId))
@@ -49,7 +67,7 @@ export default function OwnersView() {
           : o
         )
       )
-      toast.success(t.language === 'pt' ? 'Proprietário atualizado com sucesso!' : 'Owner updated successfully!')
+      toast.success(language === 'pt' ? 'Proprietário atualizado com sucesso!' : 'Owner updated successfully!')
     } else {
       const newOwner: Owner = {
         ...formData,
@@ -57,7 +75,7 @@ export default function OwnersView() {
         createdAt: new Date().toISOString()
       }
       setOwners((current) => [...(current || []), newOwner])
-      toast.success(t.language === 'pt' ? 'Proprietário criado com sucesso!' : 'Owner created successfully!')
+      toast.success(language === 'pt' ? 'Proprietário criado com sucesso!' : 'Owner created successfully!')
     }
     
     resetForm()
@@ -68,14 +86,15 @@ export default function OwnersView() {
       name: '',
       email: '',
       phone: '',
-      document: '',
-      documentType: '',
+      documents: [],
       nationality: '',
       maritalStatus: '',
       profession: '',
       address: '',
       notes: ''
     })
+    setNewDocType('')
+    setNewDocNumber('')
     setEditingOwner(null)
     setIsDialogOpen(false)
   }
@@ -86,14 +105,15 @@ export default function OwnersView() {
       name: owner.name,
       email: owner.email,
       phone: owner.phone,
-      document: owner.document,
-      documentType: owner.documentType || '',
+      documents: owner.documents || [],
       nationality: owner.nationality || '',
       maritalStatus: owner.maritalStatus || '',
       profession: owner.profession || '',
       address: owner.address || '',
       notes: owner.notes || ''
     })
+    setNewDocType('')
+    setNewDocNumber('')
     setIsDialogOpen(true)
   }
 
@@ -105,7 +125,7 @@ export default function OwnersView() {
   const handleDeleteConfirm = () => {
     if (ownerToDelete) {
       setOwners((current) => (current || []).filter(o => o.id !== ownerToDelete.id))
-      toast.success(t.language === 'pt' ? 'Proprietário excluído com sucesso!' : 'Owner deleted successfully!')
+      toast.success(language === 'pt' ? 'Proprietário excluído com sucesso!' : 'Owner deleted successfully!')
       setOwnerToDelete(null)
       setDeleteDialogOpen(false)
     }
@@ -116,122 +136,132 @@ export default function OwnersView() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">
-            {t.language === 'pt' ? 'Proprietários' : 'Owners'}
+            {language === 'pt' ? 'Proprietários' : 'Owners'}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {t.language === 'pt' ? 'Gerencie os proprietários das propriedades' : 'Manage property owners'}
+            {language === 'pt' ? 'Gerencie os proprietários das propriedades' : 'Manage property owners'}
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus weight="bold" size={16} />
-              {t.language === 'pt' ? 'Novo Proprietário' : 'New Owner'}
+              {language === 'pt' ? 'Novo Proprietário' : 'New Owner'}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingOwner 
-                  ? (t.language === 'pt' ? 'Editar Proprietário' : 'Edit Owner')
-                  : (t.language === 'pt' ? 'Novo Proprietário' : 'New Owner')}
+                  ? (language === 'pt' ? 'Editar Proprietário' : 'Edit Owner')
+                  : (language === 'pt' ? 'Novo Proprietário' : 'New Owner')}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2 col-span-2">
-                  <Label htmlFor="name">{t.language === 'pt' ? 'Nome Completo' : 'Full Name'}</Label>
+                  <Label htmlFor="name">{language === 'pt' ? 'Nome Completo' : 'Full Name'}</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Digite o nome completo' : 'Enter full name'}
+                    placeholder={language === 'pt' ? 'Digite o nome completo' : 'Enter full name'}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">{t.language === 'pt' ? 'E-mail' : 'Email'}</Label>
+                  <Label htmlFor="email">{language === 'pt' ? 'E-mail' : 'Email'}</Label>
                   <Input
                     id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Digite o e-mail' : 'Enter email'}
+                    placeholder={language === 'pt' ? 'Digite o e-mail' : 'Enter email'}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">{t.language === 'pt' ? 'Telefone' : 'Phone'}</Label>
+                  <Label htmlFor="phone">{language === 'pt' ? 'Telefone' : 'Phone'}</Label>
                   <Input
                     id="phone"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Digite o telefone' : 'Enter phone'}
+                    placeholder={language === 'pt' ? 'Digite o telefone' : 'Enter phone'}
                     required
                   />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <Label htmlFor="document">{t.language === 'pt' ? 'CPF/CNPJ' : 'Document ID'}</Label>
-                  <Input
-                    id="document"
-                    value={formData.document}
-                    onChange={(e) => setFormData({ ...formData, document: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Digite o CPF ou CNPJ' : 'Enter document ID'}
-                    required
-                  />
+                  <Label>{language === 'pt' ? 'Documentos' : 'Documents'}</Label>
+                  {formData.documents.map((doc, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                      <IdentificationCard size={16} className="text-muted-foreground shrink-0" />
+                      <span className="flex-1">{doc.type ? `${doc.type}: ${doc.number}` : doc.number}</span>
+                      <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeDocument(i)}>
+                        <Trash size={14} className="text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newDocType}
+                      onChange={(e) => setNewDocType(e.target.value)}
+                      placeholder={language === 'pt' ? 'Tipo (CPF, CNPJ...)' : 'Type (ID, Tax ID...)'}
+                      className="w-36 shrink-0"
+                    />
+                    <Input
+                      value={newDocNumber}
+                      onChange={(e) => setNewDocNumber(e.target.value)}
+                      placeholder={language === 'pt' ? 'Número do documento' : 'Document number'}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDocument() } }}
+                    />
+                    <Button type="button" variant="outline" onClick={addDocument} className="shrink-0">
+                      <Plus weight="bold" size={16} />
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="documentType">{t.language === 'pt' ? 'Tipo de Documento' : 'Document Type'}</Label>
-                  <Input
-                    id="documentType"
-                    value={formData.documentType}
-                    onChange={(e) => setFormData({ ...formData, documentType: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Ex.: CPF, CNPJ, Passaporte' : 'E.g. ID, Tax ID, Passport'}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nationality">{t.language === 'pt' ? 'Nacionalidade' : 'Nationality'}</Label>
+                  <Label htmlFor="nationality">{language === 'pt' ? 'Nacionalidade' : 'Nationality'}</Label>
                   <Input
                     id="nationality"
                     value={formData.nationality}
                     onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Ex.: Brasileira' : 'E.g. Brazilian'}
+                    placeholder={language === 'pt' ? 'Ex.: Brasileira' : 'E.g. Brazilian'}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="maritalStatus">{t.language === 'pt' ? 'Estado Civil' : 'Marital Status'}</Label>
+                  <Label htmlFor="maritalStatus">{language === 'pt' ? 'Estado Civil' : 'Marital Status'}</Label>
                   <Input
                     id="maritalStatus"
                     value={formData.maritalStatus}
                     onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
+                    placeholder={language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="profession">{t.language === 'pt' ? 'Profissão' : 'Profession'}</Label>
+                  <Label htmlFor="profession">{language === 'pt' ? 'Profissão' : 'Profession'}</Label>
                   <Input
                     id="profession"
                     value={formData.profession}
                     onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Ex.: Engenheiro(a)' : 'E.g. Engineer'}
+                    placeholder={language === 'pt' ? 'Ex.: Engenheiro(a)' : 'E.g. Engineer'}
                   />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <Label htmlFor="address">{t.language === 'pt' ? 'Endereço' : 'Address'}</Label>
+                  <Label htmlFor="address">{language === 'pt' ? 'Endereço' : 'Address'}</Label>
                   <Input
                     id="address"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Digite o endereço completo' : 'Enter full address'}
+                    placeholder={language === 'pt' ? 'Digite o endereço completo' : 'Enter full address'}
                   />
                 </div>
                 <div className="space-y-2 col-span-2">
-                  <Label htmlFor="notes">{t.language === 'pt' ? 'Observações' : 'Notes'}</Label>
+                  <Label htmlFor="notes">{language === 'pt' ? 'Observações' : 'Notes'}</Label>
                   <Textarea
                     id="notes"
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Observações adicionais' : 'Additional notes'}
+                    placeholder={language === 'pt' ? 'Observações adicionais' : 'Additional notes'}
                     rows={3}
                   />
                 </div>
@@ -239,10 +269,10 @@ export default function OwnersView() {
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={resetForm}>
-                  {t.language === 'pt' ? 'Cancelar' : 'Cancel'}
+                  {language === 'pt' ? 'Cancelar' : 'Cancel'}
                 </Button>
                 <Button type="submit">
-                  {t.language === 'pt' ? 'Salvar' : 'Save'}
+                  {language === 'pt' ? 'Salvar' : 'Save'}
                 </Button>
               </DialogFooter>
             </form>
@@ -255,11 +285,11 @@ export default function OwnersView() {
           <CardContent className="flex flex-col items-center justify-center py-16">
             <User weight="duotone" size={64} className="text-muted-foreground mb-4" />
             <p className="text-muted-foreground mb-4">
-              {t.language === 'pt' ? 'Nenhum proprietário cadastrado' : 'No owners registered'}
+              {language === 'pt' ? 'Nenhum proprietário cadastrado' : 'No owners registered'}
             </p>
             <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
               <Plus weight="bold" size={16} />
-              {t.language === 'pt' ? 'Adicionar Proprietário' : 'Add Owner'}
+              {language === 'pt' ? 'Adicionar Proprietário' : 'Add Owner'}
             </Button>
           </CardContent>
         </Card>
@@ -279,7 +309,7 @@ export default function OwnersView() {
                         <CardTitle className="text-lg">{owner.name}</CardTitle>
                         <CardDescription className="flex items-center gap-1 mt-1">
                           <House size={12} />
-                          {ownerProperties.length} {t.language === 'pt' ? 'propriedade(s)' : 'property(ies)'}
+                          {ownerProperties.length} {language === 'pt' ? 'propriedade(s)' : 'property(ies)'}
                         </CardDescription>
                       </div>
                     </div>
@@ -295,15 +325,17 @@ export default function OwnersView() {
                       <Phone size={16} />
                       <span>{owner.phone}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <IdentificationCard size={16} />
-                      <span>{owner.documentType ? `${owner.documentType}: ` : ''}{owner.document}</span>
-                    </div>
+                    {(owner.documents || []).length > 0 && (
+                      <div className="flex items-start gap-2 text-muted-foreground">
+                        <IdentificationCard size={16} className="mt-0.5 shrink-0" />
+                        <span>{(owner.documents || []).map((d) => d.type ? `${d.type}: ${d.number}` : d.number).join(' | ')}</span>
+                      </div>
+                    )}
                   </div>
                   {ownerProperties.length > 0 && (
                     <div className="pt-2 border-t">
                       <p className="text-xs font-medium text-muted-foreground mb-2">
-                        {t.language === 'pt' ? 'Propriedades:' : 'Properties:'}
+                        {language === 'pt' ? 'Propriedades:' : 'Properties:'}
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {ownerProperties.slice(0, 3).map(prop => (
@@ -328,7 +360,7 @@ export default function OwnersView() {
                       onClick={() => handleEdit(owner)}
                     >
                       <Pencil size={14} />
-                      {t.language === 'pt' ? 'Editar' : 'Edit'}
+                      {language === 'pt' ? 'Editar' : 'Edit'}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -337,7 +369,7 @@ export default function OwnersView() {
                       onClick={() => handleDeleteClick(owner)}
                     >
                       <Trash size={14} />
-                      {t.language === 'pt' ? 'Excluir' : 'Delete'}
+                      {language === 'pt' ? 'Excluir' : 'Delete'}
                     </Button>
                   </div>
                 </CardContent>
@@ -351,23 +383,23 @@ export default function OwnersView() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t.language === 'pt' ? 'Confirmar exclusão' : 'Confirm deletion'}
+              {language === 'pt' ? 'Confirmar exclusão' : 'Confirm deletion'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t.language === 'pt' 
+              {language === 'pt' 
                 ? 'Tem certeza que deseja excluir este proprietário? Esta ação não pode ser desfeita.'
                 : 'Are you sure you want to delete this owner? This action cannot be undone.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>
-              {t.language === 'pt' ? 'Cancelar' : 'Cancel'}
+              {language === 'pt' ? 'Cancelar' : 'Cancel'}
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDeleteConfirm} 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {t.language === 'pt' ? 'Excluir' : 'Delete'}
+              {language === 'pt' ? 'Excluir' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

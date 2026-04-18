@@ -38,31 +38,46 @@ function buildVariables(
   const ownerNames = owners.map((o) => o.name).join(', ') || ''
   const ownerEmails = owners.map((o) => o.email).join(', ') || ''
   const ownerPhones = owners.map((o) => o.phone).join(', ') || ''
-  const ownerDocuments = owners.map((o) => o.document).join(', ') || ''
-  const ownerDocumentTypes = owners.map((o) => o.documentType || '').filter(Boolean).join(', ') || ''
+  const ownerDocuments = owners.map((o) => (o.documents || [])[0]?.number || '').join(', ') || ''
+  const ownerDocumentTypes = owners.map((o) => (o.documents || [])[0]?.type || '').filter(Boolean).join(', ') || ''
   const ownerNationalities = owners.map((o) => o.nationality || '').filter(Boolean).join(', ') || ''
   const ownerMaritalStatuses = owners.map((o) => o.maritalStatus || '').filter(Boolean).join(', ') || ''
   const ownerProfessions = owners.map((o) => o.profession || '').filter(Boolean).join(', ') || ''
   const ownerAddresses = owners.map((o) => o.address || '').filter(Boolean).join(', ') || ''
+  const ownerAllDocsList = owners
+    .map((o) => (o.documents || []).map((d) => (d.type ? `${d.type}: ${d.number}` : d.number)).join(', '))
+    .join('; ') || ''
   const ownerDetailsList = owners
     .map(
-      (o) =>
-        `${o.name}` +
-        (o.nationality ? `\nNacionalidade: ${o.nationality}` : '') +
-        (o.maritalStatus ? `\nEstado Civil: ${o.maritalStatus}` : '') +
-        (o.profession ? `\nProfissão: ${o.profession}` : '') +
-        (o.documentType ? `\nTipo de Documento: ${o.documentType}` : '') +
-        `\nDocumento: ${o.document}\nE-mail: ${o.email}\nTelefone: ${o.phone}` +
-        (o.address ? `\nEndereço: ${o.address}` : '')
+      (o) => {
+        const docs = (o.documents || [])
+        const docsLine = docs.length > 0
+          ? '\n' + docs.map((d) => (d.type ? `${d.type}: ${d.number}` : d.number)).join('\n')
+          : ''
+        return `${o.name}` +
+          (o.nationality ? `\nNacionalidade: ${o.nationality}` : '') +
+          (o.maritalStatus ? `\nEstado Civil: ${o.maritalStatus}` : '') +
+          (o.profession ? `\nProfissão: ${o.profession}` : '') +
+          docsLine +
+          `\nE-mail: ${o.email}\nTelefone: ${o.phone}` +
+          (o.address ? `\nEndereço: ${o.address}` : '')
+      }
     )
     .join('\n\n')
+
+  const guestDocs = guest.documents || []
+  const firstDoc = guestDocs[0]
+  const guestDocumentsList = guestDocs
+    .map((d) => (d.type ? `${d.type}: ${d.number}` : d.number))
+    .join('\n')
 
   return {
     '{{guestName}}': guest.name || '',
     '{{guestEmail}}': guest.email || '',
     '{{guestPhone}}': guest.phone || '',
-    '{{guestDocument}}': guest.document || '',
-    '{{guestDocumentType}}': guest.documentType || '',
+    '{{guestDocument}}': firstDoc?.number || '',
+    '{{guestDocumentType}}': firstDoc?.type || '',
+    '{{guestDocuments}}': guestDocumentsList,
     '{{guestAddress}}': guest.address || '',
     '{{guestNationality}}': guest.nationality || '',
     '{{guestMaritalStatus}}': guest.maritalStatus || '',
@@ -72,6 +87,7 @@ function buildVariables(
     '{{ownerPhone}}': ownerPhones,
     '{{ownerDocument}}': ownerDocuments,
     '{{ownerDocumentType}}': ownerDocumentTypes,
+    '{{ownerDocuments}}': ownerAllDocsList,
     '{{ownerNationality}}': ownerNationalities,
     '{{ownerMaritalStatus}}': ownerMaritalStatuses,
     '{{ownerProfession}}': ownerProfessions,
@@ -100,8 +116,11 @@ function buildIndexedVariables(data: ContractPDFData): Record<string, string[]> 
     ownerName: owners.map((owner) => owner.name || ''),
     ownerEmail: owners.map((owner) => owner.email || ''),
     ownerPhone: owners.map((owner) => owner.phone || ''),
-    ownerDocument: owners.map((owner) => owner.document || ''),
-    ownerDocumentType: owners.map((owner) => owner.documentType || ''),
+    ownerDocument: owners.map((owner) => (owner.documents || [])[0]?.number || ''),
+    ownerDocumentType: owners.map((owner) => (owner.documents || [])[0]?.type || ''),
+    ownerDocuments: owners.map((owner) =>
+      (owner.documents || []).map((d) => (d.type ? `${d.type}: ${d.number}` : d.number)).join(', ')
+    ),
     ownerNationality: owners.map((owner) => owner.nationality || ''),
     ownerMaritalStatus: owners.map((owner) => owner.maritalStatus || ''),
     ownerProfession: owners.map((owner) => owner.profession || ''),
@@ -112,8 +131,8 @@ function buildIndexedVariables(data: ContractPDFData): Record<string, string[]> 
         (owner.nationality ? `\nNacionalidade: ${owner.nationality}` : '') +
         (owner.maritalStatus ? `\nEstado Civil: ${owner.maritalStatus}` : '') +
         (owner.profession ? `\nProfissão: ${owner.profession}` : '') +
-        (owner.documentType ? `\nTipo de Documento: ${owner.documentType}` : '') +
-        `\nDocumento: ${owner.document}\nE-mail: ${owner.email}\nTelefone: ${owner.phone}` +
+        ((owner.documents || []).length > 0 ? '\n' + (owner.documents || []).map((d) => (d.type ? `${d.type}: ${d.number}` : d.number)).join('\n') : '') +
+        `\nE-mail: ${owner.email}\nTelefone: ${owner.phone}` +
         (owner.address ? `\nEndereço: ${owner.address}` : '')
     ),
     properties: properties.map((property) => property.name || ''),

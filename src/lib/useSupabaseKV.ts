@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getSupabaseAuthState, subscribeSupabaseAuthState } from '@/lib/supabaseAuthState'
 
 const cache = new Map<string, unknown>()
 const subscribers = new Map<string, Set<(value: unknown) => void>>()
 const inflightLoads = new Map<string, Promise<unknown>>()
-const metadataCache = new Map<string, unknown>()
-const ignoredPersistWarnings = new Set<string>()
+
+let cachedTenantId: string | null | undefined = undefined
 
 const COLLECTION_KEYS = new Set([
   'appointments',
@@ -19,7 +20,6 @@ const COLLECTION_KEYS = new Set([
   'service-providers',
   'tasks',
   'transactions',
-  'user-profiles',
 ])
 
 function isSettingKey(key: string) {
@@ -39,18 +39,9 @@ function normalizeSettingKey(key: string) {
   return key
 }
 
-function shouldIgnorePersistError(key: string, error: any) {
-  if (key !== 'user-profiles') return false
-  return error?.code === '54001'
-    || error?.code === '42501'
-    || String(error?.message || '').includes('stack depth limit exceeded')
-    || String(error?.message || '').toLowerCase().includes('row-level security policy')
-}
-
 function notifySubscribers(key: string, value: unknown) {
   const keySubscribers = subscribers.get(key)
   if (!keySubscribers) return
-
   for (const callback of keySubscribers) {
     callback(value)
   }
@@ -65,29 +56,44 @@ function subscribeToKey(key: string, callback: (value: unknown) => void) {
     const set = subscribers.get(key)
     if (!set) return
     set.delete(callback)
-    if (set.size === 0) {
-      subscribers.delete(key)
-    }
+    if (set.size === 0) subscribers.delete(key)
   }
 }
 
-async function getAuthUser() {
-  const { data, error } = await supabase.auth.getUser()
-  if (error) {
-    console.error('Failed to read authenticated user', error)
-    return null
-  }
-  return data.user ?? null
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
 async function getAuthUserId() {
-  const user = await getAuthUser()
-  if (user?.id) return user.id
+  const authState = getSupabaseAuthState()
+  if (authState.userId && isUuid(authState.userId)) return authState.userId
+  if (import.meta.env.VITE_DEV_MODE !== 'true') return null
   try {
     const devUser = localStorage.getItem('dev-mode-user')
-    if (devUser) return (JSON.parse(devUser) as { id: string }).id
+    if (!devUser) return null
+    const devUserId = (JSON.parse(devUser) as { id: string }).id
+    return isUuid(devUserId) ? devUserId : null
   } catch {}
   return null
+}
+
+async function getTenantId(): Promise<string | null> {
+  if (cachedTenantId !== undefined) return cachedTenantId
+
+  const authState = getSupabaseAuthState()
+  if (authState.isAuthenticated && authState.isApproved) {
+    cachedTenantId = authState.tenantId ?? null
+    return cachedTenantId
+  }
+
+  if (import.meta.env.VITE_DEV_MODE === 'true') {
+    cachedTenantId = import.meta.env.VITE_DEV_TENANT_ID || 'dev-tenant'
+    return cachedTenantId
+  }
+
+  cachedTenantId = null
+
+  return cachedTenantId
 }
 
 async function loadUserSetting<T>(key: string, defaultValue: T): Promise<T> {
@@ -116,50 +122,89 @@ async function persistUserSetting<T>(key: string, value: T) {
   const { error } = await supabase
     .from('user_settings')
     .upsert(
-      {
-        auth_user_id: authUserId,
-        key: normalizeSettingKey(key),
-        value,
-      },
+      { auth_user_id: authUserId, key: normalizeSettingKey(key), value },
       { onConflict: 'auth_user_id,key' }
     )
 
-  if (error) {
-    throw error
+  if (error) throw error
+}
+
+async function loadExistingIds(table: string, tenantId: string) {
+  const { data, error } = await supabase
+    .from(table)
+    .select('id')
+    .eq('tenant_id', tenantId)
+
+  if (error) throw error
+  return (data || []).map((row) => row.id)
+}
+
+async function replaceSimpleRows(table: string, rows: any[]) {
+  const tenantId = await getTenantId()
+  if (!tenantId) return
+
+  const existingIds = await loadExistingIds(table, tenantId)
+  const nextIds = rows.map((row) => row.id)
+  const removedIds = existingIds.filter((id) => !nextIds.includes(id))
+
+  if (removedIds.length > 0) {
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .eq('tenant_id', tenantId)
+      .in('id', removedIds)
+
+    if (error) throw error
+  }
+
+  if (rows.length > 0) {
+    const { error } = await supabase
+      .from(table)
+      .upsert(rows, { onConflict: 'tenant_id,id' })
+
+    if (error) throw error
   }
 }
 
 async function loadOwners() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const { data, error } = await supabase
     .from('owners')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
 
-  return (data || []).map((owner) => ({
-    id: owner.id,
-    name: owner.name,
-    email: owner.email,
-    phone: owner.phone,
-    document: owner.document,
-    documentType: owner.document_type || undefined,
-    nationality: owner.nationality || undefined,
-    maritalStatus: owner.marital_status || undefined,
-    profession: owner.profession || undefined,
-    address: owner.address || undefined,
-    notes: owner.notes || undefined,
-    createdAt: owner.created_at,
-  }))
+  return (data || []).map((owner) => {
+    let documents: { type: string; number: string }[] = []
+    const raw = owner.document as string | null
+    if (raw && raw.trimStart().startsWith('[')) {
+      try { documents = JSON.parse(raw) } catch { documents = [] }
+    } else if (raw) {
+      documents = [{ type: owner.document_type || '', number: raw }]
+    }
+    return {
+      id: owner.id,
+      name: owner.name,
+      email: owner.email,
+      phone: owner.phone,
+      documents,
+      nationality: owner.nationality || undefined,
+      maritalStatus: owner.marital_status || undefined,
+      profession: owner.profession || undefined,
+      address: owner.address || undefined,
+      notes: owner.notes || undefined,
+      createdAt: owner.created_at,
+    }
+  })
 }
 
 async function loadProperties() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const [
     { data: properties, error: propertiesError },
@@ -169,16 +214,16 @@ async function loadProperties() {
     supabase
       .from('properties')
       .select('*')
-      .eq('auth_user_id', authUserId)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: true }),
     supabase
       .from('property_owners')
       .select('property_id, owner_id')
-      .eq('auth_user_id', authUserId),
+      .eq('tenant_id', tenantId),
     supabase
       .from('property_furniture')
       .select('property_id, item_order, item_name')
-      .eq('auth_user_id', authUserId)
+      .eq('tenant_id', tenantId)
       .order('property_id', { ascending: true })
       .order('item_order', { ascending: true }),
   ])
@@ -218,48 +263,56 @@ async function loadProperties() {
 }
 
 async function loadGuests() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const { data, error } = await supabase
     .from('guests')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
 
-  return (data || []).map((guest) => ({
-    id: guest.id,
-    name: guest.name,
-    email: guest.email,
-    phone: guest.phone,
-    document: guest.document,
-    documentType: guest.document_type || undefined,
-    address: guest.address || undefined,
-    nationality: guest.nationality || undefined,
-    maritalStatus: guest.marital_status || undefined,
-    profession: guest.profession || undefined,
-    dateOfBirth: guest.date_of_birth || undefined,
-    notes: guest.notes || undefined,
-    createdAt: guest.created_at,
-  }))
+  return (data || []).map((guest) => {
+    let documents: { type: string; number: string }[] = []
+    const raw = guest.document as string | null
+    if (raw && raw.trimStart().startsWith('[')) {
+      try { documents = JSON.parse(raw) } catch { documents = [] }
+    } else if (raw) {
+      documents = [{ type: guest.document_type || '', number: raw }]
+    }
+    return {
+      id: guest.id,
+      name: guest.name,
+      email: guest.email,
+      phone: guest.phone,
+      documents,
+      address: guest.address || undefined,
+      nationality: guest.nationality || undefined,
+      maritalStatus: guest.marital_status || undefined,
+      profession: guest.profession || undefined,
+      dateOfBirth: guest.date_of_birth || undefined,
+      notes: guest.notes || undefined,
+      createdAt: guest.created_at,
+    }
+  })
 }
 
 async function loadContracts() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const [{ data: contracts, error: contractsError }, { data: contractProperties, error: propertiesError }] = await Promise.all([
     supabase
       .from('contracts')
       .select('*')
-      .eq('auth_user_id', authUserId)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: true }),
     supabase
       .from('contract_properties')
       .select('contract_id, property_id')
-      .eq('auth_user_id', authUserId),
+      .eq('tenant_id', tenantId),
   ])
 
   if (contractsError) throw contractsError
@@ -283,18 +336,19 @@ async function loadContracts() {
     specialPaymentCondition: contract.special_payment_condition || undefined,
     status: contract.status,
     notes: contract.notes || undefined,
+    templateId: contract.template_id || undefined,
     createdAt: contract.created_at,
   }))
 }
 
 async function loadServiceProviders() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const { data, error } = await supabase
     .from('service_providers')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
@@ -309,13 +363,13 @@ async function loadServiceProviders() {
 }
 
 async function loadTransactions() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
@@ -335,13 +389,13 @@ async function loadTransactions() {
 }
 
 async function loadTasks() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const { data, error } = await supabase
     .from('tasks')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
@@ -360,13 +414,13 @@ async function loadTasks() {
 }
 
 async function loadAppointments() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const { data, error } = await supabase
     .from('appointments')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
@@ -390,13 +444,13 @@ async function loadAppointments() {
 }
 
 async function loadTemplates() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const { data, error } = await supabase
     .from('contract_templates')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: true })
 
   if (error) throw error
@@ -412,13 +466,13 @@ async function loadTemplates() {
 }
 
 async function loadDocuments() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
 
   const { data, error } = await supabase
     .from('documents')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
     .order('upload_date', { ascending: true })
 
   if (error) throw error
@@ -430,31 +484,6 @@ async function loadDocuments() {
     notes: document.notes || undefined,
     propertyId: document.property_id || undefined,
     uploadDate: document.upload_date,
-  }))
-}
-
-async function loadProfiles() {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return []
-
-  const { data, error } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('auth_user_id', authUserId)
-    .order('created_at', { ascending: true })
-
-  if (error) throw error
-
-  metadataCache.set('user-profiles-raw', data || [])
-
-  return (data || []).map((profile) => ({
-    githubLogin: profile.github_login,
-    role: profile.role,
-    status: profile.status,
-    email: profile.email,
-    avatarUrl: profile.avatar_url,
-    createdAt: profile.created_at,
-    updatedAt: profile.updated_at,
   }))
 }
 
@@ -470,7 +499,6 @@ async function loadCollection(key: string) {
     case 'appointments': return loadAppointments()
     case 'contract-templates': return loadTemplates()
     case 'documents': return loadDocuments()
-    case 'user-profiles': return loadProfiles()
     default: return []
   }
 }
@@ -511,55 +539,18 @@ async function loadValue<T>(key: string, defaultValue: T): Promise<T> {
   }
 }
 
-async function loadExistingIds(table: string, authUserId: string) {
-  const { data, error } = await supabase
-    .from(table)
-    .select('id')
-    .eq('auth_user_id', authUserId)
-
-  if (error) throw error
-  return (data || []).map((row) => row.id)
-}
-
-async function replaceSimpleRows(table: string, rows: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
-
-  const existingIds = await loadExistingIds(table, authUserId)
-  const nextIds = rows.map((row) => row.id)
-  const removedIds = existingIds.filter((id) => !nextIds.includes(id))
-
-  if (removedIds.length > 0) {
-    const { error } = await supabase
-      .from(table)
-      .delete()
-      .eq('auth_user_id', authUserId)
-      .in('id', removedIds)
-
-    if (error) throw error
-  }
-
-  if (rows.length > 0) {
-    const { error } = await supabase
-      .from(table)
-      .upsert(rows, { onConflict: 'auth_user_id,id' })
-
-    if (error) throw error
-  }
-}
-
 async function persistOwners(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('owners', value.map((owner) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: owner.id,
     name: owner.name,
     email: owner.email,
     phone: owner.phone,
-    document: owner.document,
-    document_type: owner.documentType || null,
+    document: JSON.stringify(owner.documents || []),
+    document_type: null,
     nationality: owner.nationality || null,
     marital_status: owner.maritalStatus || null,
     profession: owner.profession || null,
@@ -570,11 +561,11 @@ async function persistOwners(value: any[]) {
 }
 
 async function persistProperties(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('properties', value.map((property) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: property.id,
     name: property.name,
     type: property.type,
@@ -592,30 +583,27 @@ async function persistProperties(value: any[]) {
   const { error: deleteRelationsError } = await supabase
     .from('property_owners')
     .delete()
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
 
   if (deleteRelationsError) throw deleteRelationsError
 
   const propertyOwners = value.flatMap((property) =>
     (property.ownerIds || []).map((ownerId: string) => ({
-      auth_user_id: authUserId,
+      tenant_id: tenantId,
       property_id: property.id,
       owner_id: ownerId,
     }))
   )
 
   if (propertyOwners.length > 0) {
-    const { error } = await supabase
-      .from('property_owners')
-      .insert(propertyOwners)
-
+    const { error } = await supabase.from('property_owners').insert(propertyOwners)
     if (error) throw error
   }
 
   const { error: deleteFurnitureError } = await supabase
     .from('property_furniture')
     .delete()
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
 
   if (deleteFurnitureError) throw deleteFurnitureError
 
@@ -624,7 +612,7 @@ async function persistProperties(value: any[]) {
       .map((itemName: string) => itemName.trim())
       .filter(Boolean)
       .map((itemName: string, index: number) => ({
-        auth_user_id: authUserId,
+        tenant_id: tenantId,
         property_id: property.id,
         item_order: index + 1,
         item_name: itemName,
@@ -632,26 +620,23 @@ async function persistProperties(value: any[]) {
   )
 
   if (propertyFurniture.length > 0) {
-    const { error } = await supabase
-      .from('property_furniture')
-      .insert(propertyFurniture)
-
+    const { error } = await supabase.from('property_furniture').insert(propertyFurniture)
     if (error) throw error
   }
 }
 
 async function persistGuests(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('guests', value.map((guest) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: guest.id,
     name: guest.name,
     email: guest.email,
     phone: guest.phone,
-    document: guest.document,
-    document_type: guest.documentType || null,
+    document: JSON.stringify(guest.documents || []),
+    document_type: null,
     address: guest.address || null,
     nationality: guest.nationality || null,
     marital_status: guest.maritalStatus || null,
@@ -663,11 +648,11 @@ async function persistGuests(value: any[]) {
 }
 
 async function persistContracts(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('contracts', value.map((contract) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: contract.id,
     guest_id: contract.guestId,
     rental_type: contract.rentalType,
@@ -679,39 +664,37 @@ async function persistContracts(value: any[]) {
     special_payment_condition: contract.specialPaymentCondition || null,
     status: contract.status,
     notes: contract.notes || null,
+    template_id: contract.templateId || null,
     created_at: contract.createdAt,
   })))
 
   const { error: deleteRelationsError } = await supabase
     .from('contract_properties')
     .delete()
-    .eq('auth_user_id', authUserId)
+    .eq('tenant_id', tenantId)
 
   if (deleteRelationsError) throw deleteRelationsError
 
   const contractProperties = value.flatMap((contract) =>
     (contract.propertyIds || []).map((propertyId: string) => ({
-      auth_user_id: authUserId,
+      tenant_id: tenantId,
       contract_id: contract.id,
       property_id: propertyId,
     }))
   )
 
   if (contractProperties.length > 0) {
-    const { error } = await supabase
-      .from('contract_properties')
-      .insert(contractProperties)
-
+    const { error } = await supabase.from('contract_properties').insert(contractProperties)
     if (error) throw error
   }
 }
 
 async function persistServiceProviders(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('service_providers', value.map((provider) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: provider.id,
     name: provider.name,
     service: provider.service,
@@ -721,11 +704,11 @@ async function persistServiceProviders(value: any[]) {
 }
 
 async function persistTransactions(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('transactions', value.map((transaction) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: transaction.id,
     type: transaction.type,
     amount: transaction.amount,
@@ -740,11 +723,11 @@ async function persistTransactions(value: any[]) {
 }
 
 async function persistTasks(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('tasks', value.map((task) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: task.id,
     title: task.title,
     description: task.description,
@@ -758,11 +741,11 @@ async function persistTasks(value: any[]) {
 }
 
 async function persistAppointments(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('appointments', value.map((appointment) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: appointment.id,
     title: appointment.title,
     description: appointment.description || null,
@@ -781,11 +764,11 @@ async function persistAppointments(value: any[]) {
 }
 
 async function persistTemplates(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('contract_templates', value.map((template) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: template.id,
     name: template.name,
     type: template.type,
@@ -796,11 +779,11 @@ async function persistTemplates(value: any[]) {
 }
 
 async function persistDocuments(value: any[]) {
-  const authUserId = await getAuthUserId()
-  if (!authUserId) return
+  const tenantId = await getTenantId()
+  if (!tenantId) return
 
   await replaceSimpleRows('documents', value.map((document) => ({
-    auth_user_id: authUserId,
+    tenant_id: tenantId,
     id: document.id,
     name: document.name,
     category: document.category,
@@ -810,87 +793,33 @@ async function persistDocuments(value: any[]) {
   })))
 }
 
-async function persistProfiles(value: any[]) {
-  const currentAuthUser = await getAuthUser()
-  if (!currentAuthUser) return
-
-  const existingProfiles = (metadataCache.get('user-profiles-raw') as any[] | undefined) || []
-  const loginFromMetadata = currentAuthUser.user_metadata?.user_name || currentAuthUser.user_metadata?.preferred_username
-
-  const matchingProfiles = value.filter((profile) =>
-    profile.githubLogin === loginFromMetadata || profile.email === currentAuthUser.email
-  )
-
-  const targetProfile = matchingProfiles[0]
-  if (!targetProfile) return
-
-  const existing = existingProfiles.find((profile) => profile.auth_user_id === currentAuthUser.id)
-    || existingProfiles.find((profile) => profile.github_login === targetProfile.githubLogin)
-
-  const nextProfile = {
-    auth_user_id: currentAuthUser.id,
-    github_login: targetProfile.githubLogin,
-    role: targetProfile.role,
-    status: targetProfile.status,
-    email: targetProfile.email,
-    avatar_url: targetProfile.avatarUrl,
-    created_at: existing?.created_at || targetProfile.createdAt || new Date().toISOString(),
-    updated_at: targetProfile.updatedAt || new Date().toISOString(),
-  }
-
-  const { error } = await supabase
-    .from('user_profiles')
-    .upsert(nextProfile, { onConflict: 'github_login' })
-
-  if (error) throw error
-
-  metadataCache.set('user-profiles-raw', [nextProfile])
-}
-
 async function persistCollection(key: string, value: unknown) {
   const rows = Array.isArray(value) ? value : []
 
   switch (key) {
-    case 'owners':
-      return persistOwners(rows)
-    case 'properties':
-      return persistProperties(rows)
-    case 'guests':
-      return persistGuests(rows)
-    case 'contracts':
-      return persistContracts(rows)
-    case 'service-providers':
-      return persistServiceProviders(rows)
-    case 'transactions':
-      return persistTransactions(rows)
-    case 'tasks':
-      return persistTasks(rows)
-    case 'appointments':
-      return persistAppointments(rows)
-    case 'contract-templates':
-      return persistTemplates(rows)
-    case 'documents':
-      return persistDocuments(rows)
-    case 'user-profiles':
-      return persistProfiles(rows)
-    default:
-      return undefined
+    case 'owners': return persistOwners(rows)
+    case 'properties': return persistProperties(rows)
+    case 'guests': return persistGuests(rows)
+    case 'contracts': return persistContracts(rows)
+    case 'service-providers': return persistServiceProviders(rows)
+    case 'transactions': return persistTransactions(rows)
+    case 'tasks': return persistTasks(rows)
+    case 'appointments': return persistAppointments(rows)
+    case 'contract-templates': return persistTemplates(rows)
+    case 'documents': return persistDocuments(rows)
+    default: return undefined
   }
 }
 
 async function persistValue<T>(key: string, value: T) {
-  if (isSettingKey(key)) {
-    return persistUserSetting(key, value)
-  }
-
-  if (isCollectionKey(key)) {
-    return persistCollection(key, value)
-  }
+  if (isSettingKey(key)) return persistUserSetting(key, value)
+  if (isCollectionKey(key)) return persistCollection(key, value)
 }
 
 export function useKV<T>(key: string, defaultValue: T): [T, Dispatch<SetStateAction<T>>] {
   const defaultValueRef = useRef(defaultValue)
   const [value, setValue] = useState<T>(defaultValue)
+  const lastAuthScopeRef = useRef<string>('')
 
   useEffect(() => {
     defaultValueRef.current = defaultValue
@@ -913,7 +842,13 @@ export function useKV<T>(key: string, defaultValue: T): [T, Dispatch<SetStateAct
       setValue(nextValue as T)
     })
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+    const unsubscribeAuthState = subscribeSupabaseAuthState((state) => {
+      const scope = `${state.userId ?? 'anonymous'}:${state.tenantId ?? 'no-tenant'}:${state.isApproved ? 'approved' : 'not-approved'}`
+
+      if (scope === lastAuthScopeRef.current) return
+      lastAuthScopeRef.current = scope
+
+      cachedTenantId = undefined
       cache.delete(key)
       void sync()
     })
@@ -921,7 +856,7 @@ export function useKV<T>(key: string, defaultValue: T): [T, Dispatch<SetStateAct
     return () => {
       isMounted = false
       unsubscribe()
-      authListener.subscription.unsubscribe()
+      unsubscribeAuthState()
     }
   }, [key])
 
@@ -934,17 +869,7 @@ export function useKV<T>(key: string, defaultValue: T): [T, Dispatch<SetStateAct
       notifySubscribers(key, resolved)
 
       void persistValue(key, resolved).catch((error) => {
-        if (shouldIgnorePersistError(key, error)) {
-          if (!ignoredPersistWarnings.has(key)) {
-            console.warn(
-              'Skipping user-profiles persistence for this session due to Supabase policy restrictions. Apply the latest user_profiles RLS migrations in the supabase folder to fix permanently.'
-            )
-            ignoredPersistWarnings.add(key)
-          }
-          return
-        }
-
-        console.error(`Failed to persist key "${key}" to relational Supabase tables`, error)
+        console.error(`Failed to persist key "${key}" to Supabase`, error)
       })
 
       return resolved

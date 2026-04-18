@@ -9,12 +9,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Guest, Contract } from '@/types'
+import { Guest, GuestDocument, Contract } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { format } from 'date-fns'
 
 export default function GuestsView() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [searchQuery, setSearchQuery] = useState('')
@@ -25,8 +25,7 @@ export default function GuestsView() {
     name: '',
     email: '',
     phone: '',
-    document: '',
-    documentType: '',
+    documents: [] as GuestDocument[],
     address: '',
     nationality: '',
     maritalStatus: '',
@@ -34,14 +33,32 @@ export default function GuestsView() {
     dateOfBirth: '',
     notes: '',
   })
+  const [newDocType, setNewDocType] = useState('')
+  const [newDocNumber, setNewDocNumber] = useState('')
+
+  const addDocument = () => {
+    if (!newDocNumber.trim()) return
+    setFormData((prev) => ({
+      ...prev,
+      documents: [...prev.documents, { type: newDocType.trim(), number: newDocNumber.trim() }],
+    }))
+    setNewDocType('')
+    setNewDocNumber('')
+  }
+
+  const removeDocument = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      documents: prev.documents.filter((_, i) => i !== index),
+    }))
+  }
 
   const resetForm = () => {
     setFormData({
       name: '',
       email: '',
       phone: '',
-      document: '',
-      documentType: '',
+      documents: [],
       address: '',
       nationality: '',
       maritalStatus: '',
@@ -49,6 +66,8 @@ export default function GuestsView() {
       dateOfBirth: '',
       notes: '',
     })
+    setNewDocType('')
+    setNewDocNumber('')
     setEditingGuest(null)
   }
 
@@ -84,8 +103,7 @@ export default function GuestsView() {
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
-      document: guest.document,
-      documentType: guest.documentType || '',
+      documents: guest.documents || [],
       address: guest.address || '',
       nationality: guest.nationality || '',
       maritalStatus: guest.maritalStatus || '',
@@ -93,6 +111,8 @@ export default function GuestsView() {
       dateOfBirth: guest.dateOfBirth || '',
       notes: guest.notes || '',
     })
+    setNewDocType('')
+    setNewDocNumber('')
     setDialogOpen(true)
   }
 
@@ -177,25 +197,34 @@ export default function GuestsView() {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="guest-document">{t.guests_view.form.document}</Label>
-                  <Input
-                    id="guest-document"
-                    value={formData.document}
-                    onChange={(e) => setFormData({ ...formData, document: e.target.value })}
-                    placeholder={t.guests_view.form.document_placeholder}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="guest-document-type">{t.language === 'pt' ? 'Tipo de Documento' : 'Document Type'} {t.guests_view.form.optional}</Label>
-                  <Input
-                    id="guest-document-type"
-                    value={formData.documentType}
-                    onChange={(e) => setFormData({ ...formData, documentType: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Ex.: RG, CPF, Passaporte' : 'E.g. ID, Tax ID, Passport'}
-                  />
+                <div className="col-span-2 space-y-2">
+                  <Label>{language === 'pt' ? 'Documentos' : 'Documents'}</Label>
+                  {formData.documents.map((doc, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                      <IdentificationCard size={16} className="text-muted-foreground shrink-0" />
+                      <span className="flex-1">{doc.type ? `${doc.type}: ${doc.number}` : doc.number}</span>
+                      <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeDocument(i)}>
+                        <Trash size={14} className="text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <Input
+                      value={newDocType}
+                      onChange={(e) => setNewDocType(e.target.value)}
+                      placeholder={language === 'pt' ? 'Tipo (CPF, RG...)' : 'Type (ID, Passport...)'}
+                      className="w-36 shrink-0"
+                    />
+                    <Input
+                      value={newDocNumber}
+                      onChange={(e) => setNewDocNumber(e.target.value)}
+                      placeholder={language === 'pt' ? 'Número do documento' : 'Document number'}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDocument() } }}
+                    />
+                    <Button type="button" variant="outline" onClick={addDocument} className="shrink-0">
+                      <Plus weight="bold" size={16} />
+                    </Button>
+                  </div>
                 </div>
 
                 <div>
@@ -209,22 +238,22 @@ export default function GuestsView() {
                 </div>
 
                 <div>
-                  <Label htmlFor="guest-marital-status">{t.language === 'pt' ? 'Estado Civil' : 'Marital Status'} {t.guests_view.form.optional}</Label>
+                  <Label htmlFor="guest-marital-status">{language === 'pt' ? 'Estado Civil' : 'Marital Status'} {t.guests_view.form.optional}</Label>
                   <Input
                     id="guest-marital-status"
                     value={formData.maritalStatus}
                     onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
+                    placeholder={language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <Label htmlFor="guest-profession">{t.language === 'pt' ? 'Profissão' : 'Profession'} {t.guests_view.form.optional}</Label>
+                  <Label htmlFor="guest-profession">{language === 'pt' ? 'Profissão' : 'Profession'} {t.guests_view.form.optional}</Label>
                   <Input
                     id="guest-profession"
                     value={formData.profession}
                     onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
-                    placeholder={t.language === 'pt' ? 'Ex.: Arquiteto(a)' : 'E.g. Architect'}
+                    placeholder={language === 'pt' ? 'Ex.: Arquiteto(a)' : 'E.g. Architect'}
                   />
                 </div>
 
@@ -321,10 +350,12 @@ export default function GuestsView() {
                             <Phone size={16} weight="duotone" />
                             {guest.phone}
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <IdentificationCard size={16} weight="duotone" />
-                            {guest.documentType ? `${guest.documentType}: ` : ''}{guest.document}
-                          </div>
+                          {(guest.documents || []).length > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <IdentificationCard size={16} weight="duotone" />
+                              {(guest.documents || []).map((d) => d.type ? `${d.type}: ${d.number}` : d.number).join(' | ')}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
