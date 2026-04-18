@@ -299,6 +299,7 @@ async function loadContracts() {
     specialPaymentCondition: contract.special_payment_condition || undefined,
     status: contract.status,
     notes: contract.notes || undefined,
+    templateId: contract.template_id || undefined,
     createdAt: contract.created_at,
   }))
 }
@@ -695,6 +696,7 @@ async function persistContracts(value: any[]) {
     special_payment_condition: contract.specialPaymentCondition || null,
     status: contract.status,
     notes: contract.notes || null,
+    template_id: contract.templateId || null,
     created_at: contract.createdAt,
   })))
 
