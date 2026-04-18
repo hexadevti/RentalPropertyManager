@@ -141,20 +141,28 @@ async function loadOwners() {
 
   if (error) throw error
 
-  return (data || []).map((owner) => ({
-    id: owner.id,
-    name: owner.name,
-    email: owner.email,
-    phone: owner.phone,
-    document: owner.document,
-    documentType: owner.document_type || undefined,
-    nationality: owner.nationality || undefined,
-    maritalStatus: owner.marital_status || undefined,
-    profession: owner.profession || undefined,
-    address: owner.address || undefined,
-    notes: owner.notes || undefined,
-    createdAt: owner.created_at,
-  }))
+  return (data || []).map((owner) => {
+    let documents: { type: string; number: string }[] = []
+    const raw = owner.document as string | null
+    if (raw && raw.trimStart().startsWith('[')) {
+      try { documents = JSON.parse(raw) } catch { documents = [] }
+    } else if (raw) {
+      documents = [{ type: owner.document_type || '', number: raw }]
+    }
+    return {
+      id: owner.id,
+      name: owner.name,
+      email: owner.email,
+      phone: owner.phone,
+      documents,
+      nationality: owner.nationality || undefined,
+      maritalStatus: owner.marital_status || undefined,
+      profession: owner.profession || undefined,
+      address: owner.address || undefined,
+      notes: owner.notes || undefined,
+      createdAt: owner.created_at,
+    }
+  })
 }
 
 async function loadProperties() {
@@ -229,21 +237,29 @@ async function loadGuests() {
 
   if (error) throw error
 
-  return (data || []).map((guest) => ({
-    id: guest.id,
-    name: guest.name,
-    email: guest.email,
-    phone: guest.phone,
-    document: guest.document,
-    documentType: guest.document_type || undefined,
-    address: guest.address || undefined,
-    nationality: guest.nationality || undefined,
-    maritalStatus: guest.marital_status || undefined,
-    profession: guest.profession || undefined,
-    dateOfBirth: guest.date_of_birth || undefined,
-    notes: guest.notes || undefined,
-    createdAt: guest.created_at,
-  }))
+  return (data || []).map((guest) => {
+    let documents: { type: string; number: string }[] = []
+    const raw = guest.document as string | null
+    if (raw && raw.trimStart().startsWith('[')) {
+      try { documents = JSON.parse(raw) } catch { documents = [] }
+    } else if (raw) {
+      documents = [{ type: guest.document_type || '', number: raw }]
+    }
+    return {
+      id: guest.id,
+      name: guest.name,
+      email: guest.email,
+      phone: guest.phone,
+      documents,
+      address: guest.address || undefined,
+      nationality: guest.nationality || undefined,
+      maritalStatus: guest.marital_status || undefined,
+      profession: guest.profession || undefined,
+      dateOfBirth: guest.date_of_birth || undefined,
+      notes: guest.notes || undefined,
+      createdAt: guest.created_at,
+    }
+  })
 }
 
 async function loadContracts() {
@@ -558,8 +574,8 @@ async function persistOwners(value: any[]) {
     name: owner.name,
     email: owner.email,
     phone: owner.phone,
-    document: owner.document,
-    document_type: owner.documentType || null,
+    document: JSON.stringify(owner.documents || []),
+    document_type: null,
     nationality: owner.nationality || null,
     marital_status: owner.maritalStatus || null,
     profession: owner.profession || null,
@@ -650,8 +666,8 @@ async function persistGuests(value: any[]) {
     name: guest.name,
     email: guest.email,
     phone: guest.phone,
-    document: guest.document,
-    document_type: guest.documentType || null,
+    document: JSON.stringify(guest.documents || []),
+    document_type: null,
     address: guest.address || null,
     nationality: guest.nationality || null,
     marital_status: guest.maritalStatus || null,

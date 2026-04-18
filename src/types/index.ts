@@ -7,13 +7,17 @@ export type TaskStatus = 'pending' | 'in-progress' | 'completed'
 export type RentalType = 'short-term' | 'monthly'
 export type ContractStatus = 'active' | 'expired' | 'cancelled'
 
+export interface GuestDocument {
+  type: string
+  number: string
+}
+
 export interface Owner {
   id: string
   name: string
   email: string
   phone: string
-  document: string
-  documentType?: string
+  documents: GuestDocument[]
   nationality?: string
   maritalStatus?: string
   profession?: string
@@ -77,8 +81,7 @@ export interface Guest {
   name: string
   email: string
   phone: string
-  document: string
-  documentType?: string
+  documents: GuestDocument[]
   address?: string
   nationality?: string
   maritalStatus?: string
