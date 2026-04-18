@@ -127,6 +127,12 @@ export interface Appointment {
   createdAt: string
 }
 
+export interface Tenant {
+  id: string
+  name: string
+  createdAt: string
+}
+
 export type UserRole = 'admin' | 'guest'
 export type UserStatus = 'pending' | 'approved' | 'rejected'
 

@@ -1,25 +1,68 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { Eye, EyeSlash, SignIn, GoogleLogo } from '@phosphor-icons/react'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Eye, EyeSlash, SignIn, GithubLogo } from '@phosphor-icons/react'
 import Register from '@/components/Register'
 
 export function Login() {
-  const { signInWithEmail, signInWithGoogle, signInWithDevCredentials } = useAuth()
+  const { signInWithEmail, signInWithGitHub, signInWithDevCredentials } = useAuth()
   const [showRegister, setShowRegister] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
   const isDevMode = import.meta.env.VITE_DEV_MODE === 'true'
-  const devUserEmail = import.meta.env.VITE_DEV_USER_EMAIL
-  const devUserId = import.meta.env.VITE_DEV_USER_ID
+  const devUserEmail = import.meta.env.VITE_DEV_USER_EMAIL || 'dev@dev.com'
+  const [isDevSigningIn, setIsDevSigningIn] = useState(false)
+  const [devSignInError, setDevSignInError] = useState<string | null>(null)
+
+  const tryDevSignIn = async () => {
+    setIsDevSigningIn(true)
+    setDevSignInError(null)
+    try {
+      await signInWithDevCredentials(devUserEmail)
+    } catch {
+      setDevSignInError('Nao foi possivel entrar automaticamente no modo desenvolvimento.')
+    } finally {
+      setIsDevSigningIn(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isDevMode) return
+    void tryDevSignIn()
+  }, [isDevMode])
+
+  if (isDevMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 flex items-center justify-center p-6">
+        <Card className="w-full max-w-md shadow-2xl border-2">
+          <CardHeader className="text-center space-y-2 pb-2">
+            <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <div className="h-7 w-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+            <CardTitle className="text-2xl font-bold">Modo Desenvolvimento</CardTitle>
+            <CardDescription>
+              {isDevSigningIn ? `Entrando automaticamente com ${devUserEmail}` : `Auto-login preparado para ${devUserEmail}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            {devSignInError && (
+              <p className="text-sm text-destructive text-center mb-3">{devSignInError}</p>
+            )}
+            <Button className="w-full" onClick={tryDevSignIn} disabled={isDevSigningIn}>
+              {isDevSigningIn ? 'Entrando...' : 'Tentar novamente'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   if (showRegister) {
     return <Register onBackToLogin={() => setShowRegister(false)} />
@@ -45,24 +88,13 @@ export function Login() {
     }
   }
 
-  const handleGoogle = async () => {
+  const handleGitHub = async () => {
     setError(null)
     setIsSubmitting(true)
     try {
-      await signInWithGoogle()
+      await signInWithGitHub()
     } catch {
-      setError('Não foi possível entrar com Google.')
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleDevLogin = async () => {
-    setIsSubmitting(true)
-    try {
-      await signInWithDevCredentials(devUserEmail, devUserId)
-    } catch {
-      setError('Dev login falhou.')
-    } finally {
+      setError('Nao foi possivel entrar com GitHub.')
       setIsSubmitting(false)
     }
   }
@@ -83,11 +115,11 @@ export function Login() {
             variant="outline"
             className="w-full gap-2"
             size="lg"
-            onClick={handleGoogle}
+            onClick={handleGitHub}
             disabled={isSubmitting}
           >
-            <GoogleLogo size={18} weight="bold" />
-            Entrar com Google
+            <GithubLogo size={18} weight="bold" />
+            Entrar com GitHub
           </Button>
 
           <div className="flex items-center gap-3">
@@ -140,18 +172,6 @@ export function Login() {
               {isSubmitting ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
-
-          {isDevMode && (
-            <Button
-              variant="outline"
-              className="w-full gap-2 border-dashed"
-              size="sm"
-              onClick={handleDevLogin}
-              disabled={isSubmitting}
-            >
-              Dev Login
-            </Button>
-          )}
         </CardContent>
 
         <CardFooter className="flex-col gap-2 pt-0">

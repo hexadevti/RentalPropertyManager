@@ -12,6 +12,7 @@ interface RegisterProps {
 
 export default function Register({ onBackToLogin }: RegisterProps) {
   const { signUp } = useAuth()
+  const [orgName, setOrgName] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -21,6 +22,7 @@ export default function Register({ onBackToLogin }: RegisterProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,7 +39,8 @@ export default function Register({ onBackToLogin }: RegisterProps) {
 
     setIsSubmitting(true)
     try {
-      await signUp(name.trim(), email.trim(), password)
+      const result = await signUp(orgName.trim(), name.trim(), email.trim(), password)
+      setNeedsEmailConfirmation(result.needsEmailConfirmation)
       setSuccess(true)
     } catch (err: any) {
       const msg = err?.message || ''
@@ -63,13 +66,24 @@ export default function Register({ onBackToLogin }: RegisterProps) {
             <CheckCircle size={64} weight="duotone" className="text-primary" />
             <div className="space-y-2">
               <h2 className="text-xl font-bold">Cadastro realizado!</h2>
-              <p className="text-muted-foreground text-sm">
-                Sua conta foi criada com sucesso. Um administrador precisa aprovar
-                seu acesso antes que você possa entrar no sistema.
-              </p>
-              <p className="text-muted-foreground text-sm">
-                Verifique seu e-mail para confirmar o cadastro, se necessário.
-              </p>
+              {needsEmailConfirmation ? (
+                <>
+                  <p className="text-muted-foreground text-sm">
+                    Enviamos um e-mail de confirmação para <strong>{email}</strong>.
+                    Clique no link do e-mail para ativar sua conta.
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    Caso não encontre, verifique a caixa de spam.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground text-sm">
+                    Sua conta foi criada com sucesso. Um administrador precisa aprovar
+                    seu acesso antes que você possa entrar no sistema.
+                  </p>
+                </>
+              )}
             </div>
             <Button className="mt-2" onClick={onBackToLogin}>
               Voltar para o login
@@ -93,6 +107,18 @@ export default function Register({ onBackToLogin }: RegisterProps) {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="reg-org">Nome da organização</Label>
+              <Input
+                id="reg-org"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                placeholder="Minha Imobiliária"
+                required
+                autoComplete="organization"
+              />
+            </div>
+
             <div className="space-y-1">
               <Label htmlFor="reg-name">Nome completo</Label>
               <Input
