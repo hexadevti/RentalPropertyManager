@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency, currencies, Currency } from '@/lib/CurrencyContext'
 import { useDateFormat, dateFormats, DateFormat } from '@/lib/DateFormatContext'
-import { SignOut, Globe, CurrencyCircleDollar, CalendarBlank, IdentificationCard, EnvelopeSimple } from '@phosphor-icons/react'
+import { SignOut, Globe, CurrencyCircleDollar, CalendarBlank, IdentificationCard, EnvelopeSimple, User } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 

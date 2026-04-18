@@ -26,12 +26,14 @@ interface AuthContextType {
   isPending: boolean
   isRejected: boolean
   hasRole: (role: UserRole) => boolean
-  updateUserRole: (githubLogin: string, role: UserRole) => void
-  updateUserStatus: (githubLogin: string, status: UserStatus) => void
-  createUser: (githubLogin: string, email: string, role: UserRole) => void
-  deleteUser: (githubLogin: string) => void
+  updateUserRole: (login: string, role: UserRole) => void
+  updateUserStatus: (login: string, status: UserStatus) => void
+  createUser: (login: string, email: string, role: UserRole) => void
+  deleteUser: (login: string) => void
   getAllProfiles: () => UserProfile[]
-  signInWithGitHub: () => Promise<void>
+  signInWithEmail: (email: string, password: string) => Promise<void>
+  signInWithGoogle: () => Promise<void>
+  signUp: (name: string, email: string, password: string) => Promise<void>
   signInWithDevCredentials: (email: string, userId: string) => Promise<void>
   signOut: () => Promise<void>
 }
@@ -49,10 +51,13 @@ type AppUser = {
 function toAppUser(user: any): AppUser {
   const metadata = user?.user_metadata || {}
   const email = user?.email || ''
-  const loginFromMetadata = metadata.user_name || metadata.username || metadata.login
+  const nameFromMetadata = metadata.full_name || metadata.name || metadata.user_name || metadata.username
   const loginFromEmail = email ? email.split('@')[0] : ''
-  const login = loginFromMetadata || loginFromEmail || `user-${String(user?.id || 'anon').slice(0, 8)}`
-  const avatarUrl = metadata.avatar_url || metadata.picture || `https://github.com/${login}.png`
+  const login = nameFromMetadata || loginFromEmail || `user-${String(user?.id || 'anon').slice(0, 8)}`
+  const avatarUrl =
+    metadata.avatar_url ||
+    metadata.picture ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(login)}&background=random`
 
   return {
     id: String(user?.id || login),
@@ -79,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       try {
-        // In dev mode, auto-login without showing the login page
         if (import.meta.env.VITE_DEV_MODE === 'true') {
           let devUser = localStorage.getItem('dev-mode-user')
           if (!devUser) {
@@ -104,17 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const { data, error } = await supabase.auth.getSession()
-        if (error) {
-          console.error('Failed to read Supabase session:', error)
-        }
-
+        if (error) console.error('Failed to read Supabase session:', error)
         setFromSupabaseUser(data.session?.user ?? null)
       } catch (error) {
         console.error('Failed to initialize auth:', error)
       } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
+        if (isMounted) setIsLoading(false)
       }
     }
 
@@ -145,21 +144,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextEmail = currentUser.email || existingProfile.email
       const nextAvatarUrl = currentUser.avatarUrl || existingProfile.avatarUrl
 
-      if (
-        existingProfile.email !== nextEmail
-        || existingProfile.avatarUrl !== nextAvatarUrl
-      ) {
+      if (existingProfile.email !== nextEmail || existingProfile.avatarUrl !== nextAvatarUrl) {
         const updatedProfile: UserProfile = {
           ...existingProfile,
           email: nextEmail,
           avatarUrl: nextAvatarUrl,
           updatedAt: new Date().toISOString(),
         }
-
-        setProfiles((currentProfiles) =>
-          (currentProfiles || []).map((profile) =>
-            profile.githubLogin === existingProfile.githubLogin ? updatedProfile : profile
-          )
+        setProfiles((current) =>
+          (current || []).map((p) => (p.githubLogin === existingProfile.githubLogin ? updatedProfile : p))
         )
         setUserProfile(updatedProfile)
         return
@@ -181,75 +174,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updatedAt: now,
     }
 
-    setProfiles((currentProfiles) => {
-      const current = currentProfiles || []
-      const alreadyExists = current.some((p) => p.githubLogin === newProfile.githubLogin)
-      return alreadyExists ? current : [...current, newProfile]
+    setProfiles((current) => {
+      const arr = current || []
+      const alreadyExists = arr.some((p) => p.githubLogin === newProfile.githubLogin)
+      return alreadyExists ? arr : [...arr, newProfile]
     })
     setUserProfile(newProfile)
   }, [currentUser, profiles, setProfiles])
 
-  const hasRole = (role: UserRole) => {
-    return userProfile?.role === role
-  }
+  const hasRole = (role: UserRole) => userProfile?.role === role
 
-  const updateUserRole = (githubLogin: string, role: UserRole) => {
-    setProfiles((currentProfiles) =>
-      currentProfiles.map((p) =>
-        p.githubLogin === githubLogin
-          ? { ...p, role, updatedAt: new Date().toISOString() }
-          : p
+  const updateUserRole = (login: string, role: UserRole) => {
+    setProfiles((current) =>
+      (current || []).map((p) =>
+        p.githubLogin === login ? { ...p, role, updatedAt: new Date().toISOString() } : p
       )
     )
   }
 
-  const updateUserStatus = (githubLogin: string, status: UserStatus) => {
-    setProfiles((currentProfiles) =>
-      currentProfiles.map((p) =>
-        p.githubLogin === githubLogin
-          ? { ...p, status, updatedAt: new Date().toISOString() }
-          : p
+  const updateUserStatus = (login: string, status: UserStatus) => {
+    setProfiles((current) =>
+      (current || []).map((p) =>
+        p.githubLogin === login ? { ...p, status, updatedAt: new Date().toISOString() } : p
       )
     )
   }
 
-  const createUser = (githubLogin: string, email: string, role: UserRole) => {
+  const createUser = (login: string, email: string, role: UserRole) => {
     const newProfile: UserProfile = {
-      githubLogin,
+      githubLogin: login,
       role,
       status: 'approved',
       email,
-      avatarUrl: `https://github.com/${githubLogin}.png`,
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(login)}&background=random`,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     }
-    setProfiles((currentProfiles) => [...currentProfiles, newProfile])
+    setProfiles((current) => [...(current || []), newProfile])
   }
 
-  const deleteUser = (githubLogin: string) => {
-    setProfiles((currentProfiles) =>
-      currentProfiles.filter((p) => p.githubLogin !== githubLogin)
-    )
+  const deleteUser = (login: string) => {
+    setProfiles((current) => (current || []).filter((p) => p.githubLogin !== login))
   }
 
-  const getAllProfiles = () => {
-    return profiles || []
+  const getAllProfiles = () => profiles || []
+
+  const signInWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
   }
 
-  const signInWithGitHub = async () => {
+  const signInWithGoogle = async () => {
     const redirectTo = import.meta.env.VITE_AUTH_REDIRECT_URL || `${window.location.origin}/`
-
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
+      provider: 'google',
+      options: { redirectTo },
+    })
+    if (error) throw error
+  }
+
+  const signUp = async (name: string, email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
       options: {
-        redirectTo,
-        scopes: 'read:user user:email',
+        data: { full_name: name },
       },
     })
-
-    if (error) {
-      throw error
-    }
+    if (error) throw error
   }
 
   const signInWithDevCredentials = async (email: string, userId: string) => {
@@ -261,10 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(login)}&background=random`,
       isOwner: false,
     }
-
     setCurrentUser(mockUser)
-    
-    // Store in localStorage so session persists
     localStorage.setItem('dev-mode-user', JSON.stringify(mockUser))
   }
 
@@ -273,9 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserProfile(null)
     localStorage.removeItem('dev-mode-user')
     const { error } = await supabase.auth.signOut()
-    if (error) {
-      throw error
-    }
+    if (error) throw error
   }
 
   const value: AuthContextType = {
@@ -294,7 +281,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     createUser,
     deleteUser,
     getAllProfiles,
-    signInWithGitHub,
+    signInWithEmail,
+    signInWithGoogle,
+    signUp,
     signInWithDevCredentials,
     signOut,
   }
@@ -304,8 +293,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }
