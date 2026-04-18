@@ -32,4 +32,3 @@ pids
 .devcontainer/
 
 .spark-workbench-id
-package-lock.json
