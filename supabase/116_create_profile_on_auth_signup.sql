@@ -83,7 +83,7 @@ begin
     'https://ui-avatars.com/api/?name=' || replace(v_login, ' ', '+')
   );
 
-  -- 4) First profile in a self-created tenant is admin + approved.
+  -- 4) Self-signup users require manual approval.
   insert into public.user_profiles (
     auth_user_id,
     tenant_id,
@@ -99,8 +99,8 @@ begin
     new.id,
     v_tenant_id,
     v_login,
-    'admin',
-    'approved',
+    'guest',
+    'pending',
     v_email,
     v_avatar_url,
     timezone('utc', now()),

@@ -1,5 +1,5 @@
 import { useKV } from '@/lib/useSupabaseKV'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { House, Wallet, Calendar, CheckSquare, ChartBar, User, Gear, Files, Wrench, CalendarCheck, FileText, Users } from '@phosphor-icons/react'
 import PropertiesView from './components/views/PropertiesView'
 import FinancesView from './components/views/FinancesView'
@@ -13,6 +13,7 @@ import ServiceProvidersView from './components/views/ServiceProvidersView'
 import AppointmentsView from './components/views/AppointmentsView'
 import OwnersView from './components/views/OwnersView'
 import SettingsView from './components/views/SettingsView'
+import UsersPermissionsView from './components/views/UsersPermissionsView'
 import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
@@ -26,15 +27,37 @@ import { Rejected } from '@/components/Rejected'
 import { useKVCleanup } from '@/hooks/use-kv-cleanup'
 import { usePropertyMigration } from '@/hooks/use-property-migration'
 import { AppSidebar } from '@/components/AppSidebar'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
+
+type TenantOption = {
+  id: string
+  name: string
+}
 
 function AppContent() {
   const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
-  const { isApproved, isPending, isRejected, isLoading, isAdmin, isGuest, isAuthenticated, currentUser } = useAuth()
+  const {
+    isApproved,
+    isPending,
+    isRejected,
+    isLoading,
+    isAdmin,
+    isPlatformAdmin,
+    isGuest,
+    isAuthenticated,
+    currentUser,
+    currentTenantId,
+    setSessionTenant,
+  } = useAuth()
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
   const [activeTab, setActiveTab] = useState<string>(isGuest ? 'calendar' : 'properties')
   const [pinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
+  const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([])
+  const [isChangingTenant, setIsChangingTenant] = useState(false)
 
   const tabTitleMap: Record<string, string> = {
     properties: t.tabs.properties,
@@ -48,11 +71,32 @@ function AppContent() {
     templates: t.tabs.templates,
     providers: t.tabs.providers,
     appointments: t.tabs.appointments,
+    'users-permissions': t.tabs['users-permissions'],
     settings: t.tabs.settings,
   }
   
   useKVCleanup()
   usePropertyMigration()
+
+  useEffect(() => {
+    const loadTenantsForMaster = async () => {
+      if (!isPlatformAdmin) {
+        setTenantOptions([])
+        return
+      }
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('id, name')
+        .order('created_at', { ascending: true })
+      if (error) {
+        console.warn('Failed to load tenant options:', error)
+        return
+      }
+      setTenantOptions((data || []) as TenantOption[])
+    }
+
+    void loadTenantsForMaster()
+  }, [isPlatformAdmin])
   
   const calculateBalance = () => {
     return (transactions || []).reduce((acc, t) => {
@@ -107,6 +151,37 @@ function AppContent() {
                 </h1>
               </div>
               <div className="flex items-center gap-8">
+                {isPlatformAdmin && (
+                  <div className="min-w-[260px]">
+                    <p className="mb-1 text-xs text-muted-foreground font-medium uppercase tracking-wider">Tenant da Sessao</p>
+                    <Select
+                      value={currentTenantId || ''}
+                      onValueChange={async (value) => {
+                        if (!value || value === currentTenantId) return
+                        setIsChangingTenant(true)
+                        try {
+                          await setSessionTenant(value)
+                          const selected = tenantOptions.find((tenant) => tenant.id === value)
+                          toast.success(`Sessao alterada para tenant: ${selected?.name || value}`)
+                        } catch (error: any) {
+                          toast.error(error?.message || 'Falha ao alterar tenant da sessao')
+                        } finally {
+                          setIsChangingTenant(false)
+                        }
+                      }}
+                      disabled={isChangingTenant || tenantOptions.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um tenant" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tenantOptions.map((tenant) => (
+                          <SelectItem key={tenant.id} value={tenant.id}>{tenant.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <UserInfo />
                 {isAdmin && (
                   <>
@@ -141,6 +216,7 @@ function AppContent() {
           {activeTab === 'templates' && isAdmin && <ContractTemplatesView />}
           {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}
           {activeTab === 'appointments' && <AppointmentsView />}
+          {activeTab === 'users-permissions' && isAdmin && <UsersPermissionsView />}
           {activeTab === 'settings' && <SettingsView />}
         </main>
       </div>

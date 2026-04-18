@@ -10,6 +10,7 @@ interface AuthContextType {
   tenantName: string | null
   isLoading: boolean
   isAuthenticated: boolean
+  isPlatformAdmin: boolean
   isAdmin: boolean
   isGuest: boolean
   isApproved: boolean
@@ -18,6 +19,9 @@ interface AuthContextType {
   hasRole: (role: UserRole) => boolean
   updateUserRole: (login: string, role: UserRole) => Promise<void>
   updateUserStatus: (login: string, status: UserStatus) => Promise<void>
+  updateUserProfile: (login: string, updates: { githubLogin?: string; email?: string; avatarUrl?: string }) => Promise<void>
+  renameTenant: (name: string) => Promise<void>
+  setSessionTenant: (tenantId: string) => Promise<void>
   createUser: (login: string, email: string, role: UserRole) => Promise<void>
   deleteUser: (login: string) => Promise<void>
   getAllProfiles: () => UserProfile[]
@@ -77,12 +81,18 @@ function buildDevUser(email: string, userId?: string): AppUser {
   }
 }
 
+function isUuid(value: string | null | undefined): boolean {
+  if (!value) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [currentTenantId, setCurrentTenantId] = useState<string | null>(null)
   const [tenantName, setTenantName] = useState<string | null>(null)
   const [tenantProfiles, setTenantProfiles] = useState<UserProfile[]>([])
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -106,8 +116,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const loadTenantName = useCallback(async (tenantId: string) => {
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('name')
+      .eq('id', tenantId)
+      .maybeSingle()
+    if (!error && data?.name) {
+      setTenantName(data.name)
+    }
+  }, [])
+
+  const checkPlatformAdmin = useCallback(async (authUserId?: string) => {
+    const lookupId = authUserId || currentUser?.id || ''
+    if (!lookupId) {
+      setIsPlatformAdmin(false)
+      return false
+    }
+    const { data, error } = await supabase
+      .from('platform_admins')
+      .select('auth_user_id')
+      .eq('auth_user_id', lookupId)
+      .maybeSingle()
+    if (error) {
+      setIsPlatformAdmin(false)
+      return false
+    }
+    const allowed = !!data
+    setIsPlatformAdmin(allowed)
+    return allowed
+  }, [currentUser?.id])
+
+  const applySessionTenant = useCallback(async (tenantId: string) => {
+    if (!tenantId) return
+    setCurrentTenantId(tenantId)
+    await loadTenantName(tenantId)
+    await loadTenantProfiles(tenantId)
+  }, [loadTenantName, loadTenantProfiles])
+
+  const loadPlatformSessionTenant = useCallback(async (authUserId: string, fallbackTenantId: string) => {
+    const localFallback = localStorage.getItem('platform-session-tenant') || fallbackTenantId
+    const { data, error } = await supabase
+      .from('platform_admin_session_tenants')
+      .select('tenant_id')
+      .eq('auth_user_id', authUserId)
+      .maybeSingle()
+
+    if (error) {
+      return localFallback
+    }
+
+    return data?.tenant_id || localFallback
+  }, [])
+
   const recoverTenantAdminAccess = useCallback(async (profileRow: any) => {
     if (!profileRow?.tenant_id || !profileRow?.auth_user_id) return profileRow
+    if (profileRow.role !== 'admin') return profileRow
 
     // Recovery path: if a tenant has no approved admin, promote the current authenticated user.
     const { data: approvedAdmins, error: adminsError } = await supabase
@@ -136,19 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ensureSelfApprovedAccess = useCallback(async (profileRow: any, authUserId: string) => {
     if (!profileRow?.id || !authUserId) return profileRow
     if (profileRow.auth_user_id !== authUserId) return profileRow
-    if (profileRow.status === 'approved') return profileRow
-
-    // Final fallback to prevent approval deadlocks for the currently authenticated user.
-    const { data: updated, error } = await supabase
-      .from('user_profiles')
-      .update({ role: 'admin', status: 'approved', updated_at: new Date().toISOString() })
-      .eq('id', profileRow.id)
-      .eq('auth_user_id', authUserId)
-      .select()
-      .single()
-
-    if (error || !updated) return profileRow
-    return updated
+    return profileRow
   }, [])
 
   const loadOrCreateProfile = useCallback(async (supabaseUser: any) => {
@@ -170,9 +222,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (existing) {
       const recoveredExisting = await recoverTenantAdminAccess(existing)
       const unlockedExisting = await ensureSelfApprovedAccess(recoveredExisting, supabaseUser.id)
-      setCurrentTenantId(unlockedExisting.tenant_id)
       setUserProfile(profileFromRow(unlockedExisting))
-      await loadTenantProfiles(unlockedExisting.tenant_id)
+      const platformAdmin = await checkPlatformAdmin(supabaseUser.id)
+      const tenantForSession = platformAdmin
+        ? await loadPlatformSessionTenant(supabaseUser.id, unlockedExisting.tenant_id)
+        : unlockedExisting.tenant_id
+      await applySessionTenant(tenantForSession)
+      localStorage.setItem('platform-session-tenant', tenantForSession)
       return
     }
 
@@ -201,9 +257,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (claimed) {
           const recoveredClaimed = await recoverTenantAdminAccess(claimed)
           const unlockedClaimed = await ensureSelfApprovedAccess(recoveredClaimed, supabaseUser.id)
-          setCurrentTenantId(unlockedClaimed.tenant_id)
           setUserProfile(profileFromRow(unlockedClaimed))
-          await loadTenantProfiles(unlockedClaimed.tenant_id)
+          const platformAdmin = await checkPlatformAdmin(supabaseUser.id)
+          const tenantForSession = platformAdmin
+            ? await loadPlatformSessionTenant(supabaseUser.id, unlockedClaimed.tenant_id)
+            : unlockedClaimed.tenant_id
+          await applySessionTenant(tenantForSession)
+          localStorage.setItem('platform-session-tenant', tenantForSession)
           return
         }
       }
@@ -236,8 +296,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           auth_user_id: supabaseUser.id,
           tenant_id: tenant.id,
           github_login: loginAttempt,
-          role: 'admin',
-          status: 'approved',
+          role: 'guest',
+          status: 'pending',
           email: supabaseUser.email || appUser.email,
           avatar_url: appUser.avatarUrl,
           created_at: now,
@@ -257,11 +317,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    setCurrentTenantId(tenant.id)
-    setTenantName(tenant.name)
     setUserProfile(profileFromRow(newProfile))
-    setTenantProfiles([profileFromRow(newProfile)])
-  }, [loadTenantProfiles, recoverTenantAdminAccess, ensureSelfApprovedAccess])
+    await applySessionTenant(tenant.id)
+    setTenantName(tenant.name)
+  }, [loadTenantProfiles, recoverTenantAdminAccess, ensureSelfApprovedAccess, checkPlatformAdmin, applySessionTenant, loadPlatformSessionTenant])
 
   useEffect(() => {
     let isMounted = true
@@ -353,8 +412,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasRole = (role: UserRole) => userProfile?.role === role
 
+  const logAuditAction = useCallback(async (
+    action: string,
+    targetLogin: string | null,
+    details: Record<string, any> = {}
+  ) => {
+    if (!currentTenantId) return
+    const actorAuthUserId = isUuid(currentUser?.id) ? currentUser?.id : null
+    const { error } = await supabase
+      .from('tenant_audit_logs')
+      .insert({
+        tenant_id: currentTenantId,
+        actor_auth_user_id: actorAuthUserId,
+        actor_login: currentUser?.login || null,
+        target_login: targetLogin,
+        action,
+        details,
+      })
+    if (error) {
+      console.warn('Audit log write failed:', error)
+    }
+  }, [currentTenantId, currentUser])
+
   const updateUserRole = async (login: string, role: UserRole) => {
     if (!currentTenantId) return
+    const currentRole = tenantProfiles.find(p => p.githubLogin === login)?.role || null
     const { error } = await supabase
       .from('user_profiles')
       .update({ role, updated_at: new Date().toISOString() })
@@ -362,10 +444,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('github_login', login)
     if (error) throw error
     setTenantProfiles(prev => prev.map(p => p.githubLogin === login ? { ...p, role } : p))
+    await logAuditAction('user.role.updated', login, { from: currentRole, to: role })
   }
 
   const updateUserStatus = async (login: string, status: UserStatus) => {
     if (!currentTenantId) return
+    const currentStatus = tenantProfiles.find(p => p.githubLogin === login)?.status || null
     const { error } = await supabase
       .from('user_profiles')
       .update({ status, updated_at: new Date().toISOString() })
@@ -373,6 +457,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('github_login', login)
     if (error) throw error
     setTenantProfiles(prev => prev.map(p => p.githubLogin === login ? { ...p, status } : p))
+    await logAuditAction('user.status.updated', login, { from: currentStatus, to: status })
+  }
+
+  const updateUserProfile = async (
+    login: string,
+    updates: { githubLogin?: string; email?: string; avatarUrl?: string }
+  ) => {
+    if (!currentTenantId) return
+    const payload: Record<string, string> = {
+      updated_at: new Date().toISOString(),
+    }
+    if (typeof updates.githubLogin === 'string') payload.github_login = updates.githubLogin
+    if (typeof updates.email === 'string') payload.email = updates.email
+    if (typeof updates.avatarUrl === 'string') payload.avatar_url = updates.avatarUrl
+
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .update(payload)
+      .eq('tenant_id', currentTenantId)
+      .eq('github_login', login)
+      .select()
+      .single()
+
+    if (error) throw error
+    const updatedProfile = profileFromRow(data)
+    setTenantProfiles(prev => prev.map(p => p.githubLogin === login ? updatedProfile : p))
+
+    if (userProfile?.githubLogin === login) {
+      setUserProfile(updatedProfile)
+    }
+    if (currentUser?.login === login) {
+      setCurrentUser(prev => prev ? {
+        ...prev,
+        login: updatedProfile.githubLogin,
+        email: updatedProfile.email,
+        avatarUrl: updatedProfile.avatarUrl,
+      } : prev)
+    }
+    await logAuditAction('user.profile.updated', updatedProfile.githubLogin, {
+      previousLogin: login,
+      email: updatedProfile.email,
+    })
+  }
+
+  const renameTenant = async (name: string) => {
+    if (!currentTenantId) return
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Tenant name cannot be empty')
+
+    const { error } = await supabase
+      .from('tenants')
+      .update({ name: trimmed })
+      .eq('id', currentTenantId)
+
+    if (error) throw error
+    const previousName = tenantName
+    setTenantName(trimmed)
+    await logAuditAction('tenant.renamed', null, { from: previousName, to: trimmed })
+  }
+
+  const setSessionTenant = async (tenantId: string) => {
+    if (!isPlatformAdmin) {
+      throw new Error('Only platform admins can change session tenant.')
+    }
+    if (!currentUser?.id || !isUuid(currentUser.id)) {
+      throw new Error('Current user id is not a valid UUID for session tenant update.')
+    }
+
+    const { error: rpcError } = await supabase.rpc('set_platform_session_tenant', {
+      p_tenant_id: tenantId,
+    })
+
+    if (rpcError) {
+      // Backward-compatible fallback while migration with RPC is not applied.
+      const { error: upsertError } = await supabase
+        .from('platform_admin_session_tenants')
+        .upsert({
+          auth_user_id: currentUser.id,
+          tenant_id: tenantId,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'auth_user_id' })
+      if (upsertError) {
+        throw upsertError
+      }
+    }
+
+    await applySessionTenant(tenantId)
+    localStorage.setItem('platform-session-tenant', tenantId)
   }
 
   const createUser = async (login: string, email: string, role: UserRole) => {
@@ -392,7 +564,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select()
       .single()
     if (error) throw error
-    setTenantProfiles(prev => [...prev, profileFromRow(data)])
+    const created = profileFromRow(data)
+    setTenantProfiles(prev => [...prev, created])
+    await logAuditAction('user.created', created.githubLogin, {
+      role: created.role,
+      status: created.status,
+      email: created.email,
+    })
   }
 
   const deleteUser = async (login: string) => {
@@ -404,6 +582,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('github_login', login)
     if (error) throw error
     setTenantProfiles(prev => prev.filter(p => p.githubLogin !== login))
+    await logAuditAction('user.deleted', login)
   }
 
   const getAllProfiles = () => tenantProfiles
@@ -472,7 +651,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentTenantId(null)
     setTenantName(null)
     setTenantProfiles([])
+    setIsPlatformAdmin(false)
     localStorage.removeItem('dev-mode-user')
+    localStorage.removeItem('platform-session-tenant')
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
@@ -484,6 +665,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tenantName,
     isLoading,
     isAuthenticated: !!currentUser,
+    isPlatformAdmin,
     hasRole,
     isAdmin: userProfile?.role === 'admin',
     isGuest: userProfile?.role === 'guest',
@@ -492,6 +674,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isRejected: userProfile?.status === 'rejected',
     updateUserRole,
     updateUserStatus,
+    updateUserProfile,
+    renameTenant,
+    setSessionTenant,
     createUser,
     deleteUser,
     getAllProfiles,
