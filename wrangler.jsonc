@@ -1,5 +1,5 @@
 {
-  "name": "rental-property-manager",
+  "name": "rentalpropertymanager",
   "compatibility_date": "2026-04-17",
   "assets": {
     "directory": "./dist"
