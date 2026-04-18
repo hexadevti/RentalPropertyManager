@@ -110,7 +110,7 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems }: AppSidebarPr
 
   return (
     <aside className={cn(
-      "group/sidebar fixed left-0 top-0 z-50 border-r border-border bg-card/95 backdrop-blur-sm flex flex-col h-screen",
+      "group/sidebar fixed left-0 top-0 z-50 border-r border-border bg-card/50 backdrop-blur-sm flex flex-col h-screen",
       "w-20 hover:w-64 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
     )}>
       <div className="border-b border-border h-20 px-3">
