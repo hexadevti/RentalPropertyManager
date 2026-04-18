@@ -79,14 +79,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       try {
-        // Check for dev mode user first
-        const devModeUser = localStorage.getItem('dev-mode-user')
-        if (devModeUser) {
-          const user = JSON.parse(devModeUser)
-          if (isMounted) {
-            setCurrentUser(user)
+        // In dev mode, auto-login without showing the login page
+        if (import.meta.env.VITE_DEV_MODE === 'true') {
+          let devUser = localStorage.getItem('dev-mode-user')
+          if (!devUser) {
+            const email = import.meta.env.VITE_DEV_USER_EMAIL || 'dev@dev.com'
+            const userId = import.meta.env.VITE_DEV_USER_ID || 'dev-user'
+            const login = email.split('@')[0]
+            const mockUser = {
+              id: userId,
+              login,
+              email,
+              avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(login)}&background=random`,
+              isOwner: false,
+            }
+            localStorage.setItem('dev-mode-user', JSON.stringify(mockUser))
+            devUser = JSON.stringify(mockUser)
           }
           if (isMounted) {
+            setCurrentUser(JSON.parse(devUser))
             setIsLoading(false)
           }
           return
