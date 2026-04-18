@@ -81,6 +81,7 @@ async function getTenantId(): Promise<string | null> {
   if (cachedTenantId !== undefined) return cachedTenantId
 
   const authState = getSupabaseAuthState()
+
   if (authState.isAuthenticated && authState.isApproved) {
     cachedTenantId = authState.tenantId ?? null
     return cachedTenantId

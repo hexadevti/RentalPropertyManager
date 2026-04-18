@@ -171,9 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const recoverTenantAdminAccess = useCallback(async (profileRow: any) => {
     if (!profileRow?.tenant_id || !profileRow?.auth_user_id) return profileRow
-    if (profileRow.role !== 'admin') return profileRow
 
-    // Recovery path: if a tenant has no approved admin, promote the current authenticated user.
+    // Recovery path: if a tenant has no approved admin, allow the first authenticated
+    // profile in that tenant to bootstrap admin access and avoid approval deadlocks.
     const { data: approvedAdmins, error: adminsError } = await supabase
       .from('user_profiles')
       .select('id')
@@ -184,6 +184,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (adminsError) return profileRow
     if ((approvedAdmins || []).length > 0) return profileRow
+
+    const { count: tenantProfilesCount, error: countError } = await supabase
+      .from('user_profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', profileRow.tenant_id)
+
+    if (countError) return profileRow
+
+    // Only bootstrap when this is effectively the first account in the tenant.
+    if ((tenantProfilesCount ?? 0) > 1) return profileRow
 
     const { data: recovered, error: recoverError } = await supabase
       .from('user_profiles')
@@ -320,7 +330,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserProfile(profileFromRow(newProfile))
     await applySessionTenant(tenant.id)
     setTenantName(tenant.name)
-  }, [loadTenantProfiles, recoverTenantAdminAccess, ensureSelfApprovedAccess, checkPlatformAdmin, applySessionTenant, loadPlatformSessionTenant])
+  }, [recoverTenantAdminAccess, ensureSelfApprovedAccess, checkPlatformAdmin, applySessionTenant, loadPlatformSessionTenant])
+
+  const clearAuthState = useCallback(() => {
+    setCurrentUser(null)
+    setUserProfile(null)
+    setCurrentTenantId(null)
+    setTenantName(null)
+    setTenantProfiles([])
+    setIsPlatformAdmin(false)
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -390,25 +409,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void initAuth()
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return
-      if (session?.user) {
-        await loadOrCreateProfile(session.user)
-      } else {
-        setCurrentUser(null)
-        setUserProfile(null)
-        setCurrentTenantId(null)
-        setTenantName(null)
-        setTenantProfiles([])
-      }
-      if (isMounted) setIsLoading(false)
+
+      // Avoid async work directly inside the Supabase auth callback.
+      // TOKEN_REFRESHED is frequent and should not trigger a full profile reload.
+      window.setTimeout(() => {
+        if (!isMounted) return
+
+        if (event === 'SIGNED_OUT') {
+          clearAuthState()
+          setIsLoading(false)
+          return
+        }
+
+        if (event === 'TOKEN_REFRESHED') {
+          setIsLoading(false)
+          return
+        }
+
+        if (session?.user) {
+          void loadOrCreateProfile(session.user).finally(() => {
+            if (isMounted) setIsLoading(false)
+          })
+          return
+        }
+
+        clearAuthState()
+        setIsLoading(false)
+      }, 0)
     })
 
     return () => {
       isMounted = false
       authListener.subscription.unsubscribe()
     }
-  }, [loadOrCreateProfile])
+  }, [loadOrCreateProfile, clearAuthState])
 
   const hasRole = (role: UserRole) => userProfile?.role === role
 
