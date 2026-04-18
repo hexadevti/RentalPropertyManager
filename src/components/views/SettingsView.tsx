@@ -1,5 +1,4 @@
 import { useLanguage } from '@/lib/LanguageContext'
-import { UserManagement } from '@/components/UserManagement'
 import { MenuConfiguration } from '@/components/MenuConfiguration'
 
 export default function SettingsView() {
@@ -13,8 +12,6 @@ export default function SettingsView() {
       </div>
 
       <MenuConfiguration />
-
-      <UserManagement />
     </div>
   )
 }

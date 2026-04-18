@@ -24,6 +24,7 @@ export const translations = {
       templates: 'Templates',
       providers: 'Prestadores',
       appointments: 'Compromissos',
+      'users-permissions': 'Usuários e Permissões',
       settings: 'Configurações',
     },
     
@@ -535,6 +536,7 @@ export const translations = {
       templates: 'Templates',
       providers: 'Providers',
       appointments: 'Appointments',
+      'users-permissions': 'Users & Permissions',
       settings: 'Settings',
     },
     

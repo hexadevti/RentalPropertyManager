@@ -13,6 +13,7 @@ import {
   CalendarCheck, 
   FileText, 
   Users,
+  ShieldCheck,
   PushPin
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
@@ -37,6 +38,7 @@ export const menuItems: MenuItem[] = [
   { id: 'templates', icon: FileText, value: 'templates', adminOnly: true },
   { id: 'providers', icon: Wrench, value: 'providers', adminOnly: true },
   { id: 'appointments', icon: CalendarCheck, value: 'appointments' },
+  { id: 'users-permissions', icon: ShieldCheck, value: 'users-permissions', adminOnly: true },
   { id: 'settings', icon: Gear, value: 'settings' },
 ]
 

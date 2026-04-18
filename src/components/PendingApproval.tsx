@@ -1,14 +1,29 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Clock, LockKey } from '@phosphor-icons/react'
+import { Button } from '@/components/ui/button'
+import { Clock, LockKey, SignOut } from '@phosphor-icons/react'
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
+import { useState } from 'react'
 
 export function PendingApproval() {
-  const { currentUser } = useAuth()
-  const { t } = useLanguage()
+  const { currentUser, signOut } = useAuth()
+  const { t, language } = useLanguage()
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const login = currentUser?.login || 'user'
   const initials = login.slice(0, 2).toUpperCase()
+  const isPortuguese = language === 'pt'
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+    try {
+      await signOut()
+    } catch (error) {
+      console.error('Sign out failed:', error)
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-accent/10 flex items-center justify-center p-6">
@@ -67,6 +82,20 @@ export function PendingApproval() {
               <p>
                 {t.pendingApproval?.contact || 'Se tiver dúvidas, entre em contato com o administrador do sistema.'}
               </p>
+            </div>
+
+            <div className="pt-2">
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+              >
+                <SignOut size={16} />
+                {isSigningOut
+                  ? (isPortuguese ? 'Saindo...' : 'Signing out...')
+                  : (isPortuguese ? 'Sair da conta' : 'Sign out')}
+              </Button>
             </div>
           </div>
         </CardContent>
