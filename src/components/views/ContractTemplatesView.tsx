@@ -12,6 +12,8 @@ import { Plus, Pencil, Trash, Copy, MagnifyingGlass, Question } from '@phosphor-
 import { toast } from 'sonner'
 import { Contract, ContractTemplate, Guest, Owner, Property, TemplateType } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
+import { useCurrency } from '@/lib/CurrencyContext'
+import { useDateFormat } from '@/lib/DateFormatContext'
 import RichTextEditor, { plainTextToHTML, RichTextEditorHandle } from '@/components/RichTextEditor'
 import { buildTemplateXPathContext, renderContractTemplateContent, resolveTemplateXPath, TemplateXPathContext } from '@/lib/contractPDF'
 
@@ -19,6 +21,8 @@ type XPathPreviewRow = {
   path: string
   value: string
 }
+
+const NO_PREVIEW_CONTRACT_VALUE = '__none__'
 
 function stringifyPreviewValue(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -79,6 +83,8 @@ function isHTML(content: string) {
 
 export default function ContractTemplatesView() {
   const { t } = useLanguage()
+  const { formatCurrency } = useCurrency()
+  const { formatDate } = useDateFormat()
   const [templates, setTemplates] = useKV<ContractTemplate[]>('contract-templates', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [guests] = useKV<Guest[]>('guests', [])
@@ -88,11 +94,12 @@ export default function ContractTemplatesView() {
   const [helpDialogOpen, setHelpDialogOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedPreviewContractId, setSelectedPreviewContractId] = useState('')
+  const [selectedPreviewContractId, setSelectedPreviewContractId] = useState(NO_PREVIEW_CONTRACT_VALUE)
   const [editorTab, setEditorTab] = useState<'template' | 'preview'>('template')
   const [xpathInput, setXpathInput] = useState('')
   const [xpathTableFilter, setXpathTableFilter] = useState('')
   const editorRef = useRef<RichTextEditorHandle | null>(null)
+  const xpathTableFilterInputRef = useRef<HTMLInputElement | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     type: 'monthly' as TemplateType,
@@ -247,7 +254,10 @@ export default function ContractTemplatesView() {
   )
 
   const selectedPreviewContract = useMemo(
-    () => (contracts || []).find((contract) => contract.id === selectedPreviewContractId) || null,
+    () => {
+      if (selectedPreviewContractId === NO_PREVIEW_CONTRACT_VALUE) return null
+      return (contracts || []).find((contract) => contract.id === selectedPreviewContractId) || null
+    },
     [contracts, selectedPreviewContractId]
   )
 
@@ -293,12 +303,10 @@ export default function ContractTemplatesView() {
 
     return buildTemplateXPathContext(
       selectedHelpContractData,
-      (value) => {
-        const date = value instanceof Date ? value : new Date(value)
-        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('pt-BR')
-      }
+      formatDate,
+      formatCurrency
     )
-  }, [selectedHelpContractData])
+  }, [selectedHelpContractData, formatCurrency, formatDate])
 
   const xpathPreview = useMemo(() => {
     if (!xpathInput.trim()) return ''
@@ -306,6 +314,16 @@ export default function ContractTemplatesView() {
     const resolved = resolveTemplateXPath(xpathInput.trim(), xpathContext)
     return resolved.error || resolved.value
   }, [xpathInput, xpathContext])
+
+  const inlineTokenPreviewResolver = useMemo<((xpath: string) => string | null) | null>(() => {
+    if (!xpathContext || !selectedContractForPreview) return null
+
+    return (xpath: string) => {
+      const resolved = resolveTemplateXPath(xpath.trim(), xpathContext)
+      if (resolved.error) return null
+      return resolved.value
+    }
+  }, [xpathContext, selectedContractForPreview])
 
   const xpathPreviewRows = useMemo(() => {
     if (!xpathContext) return [] as XPathPreviewRow[]
@@ -332,13 +350,10 @@ export default function ContractTemplatesView() {
     if (!selectedHelpContractData) return ''
     return renderContractTemplateContent(
       selectedHelpContractData,
-      (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value),
-      (value) => {
-        const date = value instanceof Date ? value : new Date(value)
-        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('pt-BR')
-      }
+      formatCurrency,
+      formatDate
     )
-  }, [selectedHelpContractData])
+  }, [selectedHelpContractData, formatCurrency, formatDate])
 
   const getTypeBadgeClass = (type: TemplateType) => {
     return type === 'monthly' 
@@ -362,12 +377,9 @@ export default function ContractTemplatesView() {
         <div className="flex gap-2">
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
-            if (open && !selectedPreviewContractId && (contracts || []).length > 0) {
-              setSelectedPreviewContractId((contracts || [])[0].id)
-            }
             if (!open) {
               resetForm()
-              setSelectedPreviewContractId('')
+              setSelectedPreviewContractId(NO_PREVIEW_CONTRACT_VALUE)
             }
           }}>
             <DialogTrigger asChild>
@@ -414,6 +426,7 @@ export default function ContractTemplatesView() {
                       <SelectValue placeholder="Selecione um contrato" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={NO_PREVIEW_CONTRACT_VALUE}>Sem contrato base (sem preview)</SelectItem>
                       {helpContractOptions.map((option) => (
                         <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
                       ))}
@@ -426,6 +439,9 @@ export default function ContractTemplatesView() {
                     <Dialog open={helpDialogOpen} onOpenChange={(open) => {
                       if (open) {
                         editorRef.current?.captureCurrentSelection()
+                        setTimeout(() => {
+                          xpathTableFilterInputRef.current?.focus()
+                        }, 50)
                       }
                       setHelpDialogOpen(open)
                       if (!open) {
@@ -494,19 +510,20 @@ export default function ContractTemplatesView() {
                             <div className="relative mb-3">
                               <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                               <Input
+                                ref={xpathTableFilterInputRef}
                                 value={xpathTableFilter}
                                 onChange={(e) => setXpathTableFilter(e.target.value)}
                                 placeholder="Filtrar caminhos e valores..."
                                 className="pl-9"
                               />
                             </div>
-                            {!selectedPreviewContractId && (
+                            {!selectedContractForPreview && (
                               <p className="text-sm text-muted-foreground">Selecione um contrato para carregar os dados de referência.</p>
                             )}
-                            {selectedPreviewContractId && xpathPreviewRows.length === 0 && (
+                            {selectedContractForPreview && xpathPreviewRows.length === 0 && (
                               <p className="text-sm text-muted-foreground">Não foi possível montar os dados desse contrato.</p>
                             )}
-                            {selectedPreviewContractId && xpathPreviewRows.length > 0 && filteredXPathPreviewRows.length === 0 && (
+                            {selectedContractForPreview && xpathPreviewRows.length > 0 && filteredXPathPreviewRows.length === 0 && (
                               <p className="text-sm text-muted-foreground">Nenhum caminho encontrado para esse filtro.</p>
                             )}
                             {filteredXPathPreviewRows.length > 0 && (
@@ -544,17 +561,18 @@ export default function ContractTemplatesView() {
                         ref={editorRef}
                         content={formData.content}
                         onChange={(html) => setFormData({ ...formData, content: html })}
+                        tokenPreviewResolver={inlineTokenPreviewResolver}
                       />
                     </TabsContent>
                     <TabsContent value="preview" className="mt-3">
                       <div className="rounded-md border bg-white p-4 h-auto min-h-[140px] max-h-[60vh] overflow-auto text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
-                        {!selectedPreviewContractId && (
+                        {!selectedContractForPreview && (
                           <p className="text-muted-foreground">Selecione um contrato base para visualizar o preview em tempo real.</p>
                         )}
-                        {selectedPreviewContractId && !renderedPreviewContent && (
+                        {selectedContractForPreview && !renderedPreviewContent && (
                           <p className="text-muted-foreground">Preview indisponível para o contrato selecionado.</p>
                         )}
-                        {selectedPreviewContractId && renderedPreviewContent && (
+                        {selectedContractForPreview && renderedPreviewContent && (
                           isHTML(renderedPreviewContent)
                             ? <div dangerouslySetInnerHTML={{ __html: renderedPreviewContent }} />
                             : <pre className="text-xs whitespace-pre-wrap font-mono">{renderedPreviewContent}</pre>

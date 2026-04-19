@@ -1,9 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle, FontSize } from '@tiptap/extension-text-style'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -19,6 +22,7 @@ import {
 interface RichTextEditorProps {
   content: string
   onChange: (html: string) => void
+  tokenPreviewResolver?: ((xpath: string) => string | null) | null
 }
 
 export interface RichTextEditorHandle {
@@ -135,11 +139,254 @@ function textToHtmlPreservingBreaks(text: string): string {
     .join('')
 }
 
+const tokenPreviewPluginKey = new PluginKey<{ editingTokenFrom: number | null }>('token-preview-decoration')
+
+function findTokenRangeInTextNode(text: string, editingFrom: number): { startOffset: number; endOffset: number } | null {
+  const tokenRegex = /\{\{\s*([\s\S]+?)\s*\}\}(?!\})/g
+  let match: RegExpExecArray | null
+
+  while ((match = tokenRegex.exec(text)) !== null) {
+    const startOffset = match.index
+    const endOffset = match.index + match[0].length
+    if (editingFrom >= startOffset && editingFrom < endOffset) {
+      return { startOffset, endOffset }
+    }
+  }
+
+  return null
+}
+
+function findTokenRangeAtDocPosition(doc: any, position: number): { from: number; to: number } | null {
+  const safePosition = Math.max(0, Math.min(position, doc.content.size))
+  const $pos = doc.resolve(safePosition)
+  const parentText = $pos.parent.textContent || ''
+  const parentStart = $pos.start()
+  const range = findTokenRangeInTextNode(parentText, safePosition - parentStart)
+  if (!range) return null
+  return {
+    from: parentStart + range.startOffset,
+    to: parentStart + range.endOffset,
+  }
+}
+
+function extractXPathFromToken(tokenText: string): string | null {
+  const match = tokenText.match(/^\{\{\s*([\s\S]+?)\s*\}\}$/)
+  if (!match) return null
+  return (match[1] || '').trim()
+}
+
+const TokenPreviewDecorationExtension = Extension.create<{
+  getResolver: () => ((xpath: string) => string | null) | null
+}>({
+  name: 'tokenPreviewDecoration',
+
+  addOptions() {
+    return {
+      getResolver: () => null,
+    }
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<{ editingTokenFrom: number | null }>({
+        key: tokenPreviewPluginKey,
+
+        state: {
+          init: () => ({ editingTokenFrom: null }),
+          apply: (tr, pluginState, _oldState, newState) => {
+            let editingTokenFrom = pluginState.editingTokenFrom
+
+            if (editingTokenFrom !== null) {
+              const mapped = tr.mapping.mapResult(editingTokenFrom)
+              editingTokenFrom = mapped.deleted ? null : mapped.pos
+            }
+
+            const meta = tr.getMeta(tokenPreviewPluginKey) as { editingTokenFrom?: number | null } | undefined
+            if (meta && Object.prototype.hasOwnProperty.call(meta, 'editingTokenFrom')) {
+              editingTokenFrom = meta.editingTokenFrom ?? null
+            }
+
+            if (editingTokenFrom !== null) {
+              const tokenRange = findTokenRangeAtDocPosition(tr.doc, editingTokenFrom)
+              if (!tokenRange) {
+                editingTokenFrom = null
+              } else {
+                const selectionFrom = newState.selection.from
+                const selectionTo = newState.selection.to
+                const selectionInsideToken =
+                  selectionFrom >= tokenRange.from &&
+                  selectionTo <= tokenRange.to
+
+                if (!selectionInsideToken) {
+                  editingTokenFrom = null
+                }
+              }
+            }
+
+            return { editingTokenFrom }
+          },
+        },
+
+        props: {
+          handleDOMEvents: {
+            blur: (view) => {
+              const pluginState = tokenPreviewPluginKey.getState(view.state)
+              if (pluginState?.editingTokenFrom === null) return false
+
+              view.dispatch(
+                view.state.tr.setMeta(tokenPreviewPluginKey, { editingTokenFrom: null })
+              )
+              return false
+            },
+            dblclick: (view, event) => {
+              const rawTarget = event.target as EventTarget | null
+              const targetElement =
+                rawTarget instanceof HTMLElement
+                  ? rawTarget
+                  : rawTarget instanceof Node
+                    ? rawTarget.parentElement
+                    : null
+              const badge = targetElement?.closest?.('[data-token-from][data-token-to]') as HTMLElement | null
+              if (!badge) return false
+
+              const from = Number(badge.dataset.tokenFrom)
+              const to = Number(badge.dataset.tokenTo)
+              if (!Number.isFinite(from) || !Number.isFinite(to)) return false
+
+              event.preventDefault()
+              event.stopPropagation()
+
+              view.dispatch(
+                view.state.tr
+                  .setSelection(TextSelection.create(view.state.doc, from, to))
+                  .setMeta(tokenPreviewPluginKey, { editingTokenFrom: from })
+              )
+              view.focus()
+              return true
+            },
+          },
+          handleDoubleClick: (view, pos, event) => {
+            const resolver = this.options.getResolver()
+            if (!resolver) return false
+
+            const tokenRange = findTokenRangeAtDocPosition(view.state.doc, pos)
+            if (!tokenRange) return false
+
+            const tokenText = view.state.doc.textBetween(tokenRange.from, tokenRange.to, '', '')
+            const xpath = extractXPathFromToken(tokenText)
+            if (!xpath) return false
+
+            const resolved = resolver(xpath)
+            if (resolved === null) return false
+
+            event.preventDefault()
+            event.stopPropagation()
+
+            view.dispatch(
+              view.state.tr
+                .setSelection(TextSelection.create(view.state.doc, tokenRange.from, tokenRange.to))
+                .setMeta(tokenPreviewPluginKey, { editingTokenFrom: tokenRange.from })
+            )
+            view.focus()
+            return true
+          },
+          decorations: (state) => {
+            const resolver = this.options.getResolver()
+            if (!resolver) return null
+
+            const pluginState = tokenPreviewPluginKey.getState(state)
+            const editingTokenFrom = pluginState?.editingTokenFrom ?? null
+            const decorations: Decoration[] = []
+            const tokenRegex = /\{\{\s*([\s\S]+?)\s*\}\}(?!\})/g
+
+            state.doc.descendants((node, pos) => {
+              if (!node.isText || !node.text) return
+
+              tokenRegex.lastIndex = 0
+              let match: RegExpExecArray | null
+              while ((match = tokenRegex.exec(node.text)) !== null) {
+                const from = pos + match.index
+                const to = from + match[0].length
+
+                if (editingTokenFrom !== null && editingTokenFrom >= from && editingTokenFrom < to) {
+                  continue
+                }
+
+                const resolvedValue = resolver((match[1] || '').trim())
+                if (resolvedValue === null) continue
+
+                const displayValue = resolvedValue.trim() || '(vazio)'
+                const tokenText = match[0]
+
+                decorations.push(
+                  Decoration.inline(from, to, {
+                    style: 'display:none;',
+                  })
+                )
+
+                decorations.push(
+                  Decoration.widget(from, () => {
+                    const activateTokenEditing = (event: MouseEvent) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      const { view } = this.editor
+                      const selection = TextSelection.create(view.state.doc, from, to)
+                      const transaction = view.state.tr
+                        .setSelection(selection)
+                        .setMeta(tokenPreviewPluginKey, { editingTokenFrom: from })
+                      view.dispatch(transaction)
+                      view.focus()
+                    }
+
+                    const badge = document.createElement('span')
+                    badge.className = 'inline-block max-w-full cursor-pointer select-none rounded border bg-muted px-2 py-0.5 text-xs font-medium text-foreground align-middle whitespace-pre-wrap break-words'
+                    badge.textContent = displayValue
+                    badge.title = `${tokenText}\n${displayValue}`
+                    badge.contentEditable = 'false'
+                    badge.dataset.tokenFrom = String(from)
+                    badge.dataset.tokenTo = String(to)
+                    badge.style.whiteSpace = 'pre-line'
+                    badge.style.display = 'inline-block'
+                    badge.style.maxWidth = '100%'
+
+                    badge.addEventListener('dblclick', (event) => {
+                      activateTokenEditing(event)
+                    })
+
+                    badge.addEventListener('mousedown', (event) => {
+                      if (event.detail === 2) {
+                        activateTokenEditing(event)
+                      }
+                    })
+
+                    badge.addEventListener('click', (event) => {
+                      if (event.detail === 2) {
+                        activateTokenEditing(event)
+                      }
+                    })
+
+                    return badge
+                  }, {
+                    side: -1,
+                  })
+                )
+              }
+            })
+
+            return decorations.length ? DecorationSet.create(state.doc, decorations) : null
+          },
+        },
+      }),
+    ]
+  },
+})
+
 const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor(
-  { content, onChange },
+  { content, onChange, tokenPreviewResolver = null },
   ref
 ) {
   const lastSelectionRef = useRef({ from: 1, to: 1 })
+  const tokenPreviewResolverRef = useRef<((xpath: string) => string | null) | null>(tokenPreviewResolver)
 
   const editor = useEditor({
     extensions: [
@@ -148,6 +395,9 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
       TextStyle,
       FontSize,
       TextAlign.configure({ types: ['paragraph'] }),
+      TokenPreviewDecorationExtension.configure({
+        getResolver: () => tokenPreviewResolverRef.current,
+      }),
     ],
     content,
     onUpdate({ editor }) {
@@ -186,6 +436,12 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
       },
     },
   })
+
+  useEffect(() => {
+    tokenPreviewResolverRef.current = tokenPreviewResolver
+    if (!editor) return
+    editor.view.dispatch(editor.state.tr.setMeta(tokenPreviewPluginKey, { editingTokenFrom: null }))
+  }, [editor, tokenPreviewResolver])
 
   // Sync external content changes (e.g. when editing a different template)
   useEffect(() => {

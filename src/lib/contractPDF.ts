@@ -21,10 +21,84 @@ function isHTML(content: string): boolean {
 
 export type TemplateXPathContext = Record<string, unknown>
 
-function stringifyResolvedValue(value: unknown): string {
+type TemplateFormatters = {
+  formatDate?: (value: Date | string) => string
+  formatCurrency?: (value: number) => string
+}
+
+const CURRENCY_KEY_PATTERN = /(amount|price|value|cost|total|balance|fee|rent)/i
+const DATE_KEY_PATTERN = /(date|at)$/i
+const FORMATTERS_CONTEXT_KEY = '__templateFormatters'
+
+function getTemplateFormatters(context: TemplateXPathContext): TemplateFormatters {
+  if (!(FORMATTERS_CONTEXT_KEY in context)) return {}
+
+  const raw = context[FORMATTERS_CONTEXT_KEY]
+  if (!raw || typeof raw !== 'object') return {}
+
+  return raw as TemplateFormatters
+}
+
+function stringifyResolvedValue(
+  value: unknown,
+  formatters: TemplateFormatters,
+  currentKey?: string
+): string {
   if (value === null || value === undefined) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+
+  if (typeof value === 'string') {
+    if (currentKey && DATE_KEY_PATTERN.test(currentKey) && formatters.formatDate) {
+      const formattedDate = formatters.formatDate(value)
+      if (formattedDate) return formattedDate
+    }
+    return value
+  }
+
+  if (typeof value === 'number') {
+    if (currentKey && CURRENCY_KEY_PATTERN.test(currentKey) && formatters.formatCurrency) {
+      return formatters.formatCurrency(value)
+    }
+    return String(value)
+  }
+
+  if (typeof value === 'boolean') return String(value)
+
+  if (value instanceof Date) {
+    if (formatters.formatDate) {
+      const formattedDate = formatters.formatDate(value)
+      if (formattedDate) return formattedDate
+    }
+    return String(value)
+  }
+
+  if (Array.isArray(value)) {
+    const formattedArray = value.map((item) => {
+      const itemString = stringifyResolvedValue(item, formatters, currentKey)
+      return itemString === '' ? null : itemString
+    }).filter((item) => item !== null)
+
+    try {
+      return JSON.stringify(formattedArray)
+    } catch {
+      return String(formattedArray)
+    }
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const formattedRecord: Record<string, unknown> = {}
+
+    Object.entries(record).forEach(([key, nestedValue]) => {
+      const nestedString = stringifyResolvedValue(nestedValue, formatters, key)
+      formattedRecord[key] = nestedString
+    })
+
+    try {
+      return JSON.stringify(formattedRecord)
+    } catch {
+      return String(formattedRecord)
+    }
+  }
 
   try {
     return JSON.stringify(value)
@@ -35,7 +109,8 @@ function stringifyResolvedValue(value: unknown): string {
 
 export function buildTemplateXPathContext(
   data: ContractPDFData,
-  formatDate: (value: Date | string) => string
+  formatDate: (value: Date | string) => string,
+  formatCurrency?: (value: number) => string
 ): TemplateXPathContext {
   return {
     contract: data.contract,
@@ -44,6 +119,10 @@ export function buildTemplateXPathContext(
     owners: data.owners,
     template: data.template,
     currentDate: formatDate(new Date()),
+    [FORMATTERS_CONTEXT_KEY]: {
+      formatDate,
+      formatCurrency,
+    },
   }
 }
 
@@ -58,13 +137,16 @@ export function resolveTemplateXPath(xpath: string, context: TemplateXPathContex
     return { value: '', error: INVALID_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
   }
 
+  const formatters = getTemplateFormatters(context)
+
   const resolveSegments = (
     currentValue: unknown,
     segmentIndex: number,
-    wildcardUsed: boolean
+    wildcardUsed: boolean,
+    currentKey?: string
   ): { values: string[]; wildcardUsed: boolean; error?: string } => {
     if (segmentIndex >= segments.length) {
-      return { values: [stringifyResolvedValue(currentValue)], wildcardUsed }
+      return { values: [stringifyResolvedValue(currentValue, formatters, currentKey)], wildcardUsed }
     }
 
     const segment = segments[segmentIndex]
@@ -79,7 +161,7 @@ export function resolveTemplateXPath(xpath: string, context: TemplateXPathContex
       if (!Number.isInteger(requestedIndex) || arrayIndex < 0 || arrayIndex >= currentValue.length) {
         return { values: [], wildcardUsed, error: MISSING_INDEX_TEMPLATE.replace('{{index}}', numericSegment[1]) }
       }
-      return resolveSegments(currentValue[arrayIndex], segmentIndex + 1, wildcardUsed)
+      return resolveSegments(currentValue[arrayIndex], segmentIndex + 1, wildcardUsed, currentKey)
     }
 
     const segmentMatch = segment.match(/^([a-zA-Z_][a-zA-Z0-9_]*)(?:\{(\d+|x)\})?$/)
@@ -102,7 +184,7 @@ export function resolveTemplateXPath(xpath: string, context: TemplateXPathContex
     const propertyValue = record[propertyName]
 
     if (!indexText) {
-      return resolveSegments(propertyValue, segmentIndex + 1, wildcardUsed)
+      return resolveSegments(propertyValue, segmentIndex + 1, wildcardUsed, propertyName)
     }
 
     if (indexText === 'x') {
@@ -114,7 +196,7 @@ export function resolveTemplateXPath(xpath: string, context: TemplateXPathContex
       let fallbackError: string | undefined
 
       propertyValue.forEach((item) => {
-        const itemResolved = resolveSegments(item, segmentIndex + 1, true)
+        const itemResolved = resolveSegments(item, segmentIndex + 1, true, propertyName)
         if (itemResolved.error) {
           fallbackError = fallbackError || itemResolved.error
           return
@@ -137,7 +219,7 @@ export function resolveTemplateXPath(xpath: string, context: TemplateXPathContex
     if (!Number.isInteger(requestedIndex) || arrayIndex < 0 || arrayIndex >= propertyValue.length) {
       return { values: [], wildcardUsed, error: MISSING_INDEX_TEMPLATE.replace('{{index}}', indexText) }
     }
-    return resolveSegments(propertyValue[arrayIndex], segmentIndex + 1, wildcardUsed)
+    return resolveSegments(propertyValue[arrayIndex], segmentIndex + 1, wildcardUsed, propertyName)
   }
 
   const resolved = resolveSegments(context, 0, false)
@@ -458,7 +540,7 @@ export function renderContractTemplateContent(
   formatCurrency: (value: number) => string,
   formatDate: (value: Date | string) => string
 ): string {
-  const context = buildTemplateXPathContext(data, formatDate)
+  const context = buildTemplateXPathContext(data, formatDate, formatCurrency)
   return renderTemplateVariables(data.template.content, context)
 }
 
