@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -6,9 +6,9 @@ import { DateInput } from '@/components/ui/date-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash, IdentificationCard } from '@phosphor-icons/react'
+import { Plus, Trash, IdentificationCard, Users } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Guest, GuestDocument } from '@/types'
+import { Dependent, Guest, GuestDocument, GuestRelatedPerson, Sponsor } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 
 interface GuestDialogFormProps {
@@ -18,27 +18,107 @@ interface GuestDialogFormProps {
   editingGuest?: Guest | null
 }
 
-export default function GuestDialogForm({ 
-  open, 
-  onOpenChange,
-  onGuestCreated,
-  editingGuest 
-}: GuestDialogFormProps) {
-  const { t, language } = useLanguage()
-  const [guests, setGuests] = useKV<Guest[]>('guests', [])
+type RelatedPeopleKey = 'sponsors' | 'dependents'
 
-  const [formData, setFormData] = useState({
+type GuestFormState = {
+  name: string
+  email: string
+  phone: string
+  documents: GuestDocument[]
+  sponsors: Sponsor[]
+  dependents: Dependent[]
+  address: string
+  nationality: string
+  maritalStatus: string
+  profession: string
+  dateOfBirth: string
+  notes: string
+}
+
+function createId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function createEmptyRelatedPerson(prefix: 'sponsor' | 'dependent'): GuestRelatedPerson {
+  return {
+    id: createId(prefix),
     name: '',
     email: '',
     phone: '',
-    documents: [] as GuestDocument[],
+    documents: [],
     address: '',
     nationality: '',
+    maritalStatus: '',
+    profession: '',
     dateOfBirth: '',
     notes: '',
-  })
+  }
+}
+
+function normalizeRelatedPerson(person: Partial<GuestRelatedPerson> | undefined, prefix: 'sponsor' | 'dependent'): GuestRelatedPerson {
+  return {
+    ...createEmptyRelatedPerson(prefix),
+    ...person,
+    id: person?.id || createId(prefix),
+    documents: person?.documents || [],
+  }
+}
+
+function createEmptyGuestForm(): GuestFormState {
+  return {
+    name: '',
+    email: '',
+    phone: '',
+    documents: [],
+    sponsors: [],
+    dependents: [],
+    address: '',
+    nationality: '',
+    maritalStatus: '',
+    profession: '',
+    dateOfBirth: '',
+    notes: '',
+  }
+}
+
+export default function GuestDialogForm({
+  open,
+  onOpenChange,
+  onGuestCreated,
+  editingGuest,
+}: GuestDialogFormProps) {
+  const { t, language } = useLanguage()
+  const [guests, setGuests] = useKV<Guest[]>('guests', [])
+  const [formData, setFormData] = useState<GuestFormState>(createEmptyGuestForm())
   const [newDocType, setNewDocType] = useState('')
   const [newDocNumber, setNewDocNumber] = useState('')
+
+  const resetForm = () => {
+    setFormData(createEmptyGuestForm())
+    setNewDocType('')
+    setNewDocNumber('')
+  }
+
+  useEffect(() => {
+    if (!editingGuest) return
+
+    setFormData({
+      name: editingGuest.name,
+      email: editingGuest.email,
+      phone: editingGuest.phone,
+      documents: editingGuest.documents || [],
+      sponsors: (editingGuest.sponsors || []).map((person) => normalizeRelatedPerson(person, 'sponsor')),
+      dependents: (editingGuest.dependents || []).map((person) => normalizeRelatedPerson(person, 'dependent')),
+      address: editingGuest.address || '',
+      nationality: editingGuest.nationality || '',
+      maritalStatus: editingGuest.maritalStatus || '',
+      profession: editingGuest.profession || '',
+      dateOfBirth: editingGuest.dateOfBirth || '',
+      notes: editingGuest.notes || '',
+    })
+    setNewDocType('')
+    setNewDocNumber('')
+  }, [editingGuest])
 
   const addDocument = () => {
     if (!newDocNumber.trim()) return
@@ -57,68 +137,259 @@ export default function GuestDialogForm({
     }))
   }
 
-  useEffect(() => {
-    if (editingGuest) {
-      setFormData({
-        name: editingGuest.name,
-        email: editingGuest.email,
-        phone: editingGuest.phone,
-        documents: editingGuest.documents || [],
-        address: editingGuest.address || '',
-        nationality: editingGuest.nationality || '',
-        dateOfBirth: editingGuest.dateOfBirth || '',
-        notes: editingGuest.notes || '',
-      })
-      setNewDocType('')
-      setNewDocNumber('')
-    }
-  }, [editingGuest])
+  const updateRelatedPeople = (
+    key: RelatedPeopleKey,
+    updater: (current: GuestRelatedPerson[]) => GuestRelatedPerson[]
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      [key]: updater(prev[key]),
+    }))
+  }
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      documents: [],
-      address: '',
-      nationality: '',
-      dateOfBirth: '',
-      notes: '',
-    })
-    setNewDocType('')
-    setNewDocNumber('')
+  const addRelatedPerson = (key: RelatedPeopleKey) => {
+    updateRelatedPeople(key, (current) => [
+      ...current,
+      createEmptyRelatedPerson(key === 'sponsors' ? 'sponsor' : 'dependent'),
+    ])
+  }
+
+  const updateRelatedPerson = (
+    key: RelatedPeopleKey,
+    index: number,
+    patch: Partial<GuestRelatedPerson>
+  ) => {
+    updateRelatedPeople(key, (current) => current.map((person, currentIndex) => (
+      currentIndex === index ? { ...person, ...patch } : person
+    )))
+  }
+
+  const removeRelatedPerson = (key: RelatedPeopleKey, index: number) => {
+    updateRelatedPeople(key, (current) => current.filter((_, currentIndex) => currentIndex !== index))
+  }
+
+  const addRelatedDocument = (key: RelatedPeopleKey, index: number) => {
+    updateRelatedPeople(key, (current) => current.map((person, currentIndex) => {
+      if (currentIndex !== index) return person
+      return {
+        ...person,
+        documents: [...person.documents, { type: '', number: '' }],
+      }
+    }))
+  }
+
+  const updateRelatedDocument = (
+    key: RelatedPeopleKey,
+    personIndex: number,
+    documentIndex: number,
+    patch: Partial<GuestDocument>
+  ) => {
+    updateRelatedPeople(key, (current) => current.map((person, currentIndex) => {
+      if (currentIndex !== personIndex) return person
+      return {
+        ...person,
+        documents: person.documents.map((document, currentDocumentIndex) => (
+          currentDocumentIndex === documentIndex ? { ...document, ...patch } : document
+        )),
+      }
+    }))
+  }
+
+  const removeRelatedDocument = (key: RelatedPeopleKey, personIndex: number, documentIndex: number) => {
+    updateRelatedPeople(key, (current) => current.map((person, currentIndex) => {
+      if (currentIndex !== personIndex) return person
+      return {
+        ...person,
+        documents: person.documents.filter((_, currentDocumentIndex) => currentDocumentIndex !== documentIndex),
+      }
+    }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (editingGuest) {
       setGuests((currentGuests) =>
-        (currentGuests || []).map(g =>
-          g.id === editingGuest.id
-            ? { ...formData, id: g.id, createdAt: g.createdAt }
-            : g
+        (currentGuests || []).map((guest) =>
+          guest.id === editingGuest.id
+            ? { ...formData, id: guest.id, createdAt: guest.createdAt }
+            : guest
         )
       )
       toast.success(t.guests_view.form.updated_success)
       onOpenChange(false)
       resetForm()
-    } else {
-      const newGuest: Guest = {
-        ...formData,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-      }
-      setGuests((currentGuests) => [...(currentGuests || []), newGuest])
-      toast.success(t.guests_view.form.created_success)
-      
-      if (onGuestCreated) {
-        onGuestCreated(newGuest.id)
-      }
-      
-      onOpenChange(false)
-      resetForm()
+      return
     }
+
+    const newGuest: Guest = {
+      ...formData,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString(),
+    }
+    setGuests((currentGuests) => [...(currentGuests || []), newGuest])
+    toast.success(t.guests_view.form.created_success)
+
+    if (onGuestCreated) {
+      onGuestCreated(newGuest.id)
+    }
+
+    onOpenChange(false)
+    resetForm()
+  }
+
+  const renderRelatedPeopleSection = (key: RelatedPeopleKey, title: string, emptyLabel: string) => {
+    const people = formData[key]
+
+    return (
+      <div className="col-span-2 space-y-3 rounded-lg border p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <Label className="text-base font-semibold">{title}</Label>
+            <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => addRelatedPerson(key)}>
+            <Plus weight="bold" size={16} className="mr-2" />
+            {language === 'pt' ? 'Adicionar' : 'Add'}
+          </Button>
+        </div>
+
+        {people.length === 0 && (
+          <div className="rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
+            {language === 'pt' ? 'Nenhum item cadastrado.' : 'No items added.'}
+          </div>
+        )}
+
+        {people.map((person, index) => (
+          <div key={person.id} className="space-y-3 rounded-lg border bg-muted/20 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Users size={18} className="text-muted-foreground" />
+                <span className="font-medium">
+                  {person.name || `${title.slice(0, -1)} ${index + 1}`}
+                </span>
+              </div>
+              <Button type="button" size="icon" variant="ghost" onClick={() => removeRelatedPerson(key, index)}>
+                <Trash size={16} className="text-destructive" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <Label>{t.guests_view.form.name}</Label>
+                <Input
+                  value={person.name}
+                  onChange={(e) => updateRelatedPerson(key, index, { name: e.target.value })}
+                  placeholder={t.guests_view.form.name_placeholder}
+                />
+              </div>
+
+              <div>
+                <Label>{t.guests_view.form.email}</Label>
+                <Input
+                  type="email"
+                  value={person.email}
+                  onChange={(e) => updateRelatedPerson(key, index, { email: e.target.value })}
+                  placeholder={t.guests_view.form.email_placeholder}
+                />
+              </div>
+
+              <div>
+                <Label>{t.guests_view.form.phone}</Label>
+                <Input
+                  value={person.phone}
+                  onChange={(e) => updateRelatedPerson(key, index, { phone: e.target.value })}
+                  placeholder={t.guests_view.form.phone_placeholder}
+                />
+              </div>
+
+              <div className="col-span-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>{language === 'pt' ? 'Documentos' : 'Documents'}</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => addRelatedDocument(key, index)}>
+                    <Plus weight="bold" size={14} className="mr-2" />
+                    {language === 'pt' ? 'Documento' : 'Document'}
+                  </Button>
+                </div>
+
+                {person.documents.map((document, documentIndex) => (
+                  <div key={`${person.id}-${documentIndex}`} className="flex gap-2">
+                    <Input
+                      value={document.type}
+                      onChange={(e) => updateRelatedDocument(key, index, documentIndex, { type: e.target.value })}
+                      placeholder={language === 'pt' ? 'Tipo (CPF, RG...)' : 'Type (ID, Passport...)'}
+                      className="w-40 shrink-0"
+                    />
+                    <Input
+                      value={document.number}
+                      onChange={(e) => updateRelatedDocument(key, index, documentIndex, { number: e.target.value })}
+                      placeholder={language === 'pt' ? 'Número do documento' : 'Document number'}
+                    />
+                    <Button type="button" size="icon" variant="ghost" onClick={() => removeRelatedDocument(key, index, documentIndex)}>
+                      <Trash size={14} className="text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <Label>{t.guests_view.form.nationality} {t.guests_view.form.optional}</Label>
+                <Input
+                  value={person.nationality || ''}
+                  onChange={(e) => updateRelatedPerson(key, index, { nationality: e.target.value })}
+                  placeholder={t.guests_view.form.nationality_placeholder}
+                />
+              </div>
+
+              <div>
+                <Label>{language === 'pt' ? 'Estado Civil' : 'Marital Status'} {t.guests_view.form.optional}</Label>
+                <Input
+                  value={person.maritalStatus || ''}
+                  onChange={(e) => updateRelatedPerson(key, index, { maritalStatus: e.target.value })}
+                  placeholder={language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <Label>{language === 'pt' ? 'Profissão' : 'Profession'} {t.guests_view.form.optional}</Label>
+                <Input
+                  value={person.profession || ''}
+                  onChange={(e) => updateRelatedPerson(key, index, { profession: e.target.value })}
+                  placeholder={language === 'pt' ? 'Ex.: Arquiteto(a)' : 'E.g. Architect'}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <Label>{t.guests_view.form.address} {t.guests_view.form.optional}</Label>
+                <Input
+                  value={person.address || ''}
+                  onChange={(e) => updateRelatedPerson(key, index, { address: e.target.value })}
+                  placeholder={t.guests_view.form.address_placeholder}
+                />
+              </div>
+
+              <div>
+                <Label>{t.guests_view.form.date_of_birth} {t.guests_view.form.optional}</Label>
+                <DateInput
+                  value={person.dateOfBirth || ''}
+                  onChange={(value) => updateRelatedPerson(key, index, { dateOfBirth: value })}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <Label>{t.guests_view.form.notes} {t.guests_view.form.optional}</Label>
+                <Textarea
+                  value={person.notes || ''}
+                  onChange={(e) => updateRelatedPerson(key, index, { notes: e.target.value })}
+                  placeholder={t.guests_view.form.notes_placeholder}
+                  rows={2}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   return (
@@ -126,7 +397,7 @@ export default function GuestDialogForm({
       onOpenChange(isOpen)
       if (!isOpen) resetForm()
     }}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}</DialogTitle>
         </DialogHeader>
@@ -206,6 +477,26 @@ export default function GuestDialogForm({
               />
             </div>
 
+            <div>
+              <Label htmlFor="guest-marital-status">{language === 'pt' ? 'Estado Civil' : 'Marital Status'} {t.guests_view.form.optional}</Label>
+              <Input
+                id="guest-marital-status"
+                value={formData.maritalStatus}
+                onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
+                placeholder={language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
+              />
+            </div>
+
+            <div className="col-span-2">
+              <Label htmlFor="guest-profession">{language === 'pt' ? 'Profissão' : 'Profession'} {t.guests_view.form.optional}</Label>
+              <Input
+                id="guest-profession"
+                value={formData.profession}
+                onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
+                placeholder={language === 'pt' ? 'Ex.: Arquiteto(a)' : 'E.g. Architect'}
+              />
+            </div>
+
             <div className="col-span-2">
               <Label htmlFor="guest-address">{t.guests_view.form.address} {t.guests_view.form.optional}</Label>
               <Input
@@ -235,6 +526,18 @@ export default function GuestDialogForm({
                 rows={3}
               />
             </div>
+
+            {renderRelatedPeopleSection(
+              'sponsors',
+              language === 'pt' ? 'Sponsors' : 'Sponsors',
+              language === 'pt' ? 'Cadastre os patrocinadores vinculados a este hóspede.' : 'Register sponsors linked to this guest.'
+            )}
+
+            {renderRelatedPeopleSection(
+              'dependents',
+              language === 'pt' ? 'Dependentes' : 'Dependents',
+              language === 'pt' ? 'Cadastre os dependentes vinculados a este hóspede.' : 'Register dependents linked to this guest.'
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

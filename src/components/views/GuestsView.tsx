@@ -2,16 +2,14 @@ import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DateInput } from '@/components/ui/date-input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise } from '@phosphor-icons/react'
+import { Dialog, DialogTrigger } from '@/components/ui/dialog'
+import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise, Users } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Guest, GuestDocument, Contract } from '@/types'
+import { Guest, Contract } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { format } from 'date-fns'
+import GuestDialogForm from '@/components/GuestDialogForm'
 
 export default function GuestsView() {
   const { t, language } = useLanguage()
@@ -20,99 +18,13 @@ export default function GuestsView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null)
-  
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    documents: [] as GuestDocument[],
-    address: '',
-    nationality: '',
-    maritalStatus: '',
-    profession: '',
-    dateOfBirth: '',
-    notes: '',
-  })
-  const [newDocType, setNewDocType] = useState('')
-  const [newDocNumber, setNewDocNumber] = useState('')
-
-  const addDocument = () => {
-    if (!newDocNumber.trim()) return
-    setFormData((prev) => ({
-      ...prev,
-      documents: [...prev.documents, { type: newDocType.trim(), number: newDocNumber.trim() }],
-    }))
-    setNewDocType('')
-    setNewDocNumber('')
-  }
-
-  const removeDocument = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      documents: prev.documents.filter((_, i) => i !== index),
-    }))
-  }
 
   const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      phone: '',
-      documents: [],
-      address: '',
-      nationality: '',
-      maritalStatus: '',
-      profession: '',
-      dateOfBirth: '',
-      notes: '',
-    })
-    setNewDocType('')
-    setNewDocNumber('')
     setEditingGuest(null)
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (editingGuest) {
-      setGuests((currentGuests) =>
-        (currentGuests || []).map(g =>
-          g.id === editingGuest.id
-            ? { ...formData, id: g.id, createdAt: g.createdAt }
-            : g
-        )
-      )
-      toast.success(t.guests_view.form.updated_success)
-    } else {
-      const newGuest: Guest = {
-        ...formData,
-        id: Date.now().toString(),
-        createdAt: new Date().toISOString(),
-      }
-      setGuests((currentGuests) => [...(currentGuests || []), newGuest])
-      toast.success(t.guests_view.form.created_success)
-    }
-    
-    setDialogOpen(false)
-    resetForm()
   }
 
   const handleEdit = (guest: Guest) => {
     setEditingGuest(guest)
-    setFormData({
-      name: guest.name,
-      email: guest.email,
-      phone: guest.phone,
-      documents: guest.documents || [],
-      address: guest.address || '',
-      nationality: guest.nationality || '',
-      maritalStatus: guest.maritalStatus || '',
-      profession: guest.profession || '',
-      dateOfBirth: guest.dateOfBirth || '',
-      notes: guest.notes || '',
-    })
-    setNewDocType('')
-    setNewDocNumber('')
     setDialogOpen(true)
   }
 
@@ -157,148 +69,6 @@ export default function GuestsView() {
                 {t.guests_view.add_guest}
               </Button>
             </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <Label htmlFor="guest-name">{t.guests_view.form.name}</Label>
-                  <Input
-                    id="guest-name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder={t.guests_view.form.name_placeholder}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="guest-email">{t.guests_view.form.email}</Label>
-                  <Input
-                    id="guest-email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder={t.guests_view.form.email_placeholder}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="guest-phone">{t.guests_view.form.phone}</Label>
-                  <Input
-                    id="guest-phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder={t.guests_view.form.phone_placeholder}
-                    required
-                  />
-                </div>
-
-                <div className="col-span-2 space-y-2">
-                  <Label>{language === 'pt' ? 'Documentos' : 'Documents'}</Label>
-                  {formData.documents.map((doc, i) => (
-                    <div key={i} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                      <IdentificationCard size={16} className="text-muted-foreground shrink-0" />
-                      <span className="flex-1">{doc.type ? `${doc.type}: ${doc.number}` : doc.number}</span>
-                      <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeDocument(i)}>
-                        <Trash size={14} className="text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                  <div className="flex gap-2">
-                    <Input
-                      value={newDocType}
-                      onChange={(e) => setNewDocType(e.target.value)}
-                      placeholder={language === 'pt' ? 'Tipo (CPF, RG...)' : 'Type (ID, Passport...)'}
-                      className="w-36 shrink-0"
-                    />
-                    <Input
-                      value={newDocNumber}
-                      onChange={(e) => setNewDocNumber(e.target.value)}
-                      placeholder={language === 'pt' ? 'Número do documento' : 'Document number'}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDocument() } }}
-                    />
-                    <Button type="button" variant="outline" onClick={addDocument} className="shrink-0">
-                      <Plus weight="bold" size={16} />
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="guest-nationality">{t.guests_view.form.nationality} {t.guests_view.form.optional}</Label>
-                  <Input
-                    id="guest-nationality"
-                    value={formData.nationality}
-                    onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                    placeholder={t.guests_view.form.nationality_placeholder}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="guest-marital-status">{language === 'pt' ? 'Estado Civil' : 'Marital Status'} {t.guests_view.form.optional}</Label>
-                  <Input
-                    id="guest-marital-status"
-                    value={formData.maritalStatus}
-                    onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
-                    placeholder={language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <Label htmlFor="guest-profession">{language === 'pt' ? 'Profissão' : 'Profession'} {t.guests_view.form.optional}</Label>
-                  <Input
-                    id="guest-profession"
-                    value={formData.profession}
-                    onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
-                    placeholder={language === 'pt' ? 'Ex.: Arquiteto(a)' : 'E.g. Architect'}
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <Label htmlFor="guest-address">{t.guests_view.form.address} {t.guests_view.form.optional}</Label>
-                  <Input
-                    id="guest-address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder={t.guests_view.form.address_placeholder}
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="guest-dob">{t.guests_view.form.date_of_birth} {t.guests_view.form.optional}</Label>
-                  <DateInput
-                    id="guest-dob"
-                    value={formData.dateOfBirth}
-                    onChange={(value) => setFormData({ ...formData, dateOfBirth: value })}
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <Label htmlFor="guest-notes">{t.guests_view.form.notes} {t.guests_view.form.optional}</Label>
-                  <Textarea
-                    id="guest-notes"
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder={t.guests_view.form.notes_placeholder}
-                    rows={3}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="outline" onClick={() => {
-                  setDialogOpen(false)
-                  resetForm()
-                }}>
-                  {t.guests_view.form.cancel}
-                </Button>
-                <Button type="submit">{t.guests_view.form.save}</Button>
-              </div>
-            </form>
-          </DialogContent>
         </Dialog>
         </div>
       </div>
@@ -350,6 +120,12 @@ export default function GuestsView() {
                             <Phone size={16} weight="duotone" />
                             {guest.phone}
                           </div>
+                          {((guest.sponsors?.length || 0) > 0 || (guest.dependents?.length || 0) > 0) && (
+                            <div className="flex items-center gap-1.5">
+                              <Users size={16} weight="duotone" />
+                              {`${guest.sponsors?.length || 0} ${language === 'pt' ? 'sponsors' : 'sponsors'} • ${guest.dependents?.length || 0} ${language === 'pt' ? 'dependentes' : 'dependents'}`}
+                            </div>
+                          )}
                           {(guest.documents || []).length > 0 && (
                             <div className="flex items-center gap-1.5">
                               <IdentificationCard size={16} weight="duotone" />
@@ -377,12 +153,58 @@ export default function GuestsView() {
                     </div>
                   </div>
                 </CardHeader>
+                <CardContent className="space-y-4 pt-0">
+                  {(guest.sponsors?.length || 0) > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-foreground">
+                        {language === 'pt' ? 'Sponsors' : 'Sponsors'}
+                      </p>
+                      <div className="grid gap-2">
+                        {(guest.sponsors || []).map((sponsor) => (
+                          <div key={sponsor.id} className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
+                            <div className="font-medium">{sponsor.name || (language === 'pt' ? 'Sem nome' : 'Unnamed')}</div>
+                            <div className="text-muted-foreground">
+                              {[sponsor.email, sponsor.phone].filter(Boolean).join(' • ')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(guest.dependents?.length || 0) > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-foreground">
+                        {language === 'pt' ? 'Dependentes' : 'Dependents'}
+                      </p>
+                      <div className="grid gap-2">
+                        {(guest.dependents || []).map((dependent) => (
+                          <div key={dependent.id} className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
+                            <div className="font-medium">{dependent.name || (language === 'pt' ? 'Sem nome' : 'Unnamed')}</div>
+                            <div className="text-muted-foreground">
+                              {[dependent.email, dependent.phone].filter(Boolean).join(' • ')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
                 
               </Card>
             )
           })}
         </div>
       )}
+
+      <GuestDialogForm
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) resetForm()
+        }}
+        editingGuest={editingGuest}
+      />
     </div>
   )
 }

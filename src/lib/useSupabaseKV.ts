@@ -78,23 +78,23 @@ async function getAuthUserId() {
 }
 
 async function getTenantId(): Promise<string | null> {
-  if (cachedTenantId !== undefined) return cachedTenantId
+  if (cachedTenantId !== undefined) return cachedTenantId ?? null
 
   const authState = getSupabaseAuthState()
 
   if (authState.isAuthenticated && authState.isApproved) {
     cachedTenantId = authState.tenantId ?? null
-    return cachedTenantId
+    return cachedTenantId ?? null
   }
 
   if (import.meta.env.VITE_DEV_MODE === 'true') {
     cachedTenantId = import.meta.env.VITE_DEV_TENANT_ID || 'dev-tenant'
-    return cachedTenantId
+    return cachedTenantId ?? null
   }
 
   cachedTenantId = null
 
-  return cachedTenantId
+  return cachedTenantId ?? null
 }
 
 async function loadUserSetting<T>(key: string, defaultValue: T): Promise<T> {
@@ -267,28 +267,84 @@ async function loadGuests() {
   const tenantId = await getTenantId()
   if (!tenantId) return []
 
-  const { data, error } = await supabase
-    .from('guests')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .order('created_at', { ascending: true })
+  const [
+    { data: guests, error: guestsError },
+    { data: sponsors, error: sponsorsError },
+    { data: dependents, error: dependentsError },
+  ] = await Promise.all([
+    supabase
+      .from('guests')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('guest_sponsors')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('guest_dependents')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: true }),
+  ])
 
-  if (error) throw error
+  if (guestsError) throw guestsError
+  if (sponsorsError) throw sponsorsError
+  if (dependentsError) throw dependentsError
 
-  return (data || []).map((guest) => {
+  const parseDocuments = (raw: unknown, fallbackDocument?: string | null, fallbackType?: string | null) => {
     let documents: { type: string; number: string }[] = []
-    const raw = guest.document as string | null
-    if (raw && raw.trimStart().startsWith('[')) {
+    if (Array.isArray(raw)) {
+      documents = raw as { type: string; number: string }[]
+    } else if (typeof raw === 'string' && raw.trimStart().startsWith('[')) {
       try { documents = JSON.parse(raw) } catch { documents = [] }
-    } else if (raw) {
-      documents = [{ type: guest.document_type || '', number: raw }]
+    } else if (typeof raw === 'string' && raw) {
+      documents = [{ type: fallbackType || '', number: raw }]
+    } else if (fallbackDocument) {
+      documents = [{ type: fallbackType || '', number: fallbackDocument }]
     }
+
+    return documents
+  }
+
+  const mapRelatedPeople = (rows: any[] | null | undefined) => {
+    const peopleByGuestId = new Map<string, any[]>()
+
+    for (const row of rows || []) {
+      const person = {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        phone: row.phone,
+        documents: parseDocuments(row.documents),
+        address: row.address || undefined,
+        nationality: row.nationality || undefined,
+        maritalStatus: row.marital_status || undefined,
+        profession: row.profession || undefined,
+        dateOfBirth: row.date_of_birth || undefined,
+        notes: row.notes || undefined,
+      }
+
+      peopleByGuestId.set(row.guest_id, [...(peopleByGuestId.get(row.guest_id) || []), person])
+    }
+
+    return peopleByGuestId
+  }
+
+  const sponsorsByGuestId = mapRelatedPeople(sponsors)
+  const dependentsByGuestId = mapRelatedPeople(dependents)
+
+  return (guests || []).map((guest) => {
+    const documents = parseDocuments(guest.document as string | null, guest.document as string | null, guest.document_type as string | null)
     return {
       id: guest.id,
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
       documents,
+      sponsors: sponsorsByGuestId.get(guest.id) || [],
+      dependents: dependentsByGuestId.get(guest.id) || [],
       address: guest.address || undefined,
       nationality: guest.nationality || undefined,
       maritalStatus: guest.marital_status || undefined,
@@ -646,6 +702,68 @@ async function persistGuests(value: any[]) {
     notes: guest.notes || null,
     created_at: guest.createdAt,
   })))
+
+  const { error: deleteSponsorsError } = await supabase
+    .from('guest_sponsors')
+    .delete()
+    .eq('tenant_id', tenantId)
+
+  if (deleteSponsorsError) throw deleteSponsorsError
+
+  const sponsorRows = value.flatMap((guest) =>
+    (guest.sponsors || []).map((sponsor: any) => ({
+      tenant_id: tenantId,
+      id: sponsor.id,
+      guest_id: guest.id,
+      name: sponsor.name || '',
+      email: sponsor.email || '',
+      phone: sponsor.phone || '',
+      documents: sponsor.documents || [],
+      address: sponsor.address || null,
+      nationality: sponsor.nationality || null,
+      marital_status: sponsor.maritalStatus || null,
+      profession: sponsor.profession || null,
+      date_of_birth: sponsor.dateOfBirth || null,
+      notes: sponsor.notes || null,
+      created_at: sponsor.createdAt || new Date().toISOString(),
+    }))
+  )
+
+  if (sponsorRows.length > 0) {
+    const { error } = await supabase.from('guest_sponsors').upsert(sponsorRows, { onConflict: 'tenant_id,id' })
+    if (error) throw error
+  }
+
+  const { error: deleteDependentsError } = await supabase
+    .from('guest_dependents')
+    .delete()
+    .eq('tenant_id', tenantId)
+
+  if (deleteDependentsError) throw deleteDependentsError
+
+  const dependentRows = value.flatMap((guest) =>
+    (guest.dependents || []).map((dependent: any) => ({
+      tenant_id: tenantId,
+      id: dependent.id,
+      guest_id: guest.id,
+      name: dependent.name || '',
+      email: dependent.email || '',
+      phone: dependent.phone || '',
+      documents: dependent.documents || [],
+      address: dependent.address || null,
+      nationality: dependent.nationality || null,
+      marital_status: dependent.maritalStatus || null,
+      profession: dependent.profession || null,
+      date_of_birth: dependent.dateOfBirth || null,
+      notes: dependent.notes || null,
+      created_at: dependent.createdAt || new Date().toISOString(),
+    }))
+  )
+
+  if (dependentRows.length > 0) {
+    const { error } = await supabase.from('guest_dependents').upsert(dependentRows, { onConflict: 'tenant_id,id' })
+    if (error) throw error
+  }
 }
 
 async function persistContracts(value: any[]) {

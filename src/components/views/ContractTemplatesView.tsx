@@ -475,6 +475,30 @@ export default function ContractTemplatesView() {
                             {'Os templates agora aceitam XPath baseado nos objetos do contrato no formato: tabela{indice}.coluna{indice}.subcoluna. Exemplo: owners{1}.documents{1}.number.'}
                           </div>
 
+                          <div className="rounded-md border p-3">
+                            <p className="text-sm font-medium mb-2">Exemplos para sponsors e dependents</p>
+                            <div className="flex flex-wrap gap-2">
+                              {[
+                                'guest.sponsors{1}.name',
+                                'guest.sponsors{x}.name',
+                                'guest.sponsors{1}.documents{1}.number',
+                                'guest.dependents{1}.name',
+                                'guest.dependents{x}.name',
+                                'guest.dependents{1}.documents{1}.number',
+                              ].map((example) => (
+                                <button
+                                  key={example}
+                                  type="button"
+                                  className="rounded border bg-muted/20 px-2 py-1 font-mono text-xs transition-colors hover:bg-muted/40"
+                                  onClick={() => setXpathInput(example)}
+                                  title="Usar este XPath"
+                                >
+                                  {example}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
                           <div className="grid gap-3 rounded-md border p-3">
                             <div className="space-y-2">
                               <Label>XPath</Label>
