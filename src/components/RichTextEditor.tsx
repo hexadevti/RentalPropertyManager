@@ -182,7 +182,7 @@ const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(fun
         return true
       },
       attributes: {
-        class: 'outline-none min-h-[420px] p-3 text-sm',
+        class: 'outline-none min-h-[180px] p-3 text-sm h-auto',
       },
     },
   })

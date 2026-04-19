@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -7,57 +7,91 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Pencil, Trash, Copy, MagnifyingGlass, Question } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { ContractTemplate, TemplateType } from '@/types'
+import { Contract, ContractTemplate, Guest, Owner, Property, TemplateType } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import RichTextEditor, { plainTextToHTML, RichTextEditorHandle } from '@/components/RichTextEditor'
+import { buildTemplateXPathContext, renderContractTemplateContent, resolveTemplateXPath, TemplateXPathContext } from '@/lib/contractPDF'
 
-const TEMPLATE_VARIABLES = [
-  { token: '{{ownerName}}', meaning: 'Nome(s) do(s) proprietário(s). Também aceita índice: {{ownerName.1}}, {{ownerName.2}}...', sample: 'João Silva, Maria Santos\nCom índice: {{ownerName.1}} => João Silva' },
-  { token: '{{ownerEmail}}', meaning: 'E-mail(s) do(s) proprietário(s). Também aceita índice: {{ownerEmail.1}}, {{ownerEmail.2}}...', sample: 'joao@email.com, maria@email.com\nCom índice: {{ownerEmail.2}} => maria@email.com' },
-  { token: '{{ownerPhone}}', meaning: 'Telefone(s) do(s) proprietário(s). Também aceita índice: {{ownerPhone.1}}, {{ownerPhone.2}}...', sample: '(11) 99999-0000, (11) 98888-1111\nCom índice: {{ownerPhone.1}} => (11) 99999-0000' },
-  { token: '{{ownerDocuments}}', meaning: 'Lista completa de documentos do(s) proprietário(s). Também aceita índice: {{ownerDocuments.1}}, {{ownerDocuments.2}}...', sample: 'CPF: 123.456.789-00, RG: 12.345.678-9; Passaporte: AB123456\nCom índice: {{ownerDocuments.1}} => docs do primeiro proprietário' },
-  { token: '{{ownerDocument}}', meaning: 'Primeiro documento de cada proprietário. Também aceita índice: {{ownerDocument.1}}, {{ownerDocument.2}}...', sample: '123.456.789-00, 987.654.321-00\nCom índice: {{ownerDocument.2}} => 987.654.321-00' },
-  { token: '{{ownerDocumentType}}', meaning: 'Tipo do primeiro documento de cada proprietário. Também aceita índice: {{ownerDocumentType.1}}, {{ownerDocumentType.2}}...', sample: 'CPF, Passaporte\nCom índice: {{ownerDocumentType.1}} => CPF' },
-  { token: '{{ownerNationality}}', meaning: 'Nacionalidade(s) do(s) proprietário(s). Também aceita índice: {{ownerNationality.1}}, {{ownerNationality.2}}...', sample: 'Brasileira, Portuguesa\nCom índice: {{ownerNationality.2}} => Portuguesa' },
-  { token: '{{ownerMaritalStatus}}', meaning: 'Estado(s) civil(is) do(s) proprietário(s). Também aceita índice: {{ownerMaritalStatus.1}}, {{ownerMaritalStatus.2}}...', sample: 'Solteira, Casado\nCom índice: {{ownerMaritalStatus.1}} => Solteira' },
-  { token: '{{ownerProfession}}', meaning: 'Profissão(ões) do(s) proprietário(s). Também aceita índice: {{ownerProfession.1}}, {{ownerProfession.2}}...', sample: 'Advogada, Engenheiro\nCom índice: {{ownerProfession.2}} => Engenheiro' },
-  { token: '{{ownerAddress}}', meaning: 'Endereço(s) do(s) proprietário(s). Também aceita índice: {{ownerAddress.1}}, {{ownerAddress.2}}...', sample: 'Rua A, 100 - Centro - Sao Paulo/SP\nCom índice: {{ownerAddress.1}} => Rua A, 100 - Centro - Sao Paulo/SP' },
-  { token: '{{ownerDetails}}', meaning: 'Bloco completo com dados do(s) proprietário(s). Também aceita índice: {{ownerDetails.1}}, {{ownerDetails.2}}...', sample: 'João Silva\nDocumento: 123.456.789-00\nE-mail: joao@email.com\nTelefone: (11) 99999-0000' },
-  { token: '{{guestName}}', meaning: 'Nome do hóspede/locatário', sample: 'Carlos Pereira' },
-  { token: '{{guestEmail}}', meaning: 'E-mail do hóspede/locatário', sample: 'carlos@email.com' },
-  { token: '{{guestPhone}}', meaning: 'Telefone do hóspede/locatário', sample: '(11) 97777-2222' },
-  { token: '{{guestDocuments}}', meaning: 'Lista completa de documentos do hóspede (um por linha)', sample: 'CPF: 111.222.333-44\nRG: 12.345.678-9' },
-  { token: '{{guestDocument}}', meaning: 'Número do primeiro documento do hóspede/locatário', sample: '111.222.333-44' },
-  { token: '{{guestDocumentType}}', meaning: 'Tipo do primeiro documento do hóspede/locatário', sample: 'CPF' },
-  { token: '{{guestAddress}}', meaning: 'Endereço do hóspede/locatário', sample: 'Av. Principal, 250 - Rio de Janeiro/RJ' },
-  { token: '{{guestNationality}}', meaning: 'Nacionalidade do hóspede/locatário', sample: 'Brasileiro(a)' },
-  { token: '{{guestMaritalStatus}}', meaning: 'Estado civil do hóspede/locatário', sample: 'Casado(a)' },
-  { token: '{{guestProfession}}', meaning: 'Profissão do hóspede/locatário', sample: 'Médico(a)' },
-  { token: '{{properties}}', meaning: 'Lista de imóveis vinculados ao contrato. Também aceita índice: {{properties.1}}, {{properties.2}}...', sample: '- Apartamento 101\n- Casa de Praia\nCom índice: {{properties.2}} => Casa de Praia' },
-  { token: '{{propertyAddress}}', meaning: 'Endereço(s) do(s) imóvel(is). Também aceita índice: {{propertyAddress.1}}, {{propertyAddress.2}}...', sample: 'Rua das Flores, 12, Centro\nAv. Atlântica, 500\nCom índice: {{propertyAddress.1}} => Rua das Flores, 12, Centro' },
-  { token: '{{propertyCity}}', meaning: 'Cidade(s) do(s) imóvel(is). Também aceita índice: {{propertyCity.1}}, {{propertyCity.2}}...', sample: 'São Paulo, Rio de Janeiro\nCom índice: {{propertyCity.1}} => São Paulo' },
-  { token: '{{propertyConservationState}}', meaning: 'Estado(s) de conservação do(s) imóvel(is). Também aceita índice: {{propertyConservationState.1}}, {{propertyConservationState.2}}...', sample: 'Ótimo, Bom\nCom índice: {{propertyConservationState.1}} => Ótimo' },
-  { token: '{{propertyFurniture}}', meaning: 'Lista de mobília dos imóveis em formato com bolinha. Também aceita índice: {{propertyFurniture.1}}, {{propertyFurniture.2}}...', sample: '• Cama casal\n• Guarda-roupa\n• Geladeira\nCom índice: {{propertyFurniture.1}} => mobília do primeiro imóvel' },
-  { token: '{{startDate}}', meaning: 'Data de início do contrato', sample: '01/05/2026' },
-  { token: '{{endDate}}', meaning: 'Data de fim do contrato', sample: '30/04/2027' },
-  { token: '{{contractCloseDate}}', meaning: 'Data de fechamento do contrato', sample: '15/05/2026' },
-  { token: '{{monthlyAmount}}', meaning: 'Valor da locação formatado em moeda', sample: 'R$ 2.500,00' },
-  { token: '{{paymentDueDay}}', meaning: 'Dia do vencimento do pagamento', sample: '10' },
-  { token: '{{specialPaymentCondition}}', meaning: 'Condição especial de pagamento do contrato', sample: 'Pagamento em 2 parcelas: 50% na assinatura e 50% em 15 dias.' },
-  { token: '{{notes}}', meaning: 'Observações do contrato', sample: 'OBSERVAÇÕES:\nSem pets. Visitas mediante aviso prévio.' },
-  { token: '{{currentDate}}', meaning: 'Data atual no momento da geração do PDF', sample: '17/04/2026' },
-] as const
+type XPathPreviewRow = {
+  path: string
+  value: string
+}
+
+function stringifyPreviewValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function collectXPathPreviewRows(
+  value: unknown,
+  basePath: string,
+  rows: XPathPreviewRow[],
+  depth = 0,
+  maxDepth = 4
+) {
+  if (rows.length >= 250) return
+
+  if (value === null || value === undefined || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    rows.push({ path: basePath, value: stringifyPreviewValue(value) })
+    return
+  }
+
+  if (depth >= maxDepth) {
+    rows.push({ path: basePath, value: stringifyPreviewValue(value) })
+    return
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      rows.push({ path: basePath, value: '[]' })
+      return
+    }
+    value.forEach((item, index) => {
+      collectXPathPreviewRows(item, `${basePath}{${index + 1}}`, rows, depth + 1, maxDepth)
+    })
+    return
+  }
+
+  const record = value as Record<string, unknown>
+  const keys = Object.keys(record)
+  if (keys.length === 0) {
+    rows.push({ path: basePath, value: '{}' })
+    return
+  }
+
+  keys.forEach((key) => {
+    collectXPathPreviewRows(record[key], `${basePath}.${key}`, rows, depth + 1, maxDepth)
+  })
+}
+
+function isHTML(content: string) {
+  return /<[a-z][\s\S]*>/i.test(content)
+}
 
 export default function ContractTemplatesView() {
   const { t } = useLanguage()
   const [templates, setTemplates] = useKV<ContractTemplate[]>('contract-templates', [])
+  const [contracts] = useKV<Contract[]>('contracts', [])
+  const [guests] = useKV<Guest[]>('guests', [])
+  const [properties] = useKV<Property[]>('properties', [])
+  const [owners] = useKV<Owner[]>('owners', [])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [helpDialogOpen, setHelpDialogOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [variableFilter, setVariableFilter] = useState('')
+  const [selectedPreviewContractId, setSelectedPreviewContractId] = useState('')
+  const [editorTab, setEditorTab] = useState<'template' | 'preview'>('template')
+  const [xpathInput, setXpathInput] = useState('')
+  const [xpathTableFilter, setXpathTableFilter] = useState('')
   const editorRef = useRef<RichTextEditorHandle | null>(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -72,6 +106,8 @@ export default function ContractTemplatesView() {
       content: '',
     })
     setEditingTemplate(null)
+    setEditorTab('template')
+    setXpathTableFilter('')
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -125,6 +161,7 @@ export default function ContractTemplatesView() {
       content: plainTextToHTML(template.content),
     })
     setDialogOpen(true)
+    setEditorTab('template')
   }
 
   const handleDelete = (id: string) => {
@@ -144,18 +181,6 @@ export default function ContractTemplatesView() {
     toast.success('Template duplicado com sucesso')
   }
 
-  const handleCopyVariable = async (token: string) => {
-    setHelpDialogOpen(false)
-
-    try {
-      await navigator.clipboard.writeText(token)
-    } catch {
-      // No notification here to avoid stealing editor focus/cursor.
-    } finally {
-      restoreEditorFocus()
-    }
-  }
-
   const handleInsertVariable = (token: string) => {
     setHelpDialogOpen(false)
 
@@ -172,6 +197,32 @@ export default function ContractTemplatesView() {
     toast.success(`Variável inserida: ${token}`)
   }
 
+  const handleCopyXPathToken = async () => {
+    const trimmedXPath = xpathInput.trim()
+    if (!trimmedXPath) {
+      toast.error('Digite um XPath para copiar')
+      return
+    }
+
+    const token = `{{${trimmedXPath}}}`
+    try {
+      await navigator.clipboard.writeText(token)
+      toast.success(`XPath copiado: ${token}`)
+    } catch {
+      toast.error('Não foi possível copiar o XPath')
+    }
+  }
+
+  const handleInsertXPathToken = () => {
+    const trimmedXPath = xpathInput.trim()
+    if (!trimmedXPath) {
+      toast.error('Digite um XPath para inserir')
+      return
+    }
+
+    handleInsertVariable(`{{${trimmedXPath}}}`)
+  }
+
   const restoreEditorFocus = () => {
     // Wait for dialog focus trap teardown before restoring cursor/focus.
     setTimeout(() => {
@@ -184,16 +235,110 @@ export default function ContractTemplatesView() {
     template.type.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const filteredVariables = TEMPLATE_VARIABLES.filter((variable) => {
-    const query = variableFilter.trim().toLowerCase()
-    if (!query) return true
+  const helpContractOptions = useMemo(
+    () => (contracts || []).map((contract) => {
+      const contractGuest = (guests || []).find((guest) => guest.id === contract.guestId)
+      return {
+        id: contract.id,
+        label: `${contractGuest?.name || 'Hóspede não encontrado'} • ${contract.id.slice(0, 8)}`,
+      }
+    }),
+    [contracts, guests]
+  )
 
-    return variable.token.toLowerCase().includes(query)
-      || variable.meaning.toLowerCase().includes(query)
-      || variable.sample.toLowerCase().includes(query)
-  })
+  const selectedPreviewContract = useMemo(
+    () => (contracts || []).find((contract) => contract.id === selectedPreviewContractId) || null,
+    [contracts, selectedPreviewContractId]
+  )
 
-  const isHTML = (content: string) => /<[a-z][\s\S]*>/i.test(content)
+  const selectedContractForPreview = selectedPreviewContract
+
+  const selectedHelpContractData = useMemo(() => {
+    if (!selectedContractForPreview) return null
+
+    const contractGuest = (guests || []).find((guest) => guest.id === selectedContractForPreview.guestId)
+    if (!contractGuest) return null
+
+    const contractProperties = (properties || []).filter((property) =>
+      selectedContractForPreview.propertyIds.includes(property.id)
+    )
+
+    const propertyOwnerIds = new Set<string>()
+    contractProperties.forEach((property) => {
+      property.ownerIds?.forEach((ownerId) => propertyOwnerIds.add(ownerId))
+    })
+
+    const contractOwners = (owners || []).filter((owner) => propertyOwnerIds.has(owner.id))
+
+    const templateForPreview: ContractTemplate = {
+      id: editingTemplate?.id || 'preview-template',
+      name: formData.name || editingTemplate?.name || 'Preview Template',
+      type: formData.type,
+      content: formData.content || '',
+      createdAt: editingTemplate?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    return {
+      contract: selectedContractForPreview,
+      guest: contractGuest,
+      properties: contractProperties,
+      owners: contractOwners,
+      template: templateForPreview,
+    }
+  }, [selectedContractForPreview, guests, properties, owners, editingTemplate, formData.name, formData.type, formData.content])
+
+  const xpathContext = useMemo<TemplateXPathContext | null>(() => {
+    if (!selectedHelpContractData) return null
+
+    return buildTemplateXPathContext(
+      selectedHelpContractData,
+      (value) => {
+        const date = value instanceof Date ? value : new Date(value)
+        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('pt-BR')
+      }
+    )
+  }, [selectedHelpContractData])
+
+  const xpathPreview = useMemo(() => {
+    if (!xpathInput.trim()) return ''
+    if (!xpathContext) return 'Selecione um contrato para testar o XPath.'
+    const resolved = resolveTemplateXPath(xpathInput.trim(), xpathContext)
+    return resolved.error || resolved.value
+  }, [xpathInput, xpathContext])
+
+  const xpathPreviewRows = useMemo(() => {
+    if (!xpathContext) return [] as XPathPreviewRow[]
+
+    const rows: XPathPreviewRow[] = []
+    const tables = ['contract', 'guest', 'properties', 'owners']
+    tables.forEach((tableName) => {
+      collectXPathPreviewRows(xpathContext[tableName], tableName, rows)
+    })
+    return rows
+  }, [xpathContext])
+
+  const filteredXPathPreviewRows = useMemo(() => {
+    const query = xpathTableFilter.trim().toLowerCase()
+    if (!query) return xpathPreviewRows
+
+    return xpathPreviewRows.filter((row) =>
+      row.path.toLowerCase().includes(query)
+      || row.value.toLowerCase().includes(query)
+    )
+  }, [xpathPreviewRows, xpathTableFilter])
+
+  const renderedPreviewContent = useMemo(() => {
+    if (!selectedHelpContractData) return ''
+    return renderContractTemplateContent(
+      selectedHelpContractData,
+      (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value),
+      (value) => {
+        const date = value instanceof Date ? value : new Date(value)
+        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('pt-BR')
+      }
+    )
+  }, [selectedHelpContractData])
 
   const getTypeBadgeClass = (type: TemplateType) => {
     return type === 'monthly' 
@@ -217,7 +362,13 @@ export default function ContractTemplatesView() {
         <div className="flex gap-2">
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
-            if (!open) resetForm()
+            if (open && !selectedPreviewContractId && (contracts || []).length > 0) {
+              setSelectedPreviewContractId((contracts || [])[0].id)
+            }
+            if (!open) {
+              resetForm()
+              setSelectedPreviewContractId('')
+            }
           }}>
             <DialogTrigger asChild>
               <Button>
@@ -225,7 +376,7 @@ export default function ContractTemplatesView() {
                 Novo Template
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
+            <DialogContent className="w-[min(96vw,1300px)] max-w-none max-h-[96vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
                   {editingTemplate ? 'Editar Template' : 'Novo Template'}
@@ -257,6 +408,19 @@ export default function ContractTemplatesView() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="preview-contract">Contrato base para preview e ajuda</Label>
+                  <Select value={selectedPreviewContractId} onValueChange={setSelectedPreviewContractId}>
+                    <SelectTrigger id="preview-contract">
+                      <SelectValue placeholder="Selecione um contrato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {helpContractOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <Label>Conteúdo do Contrato</Label>
                     <Dialog open={helpDialogOpen} onOpenChange={(open) => {
@@ -265,7 +429,7 @@ export default function ContractTemplatesView() {
                       }
                       setHelpDialogOpen(open)
                       if (!open) {
-                        setVariableFilter('')
+                        setXpathInput('')
                         restoreEditorFocus()
                       }
                     }}>
@@ -291,67 +455,113 @@ export default function ContractTemplatesView() {
                           <DialogTitle>Variáveis disponíveis no template</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-3 px-6 pb-6 overflow-y-auto max-h-[calc(85vh-76px)]">
-                          <div className="sticky top-0 z-10 bg-background pt-4 pb-1">
-                            <div className="relative">
+                          <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
+                            {'Os templates agora aceitam XPath baseado nos objetos do contrato no formato: tabela{indice}.coluna{indice}.subcoluna. Exemplo: owners{1}.documents{1}.number.'}
+                          </div>
+
+                          <div className="grid gap-3 rounded-md border p-3">
+                            <div className="space-y-2">
+                              <Label>XPath</Label>
+                              <Input
+                                value={xpathInput}
+                                onChange={(e) => setXpathInput(e.target.value)}
+                                placeholder="Ex.: owners{1}.documents{1}.number"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                O token inserido no template será: {'{{seu_xpath}}'}
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Preview do valor</Label>
+                              <div className="max-h-32 overflow-auto rounded border bg-muted/40 px-3 py-2">
+                                <p className="font-mono text-xs whitespace-pre-wrap break-all">{xpathPreview || 'Digite um XPath para visualizar o valor'}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyXPathToken()}>
+                                Copiar XPath
+                              </Button>
+                              <Button type="button" size="sm" onClick={handleInsertXPathToken}>
+                                Inserir no template
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="rounded-md border p-3">
+                            <p className="text-sm font-medium mb-2">Tabelas e propriedades com valores do contrato selecionado</p>
+                            <div className="relative mb-3">
                               <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                               <Input
-                                value={variableFilter}
-                                onChange={(e) => setVariableFilter(e.target.value)}
-                                placeholder="Filtrar variáveis..."
+                                value={xpathTableFilter}
+                                onChange={(e) => setXpathTableFilter(e.target.value)}
+                                placeholder="Filtrar caminhos e valores..."
                                 className="pl-9"
                               />
                             </div>
-                          </div>
-                          <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
-                            Use índices começando em 1 para variáveis com múltiplos registros, por exemplo: {'{{ownerPhone.1}}'} ou {'{{properties.2}}'}. Se o índice pedido não existir, o PDF renderiza: [indice de variavel inexistente. i = n].
-                          </div>
-                          {filteredVariables.length === 0 && (
-                            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                              Nenhuma variável encontrada para esse filtro.
-                            </div>
-                          )}
-                          {filteredVariables.map((variable) => (
-                            <div key={variable.token} className="border rounded-md p-3">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <div>
-                                  <p className="font-mono text-sm font-semibold">{variable.token}</p>
-                                  <p className="text-sm text-muted-foreground mt-1">{variable.meaning}</p>
-                                  <div className="mt-2">
-                                    <p className="text-xs text-muted-foreground mb-1">Conteúdo gerado (exemplo)</p>
-                                    <div className="max-w-full overflow-x-auto rounded border bg-muted/40 px-2 py-1">
-                                      <p className="font-mono text-xs whitespace-pre min-w-max">{variable.sample}</p>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button
+                            {!selectedPreviewContractId && (
+                              <p className="text-sm text-muted-foreground">Selecione um contrato para carregar os dados de referência.</p>
+                            )}
+                            {selectedPreviewContractId && xpathPreviewRows.length === 0 && (
+                              <p className="text-sm text-muted-foreground">Não foi possível montar os dados desse contrato.</p>
+                            )}
+                            {selectedPreviewContractId && xpathPreviewRows.length > 0 && filteredXPathPreviewRows.length === 0 && (
+                              <p className="text-sm text-muted-foreground">Nenhum caminho encontrado para esse filtro.</p>
+                            )}
+                            {filteredXPathPreviewRows.length > 0 && (
+                              <div className="max-h-64 overflow-auto space-y-2">
+                                {filteredXPathPreviewRows.map((row) => (
+                                  <button
+                                    key={row.path}
                                     type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => void handleCopyVariable(variable.token)}
+                                    className="block w-full rounded border bg-muted/20 px-2 py-1 text-left transition-colors hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-primary"
+                                    onClick={() => setXpathInput(row.path)}
+                                    onDoubleClick={() => {
+                                      setXpathInput(row.path)
+                                      handleInsertVariable(`{{${row.path}}}`)
+                                    }}
+                                    title="Usar este XPath"
                                   >
-                                    Copiar
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    onClick={() => handleInsertVariable(variable.token)}
-                                  >
-                                    Inserir no texto
-                                  </Button>
-                                </div>
+                                    <p className="font-mono text-xs font-semibold break-all">{row.path}</p>
+                                    <p className="font-mono text-xs text-muted-foreground whitespace-pre-wrap break-all">{row.value || '(vazio)'}</p>
+                                  </button>
+                                ))}
                               </div>
-                            </div>
-                          ))}
+                            )}
+                          </div>
                         </div>
                       </DialogContent>
                     </Dialog>
                   </div>
-                  <RichTextEditor
-                    ref={editorRef}
-                    content={formData.content}
-                    onChange={(html) => setFormData({ ...formData, content: html })}
-                  />
+                  <Tabs value={editorTab} onValueChange={(value) => setEditorTab(value as 'template' | 'preview')}>
+                    <TabsList>
+                      <TabsTrigger value="template">Template</TabsTrigger>
+                      <TabsTrigger value="preview">Preview</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="template" className="mt-3">
+                      <RichTextEditor
+                        ref={editorRef}
+                        content={formData.content}
+                        onChange={(html) => setFormData({ ...formData, content: html })}
+                      />
+                    </TabsContent>
+                    <TabsContent value="preview" className="mt-3">
+                      <div className="rounded-md border bg-white p-4 h-auto min-h-[140px] max-h-[60vh] overflow-auto text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
+                        {!selectedPreviewContractId && (
+                          <p className="text-muted-foreground">Selecione um contrato base para visualizar o preview em tempo real.</p>
+                        )}
+                        {selectedPreviewContractId && !renderedPreviewContent && (
+                          <p className="text-muted-foreground">Preview indisponível para o contrato selecionado.</p>
+                        )}
+                        {selectedPreviewContractId && renderedPreviewContent && (
+                          isHTML(renderedPreviewContent)
+                            ? <div dangerouslySetInnerHTML={{ __html: renderedPreviewContent }} />
+                            : <pre className="text-xs whitespace-pre-wrap font-mono">{renderedPreviewContent}</pre>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
