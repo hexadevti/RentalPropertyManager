@@ -12,173 +12,245 @@ export interface ContractPDFData {
 }
 
 const MISSING_INDEX_TEMPLATE = '[indice de variavel inexistente. i = {{index}}]'
+const INVALID_XPATH_TEMPLATE = '[xpath invalido: {{xpath}}]'
+const MISSING_XPATH_TEMPLATE = '[xpath inexistente: {{xpath}}]'
 
 function isHTML(content: string): boolean {
   return /<[a-z][\s\S]*>/i.test(content)
 }
 
-function buildVariables(
+export type TemplateXPathContext = Record<string, unknown>
+
+type TemplateFormatters = {
+  formatDate?: (value: Date | string) => string
+  formatCurrency?: (value: number) => string
+}
+
+const CURRENCY_KEY_PATTERN = /(amount|price|value|cost|total|balance|fee|rent)/i
+const DATE_KEY_PATTERN = /(date|at)$/i
+const FORMATTERS_CONTEXT_KEY = '__templateFormatters'
+
+function getTemplateFormatters(context: TemplateXPathContext): TemplateFormatters {
+  if (!(FORMATTERS_CONTEXT_KEY in context)) return {}
+
+  const raw = context[FORMATTERS_CONTEXT_KEY]
+  if (!raw || typeof raw !== 'object') return {}
+
+  return raw as TemplateFormatters
+}
+
+function stringifyResolvedValue(
+  value: unknown,
+  formatters: TemplateFormatters,
+  currentKey?: string
+): string {
+  if (value === null || value === undefined) return ''
+
+  if (typeof value === 'string') {
+    if (currentKey && DATE_KEY_PATTERN.test(currentKey) && formatters.formatDate) {
+      const formattedDate = formatters.formatDate(value)
+      if (formattedDate) return formattedDate
+    }
+    return value
+  }
+
+  if (typeof value === 'number') {
+    if (currentKey && CURRENCY_KEY_PATTERN.test(currentKey) && formatters.formatCurrency) {
+      return formatters.formatCurrency(value)
+    }
+    return String(value)
+  }
+
+  if (typeof value === 'boolean') return String(value)
+
+  if (value instanceof Date) {
+    if (formatters.formatDate) {
+      const formattedDate = formatters.formatDate(value)
+      if (formattedDate) return formattedDate
+    }
+    return String(value)
+  }
+
+  if (Array.isArray(value)) {
+    const formattedArray = value.map((item) => {
+      const itemString = stringifyResolvedValue(item, formatters, currentKey)
+      return itemString === '' ? null : itemString
+    }).filter((item) => item !== null)
+
+    try {
+      return JSON.stringify(formattedArray)
+    } catch {
+      return String(formattedArray)
+    }
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    const formattedRecord: Record<string, unknown> = {}
+
+    Object.entries(record).forEach(([key, nestedValue]) => {
+      const nestedString = stringifyResolvedValue(nestedValue, formatters, key)
+      formattedRecord[key] = nestedString
+    })
+
+    try {
+      return JSON.stringify(formattedRecord)
+    } catch {
+      return String(formattedRecord)
+    }
+  }
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+export function buildTemplateXPathContext(
   data: ContractPDFData,
-  formatCurrency: (value: number) => string,
-  formatDate: (value: Date | string) => string
-): Record<string, string> {
-  const { contract, guest, properties, owners } = data
+  formatDate: (value: Date | string) => string,
+  formatCurrency?: (value: number) => string
+): TemplateXPathContext {
+  return {
+    contract: data.contract,
+    guest: data.guest,
+    properties: data.properties,
+    owners: data.owners,
+    template: data.template,
+    currentDate: formatDate(new Date()),
+    [FORMATTERS_CONTEXT_KEY]: {
+      formatDate,
+      formatCurrency,
+    },
+  }
+}
 
-  const propertyList = properties.map((p) => `• ${p.name}`).join('\n')
-  const propertyAddresses = properties.map((p) => p.address || '').filter(Boolean).join(', ') || ''
-  const propertyCities = properties.map((p) => p.city || '').filter(Boolean).join(', ') || ''
-  const propertyConservationStates = properties
-    .map((p) => p.conservationState || '')
-    .filter(Boolean)
-    .join(', ') || ''
-  const propertyFurnitureList = properties
-    .flatMap((p) => (p.furnitureItems || []).map((item) => item.trim()).filter(Boolean))
-    .map((item) => `• ${item}`)
-    .join('\n')
-  const ownerNames = owners.map((o) => o.name).join(', ') || ''
-  const ownerEmails = owners.map((o) => o.email).join(', ') || ''
-  const ownerPhones = owners.map((o) => o.phone).join(', ') || ''
-  const ownerDocuments = owners.map((o) => (o.documents || [])[0]?.number || '').join(', ') || ''
-  const ownerDocumentTypes = owners.map((o) => (o.documents || [])[0]?.type || '').filter(Boolean).join(', ') || ''
-  const ownerNationalities = owners.map((o) => o.nationality || '').filter(Boolean).join(', ') || ''
-  const ownerMaritalStatuses = owners.map((o) => o.maritalStatus || '').filter(Boolean).join(', ') || ''
-  const ownerProfessions = owners.map((o) => o.profession || '').filter(Boolean).join(', ') || ''
-  const ownerAddresses = owners.map((o) => o.address || '').filter(Boolean).join(', ') || ''
-  const ownerAllDocsList = owners
-    .map((o) => (o.documents || []).map((d) => (d.type ? `${d.type}: ${d.number}` : d.number)).join(', '))
-    .join('; ') || ''
-  const ownerDetailsList = owners
-    .map(
-      (o) => {
-        const docs = (o.documents || [])
-        const docsLine = docs.length > 0
-          ? '\n' + docs.map((d) => (d.type ? `${d.type}: ${d.number}` : d.number)).join('\n')
-          : ''
-        return `${o.name}` +
-          (o.nationality ? `\nNacionalidade: ${o.nationality}` : '') +
-          (o.maritalStatus ? `\nEstado Civil: ${o.maritalStatus}` : '') +
-          (o.profession ? `\nProfissão: ${o.profession}` : '') +
-          docsLine +
-          `\nE-mail: ${o.email}\nTelefone: ${o.phone}` +
-          (o.address ? `\nEndereço: ${o.address}` : '')
+export function resolveTemplateXPath(xpath: string, context: TemplateXPathContext): { value: string; error?: string } {
+  const trimmedXPath = xpath.trim()
+  if (!trimmedXPath) {
+    return { value: '', error: INVALID_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
+  }
+
+  const segments = trimmedXPath.split('.').filter(Boolean)
+  if (segments.length === 0) {
+    return { value: '', error: INVALID_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
+  }
+
+  const formatters = getTemplateFormatters(context)
+
+  const resolveSegments = (
+    currentValue: unknown,
+    segmentIndex: number,
+    wildcardUsed: boolean,
+    currentKey?: string
+  ): { values: string[]; wildcardUsed: boolean; error?: string } => {
+    if (segmentIndex >= segments.length) {
+      return { values: [stringifyResolvedValue(currentValue, formatters, currentKey)], wildcardUsed }
+    }
+
+    const segment = segments[segmentIndex]
+
+    const numericSegment = segment.match(/^(\d+)$/)
+    if (numericSegment) {
+      const requestedIndex = Number(numericSegment[1])
+      const arrayIndex = requestedIndex - 1
+      if (!Array.isArray(currentValue)) {
+        return { values: [], wildcardUsed, error: INVALID_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
       }
-    )
-    .join('\n\n')
+      if (!Number.isInteger(requestedIndex) || arrayIndex < 0 || arrayIndex >= currentValue.length) {
+        return { values: [], wildcardUsed, error: MISSING_INDEX_TEMPLATE.replace('{{index}}', numericSegment[1]) }
+      }
+      return resolveSegments(currentValue[arrayIndex], segmentIndex + 1, wildcardUsed, currentKey)
+    }
 
-  const guestDocs = guest.documents || []
-  const firstDoc = guestDocs[0]
-  const guestDocumentsList = guestDocs
-    .map((d) => (d.type ? `${d.type}: ${d.number}` : d.number))
-    .join('\n')
+    const segmentMatch = segment.match(/^([a-zA-Z_][a-zA-Z0-9_]*)(?:\{(\d+|x)\})?$/)
+    if (!segmentMatch) {
+      return { values: [], wildcardUsed, error: INVALID_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
+    }
 
-  return {
-    '{{guestName}}': guest.name || '',
-    '{{guestEmail}}': guest.email || '',
-    '{{guestPhone}}': guest.phone || '',
-    '{{guestDocument}}': firstDoc?.number || '',
-    '{{guestDocumentType}}': firstDoc?.type || '',
-    '{{guestDocuments}}': guestDocumentsList,
-    '{{guestAddress}}': guest.address || '',
-    '{{guestNationality}}': guest.nationality || '',
-    '{{guestMaritalStatus}}': guest.maritalStatus || '',
-    '{{guestProfession}}': guest.profession || '',
-    '{{ownerName}}': ownerNames,
-    '{{ownerEmail}}': ownerEmails,
-    '{{ownerPhone}}': ownerPhones,
-    '{{ownerDocument}}': ownerDocuments,
-    '{{ownerDocumentType}}': ownerDocumentTypes,
-    '{{ownerDocuments}}': ownerAllDocsList,
-    '{{ownerNationality}}': ownerNationalities,
-    '{{ownerMaritalStatus}}': ownerMaritalStatuses,
-    '{{ownerProfession}}': ownerProfessions,
-    '{{ownerAddress}}': ownerAddresses,
-    '{{ownerDetails}}': ownerDetailsList,
-    '{{properties}}': propertyList,
-    '{{propertyAddress}}': propertyAddresses,
-    '{{propertyCity}}': propertyCities,
-    '{{propertyConservationState}}': propertyConservationStates,
-    '{{propertyFurniture}}': propertyFurnitureList,
-    '{{startDate}}': formatDate(contract.startDate),
-    '{{endDate}}': formatDate(contract.endDate),
-    '{{contractCloseDate}}': contract.closeDate ? formatDate(contract.closeDate) : '',
-    '{{monthlyAmount}}': formatCurrency(contract.monthlyAmount),
-    '{{paymentDueDay}}': contract.paymentDueDay.toString(),
-    '{{specialPaymentCondition}}': contract.specialPaymentCondition || '',
-    '{{notes}}': contract.notes ? `OBSERVAÇÕES:\n${contract.notes}` : '',
-    '{{currentDate}}': formatDate(new Date()),
-  }
-}
+    const propertyName = segmentMatch[1]
+    const indexText = segmentMatch[2]
 
-function buildIndexedVariables(data: ContractPDFData): Record<string, string[]> {
-  const { owners, properties } = data
+    if (currentValue === null || currentValue === undefined || typeof currentValue !== 'object') {
+      return { values: [], wildcardUsed, error: MISSING_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
+    }
 
-  return {
-    ownerName: owners.map((owner) => owner.name || ''),
-    ownerEmail: owners.map((owner) => owner.email || ''),
-    ownerPhone: owners.map((owner) => owner.phone || ''),
-    ownerDocument: owners.map((owner) => (owner.documents || [])[0]?.number || ''),
-    ownerDocumentType: owners.map((owner) => (owner.documents || [])[0]?.type || ''),
-    ownerDocuments: owners.map((owner) =>
-      (owner.documents || []).map((d) => (d.type ? `${d.type}: ${d.number}` : d.number)).join(', ')
-    ),
-    ownerNationality: owners.map((owner) => owner.nationality || ''),
-    ownerMaritalStatus: owners.map((owner) => owner.maritalStatus || ''),
-    ownerProfession: owners.map((owner) => owner.profession || ''),
-    ownerAddress: owners.map((owner) => owner.address || ''),
-    ownerDetails: owners.map(
-      (owner) =>
-        `${owner.name}` +
-        (owner.nationality ? `\nNacionalidade: ${owner.nationality}` : '') +
-        (owner.maritalStatus ? `\nEstado Civil: ${owner.maritalStatus}` : '') +
-        (owner.profession ? `\nProfissão: ${owner.profession}` : '') +
-        ((owner.documents || []).length > 0 ? '\n' + (owner.documents || []).map((d) => (d.type ? `${d.type}: ${d.number}` : d.number)).join('\n') : '') +
-        `\nE-mail: ${owner.email}\nTelefone: ${owner.phone}` +
-        (owner.address ? `\nEndereço: ${owner.address}` : '')
-    ),
-    properties: properties.map((property) => property.name || ''),
-    propertyCity: properties.map((property) => property.city || ''),
-    propertyAddress: properties.map((property) => property.address || ''),
-    propertyConservationState: properties.map((property) => property.conservationState || ''),
-    propertyFurniture: properties.map((property) => {
-      const items = (property.furnitureItems || []).map((item) => item.trim()).filter(Boolean)
-      return items.map((item) => `• ${item}`).join('\n')
-    }),
-  }
-}
+    const record = currentValue as Record<string, unknown>
+    if (!(propertyName in record)) {
+      return { values: [], wildcardUsed, error: MISSING_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
+    }
 
-function renderTemplateVariables(
-  content: string,
-  variables: Record<string, string>,
-  indexedVariables: Record<string, string[]>
-) {
-  let resolvedContent = content
+    const propertyValue = record[propertyName]
 
-  for (const [key, value] of Object.entries(variables)) {
-    // Convert newlines to <br> for HTML content that will be rendered
-    const htmlValue = value.includes('\n') && /<[a-z]/i.test(content) 
-      ? value.split('\n').join('<br/>') 
-      : value
-    resolvedContent = resolvedContent.split(key).join(htmlValue)
-  }
+    if (!indexText) {
+      return resolveSegments(propertyValue, segmentIndex + 1, wildcardUsed, propertyName)
+    }
 
-  // Trim extra whitespace and empty lines from the end
-  resolvedContent = resolvedContent.replace(/\n\s*$/, '')
+    if (indexText === 'x') {
+      if (!Array.isArray(propertyValue)) {
+        return { values: [], wildcardUsed, error: INVALID_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
+      }
 
-  return resolvedContent.replace(/\{\{([a-zA-Z]+)\.(\d+)\}\}/g, (_match, variableName: string, indexText: string) => {
-    const variableValues = indexedVariables[variableName]
-    if (!variableValues) {
-      return _match
+      const collectedValues: string[] = []
+      let fallbackError: string | undefined
+
+      propertyValue.forEach((item) => {
+        const itemResolved = resolveSegments(item, segmentIndex + 1, true, propertyName)
+        if (itemResolved.error) {
+          fallbackError = fallbackError || itemResolved.error
+          return
+        }
+        collectedValues.push(...itemResolved.values)
+      })
+
+      if (collectedValues.length === 0 && fallbackError) {
+        return { values: [], wildcardUsed: true, error: fallbackError }
+      }
+
+      return { values: collectedValues, wildcardUsed: true }
     }
 
     const requestedIndex = Number(indexText)
     const arrayIndex = requestedIndex - 1
-
-    if (!Number.isInteger(requestedIndex) || arrayIndex < 0 || arrayIndex >= variableValues.length) {
-      return MISSING_INDEX_TEMPLATE.replace('{{index}}', indexText)
+    if (!Array.isArray(propertyValue)) {
+      return { values: [], wildcardUsed, error: INVALID_XPATH_TEMPLATE.replace('{{xpath}}', xpath) }
     }
+    if (!Number.isInteger(requestedIndex) || arrayIndex < 0 || arrayIndex >= propertyValue.length) {
+      return { values: [], wildcardUsed, error: MISSING_INDEX_TEMPLATE.replace('{{index}}', indexText) }
+    }
+    return resolveSegments(propertyValue[arrayIndex], segmentIndex + 1, wildcardUsed, propertyName)
+  }
 
-    return variableValues[arrayIndex]
-  })
+  const resolved = resolveSegments(context, 0, false)
+  if (resolved.error) {
+    return { value: '', error: resolved.error }
+  }
+
+  if (resolved.wildcardUsed) {
+    const lines = resolved.values.map((value) => value.trim()).filter(Boolean)
+    return { value: lines.map((line) => `• ${line}`).join('\n') }
+  }
+
+  return { value: resolved.values[0] || '' }
+}
+
+function renderTemplateVariables(
+  content: string,
+  context: TemplateXPathContext
+) {
+  const htmlContent = /<[a-z]/i.test(content)
+
+  return content
+    .replace(/\{\{\s*([\s\S]+?)\s*\}\}(?!\})/g, (_match, xpath: string) => {
+      const resolved = resolveTemplateXPath(xpath, context)
+      const rawValue = resolved.error ?? resolved.value
+      if (htmlContent && rawValue.includes('\n')) {
+        return rawValue.split('\n').join('<br/>')
+      }
+      return rawValue
+    })
+    .replace(/\n\s*$/, '')
 }
 
 function findWhitespaceBreakY(
@@ -455,15 +527,21 @@ export async function generateContractPDF(
   formatCurrency: (value: number) => string,
   formatDate: (value: Date | string) => string
 ): Promise<jsPDF> {
-  const variables = buildVariables(data, formatCurrency, formatDate)
-  const indexedVariables = buildIndexedVariables(data)
-
-  const content = renderTemplateVariables(data.template.content, variables, indexedVariables)
+  const content = renderContractTemplateContent(data, formatCurrency, formatDate)
 
   if (isHTML(content)) {
     return generatePDFFromHTML(content)
   }
   return generatePDFFromText(content)
+}
+
+export function renderContractTemplateContent(
+  data: ContractPDFData,
+  formatCurrency: (value: number) => string,
+  formatDate: (value: Date | string) => string
+): string {
+  const context = buildTemplateXPathContext(data, formatDate, formatCurrency)
+  return renderTemplateVariables(data.template.content, context)
 }
 
 export function downloadPDF(pdf: jsPDF, filename: string) {

@@ -12,6 +12,23 @@ export interface GuestDocument {
   number: string
 }
 
+export interface GuestRelatedPerson {
+  id: string
+  name: string
+  email: string
+  phone: string
+  documents: GuestDocument[]
+  address?: string
+  nationality?: string
+  maritalStatus?: string
+  profession?: string
+  dateOfBirth?: string
+  notes?: string
+}
+
+export type Sponsor = GuestRelatedPerson
+export type Dependent = GuestRelatedPerson
+
 export interface Owner {
   id: string
   name: string
@@ -82,6 +99,8 @@ export interface Guest {
   email: string
   phone: string
   documents: GuestDocument[]
+  sponsors?: Sponsor[]
+  dependents?: Dependent[]
   address?: string
   nationality?: string
   maritalStatus?: string
