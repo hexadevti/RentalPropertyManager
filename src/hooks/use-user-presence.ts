@@ -3,6 +3,7 @@ import { useAuth } from '@/lib/AuthContext'
 import { supabase } from '@/lib/supabase'
 
 const HEARTBEAT_INTERVAL_MS = 30000
+const IP_LOOKUP_STORAGE_KEY = 'rpm-user-presence-ip-address'
 
 function getSessionId() {
   const storageKey = 'rpm-user-presence-session-id'
@@ -22,6 +23,31 @@ function isUuid(value: string | null | undefined) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
+function getBrowserLabel() {
+  const userAgent = window.navigator.userAgent
+  if (/Edg\//.test(userAgent)) return 'Microsoft Edge'
+  if (/Chrome\//.test(userAgent) && !/Chromium\//.test(userAgent)) return 'Google Chrome'
+  if (/Safari\//.test(userAgent) && !/Chrome\//.test(userAgent)) return 'Safari'
+  if (/Firefox\//.test(userAgent)) return 'Firefox'
+  return userAgent.slice(0, 120)
+}
+
+async function getPublicIpAddress() {
+  const cached = window.sessionStorage.getItem(IP_LOOKUP_STORAGE_KEY)
+  if (cached) return cached
+
+  try {
+    const response = await fetch('https://api.ipify.org?format=json')
+    if (!response.ok) return null
+    const data = await response.json() as { ip?: string }
+    if (!data.ip) return null
+    window.sessionStorage.setItem(IP_LOOKUP_STORAGE_KEY, data.ip)
+    return data.ip
+  } catch {
+    return null
+  }
+}
+
 export function useUserPresence(activeTab: string, activeTabLabel: string) {
   const { currentUser, currentTenantId, isAuthenticated, isApproved } = useAuth()
 
@@ -38,6 +64,7 @@ export function useUserPresence(activeTab: string, activeTabLabel: string) {
     const writePresence = async () => {
       const now = new Date().toISOString()
       const activity = `Visualizando tela: ${activeTabLabel}`
+      const ipAddress = await getPublicIpAddress()
 
       const { error } = await supabase
         .from('user_presence')
@@ -51,6 +78,9 @@ export function useUserPresence(activeTab: string, activeTabLabel: string) {
           current_tab: activeTab,
           current_tab_label: activeTabLabel,
           activity,
+          ip_address: ipAddress,
+          browser: getBrowserLabel(),
+          hostname: window.location.hostname,
           last_seen_at: now,
           updated_at: now,
         }, { onConflict: 'tenant_id,session_id' })

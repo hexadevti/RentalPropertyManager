@@ -48,6 +48,9 @@ type UserPresenceRow = {
   current_tab: string
   current_tab_label: string
   activity: string
+  ip_address: string | null
+  browser: string | null
+  hostname: string | null
   last_seen_at: string
 }
 
@@ -184,7 +187,7 @@ export default function UsersPermissionsView() {
     const cutoff = new Date(Date.now() - 90_000).toISOString()
     const { data, error } = await supabase
       .from('user_presence')
-      .select('session_id, auth_user_id, user_login, user_email, avatar_url, current_tab, current_tab_label, activity, last_seen_at')
+      .select('session_id, auth_user_id, user_login, user_email, avatar_url, current_tab, current_tab_label, activity, ip_address, browser, hostname, last_seen_at')
       .eq('tenant_id', scopedTenantId)
       .gte('last_seen_at', cutoff)
       .order('last_seen_at', { ascending: false })
@@ -467,7 +470,7 @@ export default function UsersPermissionsView() {
                   <p className="text-sm text-muted-foreground truncate">{presence.user_email || profile?.email || '-'}</p>
                 </div>
               </div>
-              <div className="grid gap-2 text-sm lg:min-w-[520px] lg:grid-cols-3">
+              <div className="grid gap-2 text-sm lg:min-w-[680px] lg:grid-cols-3">
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Tela</p>
                   <p className="font-medium">{presence.current_tab_label}</p>
@@ -479,6 +482,18 @@ export default function UsersPermissionsView() {
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">Último sinal</p>
                   <p className="font-medium">{new Date(presence.last_seen_at).toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">IP</p>
+                  <p className="font-medium">{presence.ip_address || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Browser</p>
+                  <p className="font-medium">{presence.browser || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Hostname</p>
+                  <p className="font-medium">{presence.hostname || '-'}</p>
                 </div>
               </div>
             </div>

@@ -159,6 +159,10 @@ export default function FinancesView() {
   const totalExpenses = (transactions || []).filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
   const balance = totalIncome - totalExpenses
 
+  const contractOptions = (contracts || []).filter((contract) => (
+    !formData.propertyId || contract.propertyIds.includes(formData.propertyId)
+  ))
+
   const handleRefresh = () => {
     setRefreshKey(prev => prev + 1)
     toast.success(t.common.refreshed_success)
@@ -238,7 +242,21 @@ export default function FinancesView() {
 
               <div className="space-y-2">
                 <Label htmlFor="propertyId">{t.finances_view.form.property} {t.finances_view.form.optional}</Label>
-                <Select value={formData.propertyId || 'none'} onValueChange={(value) => setFormData({ ...formData, propertyId: value === 'none' ? undefined : value })}>
+                <Select
+                  value={formData.propertyId || 'none'}
+                  onValueChange={(value) => {
+                    const nextPropertyId = value === 'none' ? undefined : value
+                    setFormData((current) => {
+                      const currentContract = (contracts || []).find((contract) => contract.id === current.contractId)
+                      const shouldKeepContract = !nextPropertyId || currentContract?.propertyIds.includes(nextPropertyId)
+                      return {
+                        ...current,
+                        propertyId: nextPropertyId,
+                        contractId: shouldKeepContract ? current.contractId : undefined,
+                      }
+                    })
+                  }}
+                >
                   <SelectTrigger id="propertyId">
                     <SelectValue placeholder={t.finances_view.form.select_property} />
                   </SelectTrigger>
@@ -262,7 +280,7 @@ export default function FinancesView() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhum</SelectItem>
-                      {(contracts || []).map((contract) => (
+                      {contractOptions.map((contract) => (
                         <SelectItem key={contract.id} value={contract.id}>
                           {getContractSelectionLabel(contract, properties || [])}
                         </SelectItem>
