@@ -52,7 +52,10 @@ create policy bug_reports_select on public.bug_reports
   for select to authenticated
   using (
     public.is_current_user_platform_admin()
-    or tenant_id = public.get_current_user_tenant_id()
+    or (
+      tenant_id = public.get_current_user_tenant_id()
+      and reporter_auth_user_id = auth.uid()
+    )
   );
 
 drop policy if exists bug_reports_insert on public.bug_reports;
@@ -79,6 +82,7 @@ create policy bug_report_attachments_select on public.bug_report_attachments
       from public.bug_reports br
       where br.id = bug_report_attachments.bug_report_id
         and br.tenant_id = public.get_current_user_tenant_id()
+        and br.reporter_auth_user_id = auth.uid()
     )
   );
 

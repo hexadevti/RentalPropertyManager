@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthContext'
 import type { BugReport, BugReportAttachment, BugReportStatus } from '@/types'
 import { BugAttachmentPreview } from '@/components/BugAttachmentPreview'
 
@@ -59,6 +60,7 @@ function mapAttachment(row: any): BugReportAttachment {
 }
 
 export default function MyBugReportsView() {
+  const { currentUser } = useAuth()
   const [reports, setReports] = useState<BugReport[]>([])
   const [attachments, setAttachments] = useState<BugReportAttachment[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -66,10 +68,17 @@ export default function MyBugReportsView() {
   const [search, setSearch] = useState('')
 
   const loadReports = useCallback(async () => {
+    if (!currentUser?.id) {
+      setReports([])
+      setAttachments([])
+      return
+    }
+
     setIsLoading(true)
     const { data, error } = await supabase
       .from('bug_reports')
       .select('*')
+      .eq('reporter_auth_user_id', currentUser.id)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -104,7 +113,7 @@ export default function MyBugReportsView() {
     }
 
     setIsLoading(false)
-  }, [])
+  }, [currentUser?.id])
 
   useEffect(() => {
     void loadReports()
