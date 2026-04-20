@@ -1,6 +1,5 @@
 import { useKV } from '@/lib/useSupabaseKV'
 import { useEffect, useState } from 'react'
-import { House, Wallet, Calendar, CheckSquare, ChartBar, User, Gear, Files, Wrench, CalendarCheck, FileText, Users } from '@phosphor-icons/react'
 import PropertiesView from './components/views/PropertiesView'
 import FinancesView from './components/views/FinancesView'
 import CalendarView from './components/views/CalendarView'
@@ -8,6 +7,7 @@ import TasksView from './components/views/TasksView'
 import ReportsView from './components/views/ReportsView'
 import GuestsView from './components/views/GuestsView'
 import ContractsView from './components/views/ContractsView'
+import DocumentsView from './components/views/DocumentsView'
 import ContractTemplatesView from './components/views/ContractTemplatesView'
 import ServiceProvidersView from './components/views/ServiceProvidersView'
 import AppointmentsView from './components/views/AppointmentsView'
@@ -71,6 +71,7 @@ function AppContent() {
     reports: t.tabs.reports,
     guests: t.tabs.guests,
     contracts: t.tabs.contracts,
+    documents: t.tabs.documents,
     inspections: t.tabs.inspections,
     templates: t.tabs.templates,
     providers: t.tabs.providers,
@@ -221,6 +222,7 @@ function AppContent() {
           {activeTab === 'reports' && isAdmin && <ReportsView />}
           {activeTab === 'guests' && isAdmin && <GuestsView />}
           {activeTab === 'contracts' && <ContractsView onNavigate={setActiveTab} />}
+          {activeTab === 'documents' && isAdmin && <DocumentsView />}
           {activeTab === 'inspections' && isAdmin && <InspectionsView />}
           {activeTab === 'templates' && isAdmin && <ContractTemplatesView />}
           {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}

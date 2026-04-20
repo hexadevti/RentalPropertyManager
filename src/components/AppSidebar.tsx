@@ -17,7 +17,8 @@ import {
   House,
   ShieldCheck,
   PushPin,
-  ClipboardText
+  ClipboardText,
+  FolderOpen
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -38,6 +39,7 @@ export const menuItems: MenuItem[] = [
   { id: 'reports', icon: ChartBar, value: 'reports', adminOnly: true },
   { id: 'guests', icon: User, value: 'guests', adminOnly: true },
   { id: 'contracts', icon: Files, value: 'contracts' },
+  { id: 'documents', icon: FolderOpen, value: 'documents', adminOnly: true },
   { id: 'inspections', icon: ClipboardText, value: 'inspections' },
   { id: 'templates', icon: FileText, value: 'templates', adminOnly: true },
   { id: 'providers', icon: Wrench, value: 'providers', adminOnly: true },

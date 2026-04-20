@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, CheckSquare, Trash, ArrowsClockwise } from '@phosphor-icons/react'
+import { Plus, CheckSquare, Trash, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -21,6 +21,7 @@ export default function TasksView() {
   const [tasks, setTasks] = useKV<Task[]>('tasks', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
   
   const [formData, setFormData] = useState({
     title: '',
@@ -34,14 +35,25 @@ export default function TasksView() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
-    const newTask: Task = {
-      ...formData,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString()
+
+    if (editingTask) {
+      const updatedTask: Task = {
+        ...formData,
+        id: editingTask.id,
+        createdAt: editingTask.createdAt,
+      }
+      setTasks((current) => (current || []).map((task) => task.id === editingTask.id ? updatedTask : task))
+      toast.success('Task updated successfully')
+    } else {
+      const newTask: Task = {
+        ...formData,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString()
+      }
+      setTasks((current) => [...(current || []), newTask])
+      toast.success('Task added successfully')
     }
-    setTasks((current) => [...(current || []), newTask])
-    toast.success('Task added successfully')
+
     resetForm()
   }
 
@@ -55,7 +67,36 @@ export default function TasksView() {
       assignee: '',
       propertyId: ''
     })
+    setEditingTask(null)
     setIsDialogOpen(false)
+  }
+
+  const handleOpenCreate = () => {
+    setEditingTask(null)
+    setFormData({
+      title: '',
+      description: '',
+      dueDate: '',
+      priority: 'medium',
+      status: 'pending',
+      assignee: '',
+      propertyId: ''
+    })
+    setIsDialogOpen(true)
+  }
+
+  const handleEdit = (task: Task) => {
+    setEditingTask(task)
+    setFormData({
+      title: task.title,
+      description: task.description,
+      dueDate: task.dueDate,
+      priority: task.priority,
+      status: task.status,
+      assignee: task.assignee || '',
+      propertyId: task.propertyId || ''
+    })
+    setIsDialogOpen(true)
   }
 
   const handleToggle = (taskId: string) => {
@@ -105,17 +146,17 @@ export default function TasksView() {
             <ArrowsClockwise weight="bold" size={16} />
             {t.common.refresh}
           </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => open ? setIsDialogOpen(true) : resetForm()}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={handleOpenCreate}>
                 <Plus weight="bold" size={16} />
                 Add Task
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Add Task</DialogTitle>
-              <DialogDescription>Create a new task or appointment</DialogDescription>
+              <DialogTitle>{editingTask ? 'Edit Task' : 'Add Task'}</DialogTitle>
+              <DialogDescription>{editingTask ? 'Update task details and status' : 'Create a new task or appointment'}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -194,11 +235,25 @@ export default function TasksView() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as TaskStatus })}>
+                  <SelectTrigger id="status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="in-progress">In progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={resetForm}>
                   Cancel
                 </Button>
-                <Button type="submit">Add Task</Button>
+                <Button type="submit">{editingTask ? 'Save Changes' : 'Add Task'}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -212,7 +267,7 @@ export default function TasksView() {
             <CheckSquare weight="duotone" size={64} className="text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No tasks yet</h3>
             <p className="text-sm text-muted-foreground mb-4">Add your first task to get started</p>
-            <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
+            <Button onClick={handleOpenCreate} className="gap-2">
               <Plus weight="bold" size={16} />
               Add Task
             </Button>
@@ -249,9 +304,14 @@ export default function TasksView() {
                       {property && <span>• {property.name}</span>}
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(task.id)}>
-                    <Trash size={16} />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(task)}>
+                      <PencilSimple size={16} />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(task.id)}>
+                      <Trash size={16} />
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )

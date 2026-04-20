@@ -9,6 +9,7 @@ import type {
   InspectionStatus,
   InspectionType,
   Property,
+  Task,
 } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +24,7 @@ import {
   ArrowCounterClockwise,
   ArrowsClockwise,
   CheckCircle,
+  CheckSquare,
   ClipboardText,
   FilePdf,
   LinkSimple,
@@ -35,6 +37,7 @@ import {
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { downloadInspectionPDF } from '@/lib/inspectionPDF'
+import { getContractSelectionLabel } from '@/lib/contractLabels'
 
 type InspectionFormState = {
   title: string
@@ -52,6 +55,14 @@ type FormStep = 'select-property-contract' | 'fill-matrix'
 /** In 'structure' mode (draft/new): edit labels, add/remove areas — conditions disabled.
  *  In 'evaluate' mode (in-progress): rate condition + notes — labels read-only, structure locked. */
 type MatrixMode = 'structure' | 'evaluate'
+
+type InspectionDifference = {
+  areaName: string
+  itemLabel: string
+  previousCondition?: InspectionItemCondition
+  currentCondition: InspectionItemCondition
+  currentNotes: string
+}
 
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -131,8 +142,10 @@ export default function InspectionsView() {
   const [properties] = useKV<Property[]>('properties', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [guests] = useKV<Guest[]>('guests', [])
+  const [, setTasks] = useKV<Task[]>('tasks', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingInspection, setEditingInspection] = useState<Inspection | null>(null)
+  const [linkedSourceInspection, setLinkedSourceInspection] = useState<Inspection | null>(null)
   const [formStep, setFormStep] = useState<FormStep>('select-property-contract')
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -216,6 +229,14 @@ export default function InspectionsView() {
       : 'Move-in inspection is assessed. You can create check-out, maintenance or periodic inspections linked to it.',
     linkedCheckIn: language === 'pt' ? 'Vistoria de entrada vinculada' : 'Linked move-in inspection',
     createLinked: language === 'pt' ? 'Nova vistoria vinculada' : 'New linked inspection',
+    linkedGroup: language === 'pt' ? 'Vistorias vinculadas' : 'Linked inspections',
+    mainInspection: language === 'pt' ? 'Vistoria principal' : 'Main inspection',
+    comparedToPrevious: language === 'pt' ? 'Diferenças da vistoria anterior' : 'Differences from previous inspection',
+    noDifferences: language === 'pt' ? 'Sem diferenças registradas' : 'No differences recorded',
+    previous: language === 'pt' ? 'Anterior' : 'Previous',
+    current: language === 'pt' ? 'Atual' : 'Current',
+    createTask: language === 'pt' ? 'Criar task' : 'Create task',
+    taskCreated: language === 'pt' ? 'Task criada e vinculada à propriedade' : 'Task created and linked to property',
   }), [language])
 
   const typeLabels: Record<InspectionType, string> = {
@@ -254,6 +275,7 @@ export default function InspectionsView() {
 
   const resetForm = () => {
     setEditingInspection(null)
+    setLinkedSourceInspection(null)
     setFormData(buildEmptyForm())
     setFormStep('select-property-contract')
     setIsDialogOpen(false)
@@ -274,10 +296,7 @@ export default function InspectionsView() {
   const getContractLabel = (contractId: string) => {
     const contract = (contracts || []).find((item) => item.id === contractId)
     if (!contract) return labels.noContract
-    const rentalLabel = contract.rentalType === 'monthly'
-      ? (language === 'pt' ? 'Mensal' : 'Monthly')
-      : (language === 'pt' ? 'Temporada' : 'Short-term')
-    return `${rentalLabel} · ${format(new Date(contract.startDate), 'dd/MM/yyyy')} – ${format(new Date(contract.endDate), 'dd/MM/yyyy')}`
+    return getContractSelectionLabel(contract, properties || [])
   }
 
   const getIssueCount = (inspection: InspectionFormState | Inspection) =>
@@ -285,9 +304,99 @@ export default function InspectionsView() {
       total + area.items.filter((item) => item.condition === 'attention' || item.condition === 'damaged').length
     ), 0)
 
+  const getConditionSeverity = (condition: InspectionItemCondition) => {
+    switch (condition) {
+      case 'excellent': return 0
+      case 'good': return 1
+      case 'na': return 1
+      case 'attention': return 2
+      case 'damaged': return 3
+    }
+  }
+
+  const isNegativeDifference = (difference: InspectionDifference) => {
+    if (!difference.previousCondition) {
+      return difference.currentCondition === 'attention' || difference.currentCondition === 'damaged'
+    }
+
+    return getConditionSeverity(difference.currentCondition) > getConditionSeverity(difference.previousCondition)
+  }
+
+  const getInspectionDifferences = (current: Inspection, previous?: Inspection): InspectionDifference[] => {
+    if (!previous) return []
+
+    const previousItems = new Map<string, InspectionArea['items'][number]>()
+    for (const area of previous.areas) {
+      for (const item of area.items) {
+        previousItems.set(`${area.name}::${item.label}`, item)
+      }
+    }
+
+    return current.areas.flatMap((area) =>
+      area.items.flatMap((item) => {
+        const previousItem = previousItems.get(`${area.name}::${item.label}`)
+        if (!previousItem) {
+          return [{
+            areaName: area.name,
+            itemLabel: item.label,
+            previousCondition: undefined,
+            currentCondition: item.condition,
+            currentNotes: item.notes || '',
+          }]
+        }
+
+        const conditionChanged = previousItem.condition !== item.condition
+        const notesChanged = (previousItem.notes || '') !== (item.notes || '')
+        if (!conditionChanged && !notesChanged) return []
+
+        return [{
+          areaName: area.name,
+          itemLabel: item.label,
+          previousCondition: previousItem.condition,
+          currentCondition: item.condition,
+          currentNotes: item.notes || '',
+        }]
+      })
+    )
+  }
+
   const filteredContracts = (contracts || []).filter((contract) =>
     formData.propertyId !== '' && contract.propertyIds.includes(formData.propertyId)
   )
+
+  const handleCreateTaskFromDifference = (inspection: Inspection, difference: InspectionDifference) => {
+    const title = language === 'pt'
+      ? `Corrigir ${difference.itemLabel} - ${difference.areaName}`
+      : `Fix ${difference.itemLabel} - ${difference.areaName}`
+    const previousText = difference.previousCondition
+      ? conditionLabels[difference.previousCondition]
+      : (language === 'pt' ? 'Sem registro anterior' : 'No previous record')
+    const description = [
+      language === 'pt'
+        ? `Diferença negativa identificada na vistoria "${inspection.title}".`
+        : `Negative difference identified in inspection "${inspection.title}".`,
+      `${labels.previous}: ${previousText}`,
+      `${labels.current}: ${conditionLabels[difference.currentCondition]}`,
+      difference.currentNotes
+        ? `${language === 'pt' ? 'Observação' : 'Note'}: ${difference.currentNotes}`
+        : '',
+    ].filter(Boolean).join('\n')
+
+    const newTask: Task = {
+      id: createId(),
+      title,
+      description,
+      dueDate: new Date().toISOString().slice(0, 10),
+      priority: difference.currentCondition === 'damaged' ? 'high' : 'medium',
+      status: 'pending',
+      assignee: '',
+      propertyId: inspection.propertyId,
+      createdAt: new Date().toISOString(),
+    }
+
+    setTasks((current) => [...(current || []), newTask])
+    toast.success(labels.taskCreated)
+  }
 
   const contractConstraint = useMemo(() => {
     if (!formData.contractId) return null
@@ -312,6 +421,8 @@ export default function InspectionsView() {
     formData.contractId !== '' &&
     (contractConstraint?.allowed.length ?? 0) > 0
 
+  const isLinkedCreation = !!linkedSourceInspection && !editingInspection
+
   const filteredInspections = (inspections || []).filter((inspection) => {
     const matchesProperty = propertyFilter === 'all' || inspection.propertyId === propertyFilter
     const query = searchQuery.trim().toLowerCase()
@@ -323,6 +434,39 @@ export default function InspectionsView() {
     ].some((value) => value.toLowerCase().includes(query))
     return matchesProperty && matchesQuery
   })
+
+  const inspectionGroups = useMemo(() => {
+    const allInspections = inspections || []
+    const byId = new Map(allInspections.map((inspection) => [inspection.id, inspection]))
+    const filteredIds = new Set(filteredInspections.map((inspection) => inspection.id))
+    const groups = new Map<string, { root: Inspection; children: Inspection[] }>()
+
+    for (const inspection of filteredInspections) {
+      const root = inspection.parentInspectionId
+        ? (byId.get(inspection.parentInspectionId) || inspection)
+        : inspection
+      const existing = groups.get(root.id) || { root, children: [] }
+      groups.set(root.id, existing)
+    }
+
+    for (const inspection of allInspections) {
+      if (!inspection.parentInspectionId) continue
+      const rootId = inspection.parentInspectionId
+      const group = groups.get(rootId)
+      if (!group) continue
+      if (!filteredIds.has(inspection.id) && !filteredIds.has(rootId)) continue
+      if (!group.children.some((child) => child.id === inspection.id)) {
+        group.children.push(inspection)
+      }
+    }
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        children: group.children.sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+      }))
+      .sort((a, b) => b.root.createdAt.localeCompare(a.root.createdAt))
+  }, [filteredInspections, inspections])
 
   const upsertArea = (areaId: string, updater: (area: InspectionArea) => InspectionArea) => {
     setFormData((current) => ({
@@ -347,6 +491,7 @@ export default function InspectionsView() {
 
   const handleOpenCreate = () => {
     setEditingInspection(null)
+    setLinkedSourceInspection(null)
     setFormData(buildEmptyForm())
     setFormStep('select-property-contract')
     setIsDialogOpen(true)
@@ -374,6 +519,7 @@ export default function InspectionsView() {
     }))
 
     setEditingInspection(null)
+    setLinkedSourceInspection(sourceInspection)
     setFormData({
       title: '',
       propertyId: sourceInspection.propertyId,
@@ -390,6 +536,7 @@ export default function InspectionsView() {
 
   const handleEdit = (inspection: Inspection) => {
     setEditingInspection(inspection)
+    setLinkedSourceInspection(null)
     setFormData({
       title: inspection.title,
       propertyId: inspection.propertyId,
@@ -468,7 +615,7 @@ export default function InspectionsView() {
     const now = new Date().toISOString()
     const normalizedTitle = formData.title.trim() || `${typeLabels[formData.type]} - ${getPropertyName(formData.propertyId)}`
     const parentInspectionId = formData.type !== 'check-in'
-      ? (editingInspection?.parentInspectionId ?? getCheckInForContract(formData.contractId)?.id)
+      ? (editingInspection?.parentInspectionId ?? linkedSourceInspection?.id ?? getCheckInForContract(formData.contractId)?.id)
       : undefined
     const inspectionPayload: Inspection = {
       id: editingInspection?.id || createId(),
@@ -565,7 +712,7 @@ export default function InspectionsView() {
             </DialogTrigger>
             <DialogContent className="flex flex-col w-[calc(100vw-2rem)] max-w-6xl h-[90vh] overflow-hidden p-0">
               <DialogHeader className="border-b px-6 py-4 pr-12">
-                <DialogTitle>{editingInspection ? labels.edit : labels.add}</DialogTitle>
+                <DialogTitle>{editingInspection ? labels.edit : isLinkedCreation ? labels.createLinked : labels.add}</DialogTitle>
               </DialogHeader>
 
               <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -579,6 +726,7 @@ export default function InspectionsView() {
                           <Label htmlFor="inspection-property">{labels.property} *</Label>
                           <Select
                             value={formData.propertyId}
+                            disabled={isLinkedCreation}
                             onValueChange={(value) => {
                               const property = getPropertyById(value)
                               setFormData((current) => ({
@@ -606,7 +754,7 @@ export default function InspectionsView() {
                           <Select
                             value={formData.contractId}
                             onValueChange={handleContractChange}
-                            disabled={!formData.propertyId}
+                            disabled={!formData.propertyId || isLinkedCreation}
                           >
                             <SelectTrigger id="inspection-contract">
                               <SelectValue placeholder={
@@ -620,7 +768,7 @@ export default function InspectionsView() {
                             <SelectContent>
                               {filteredContracts.map((contract) => (
                                 <SelectItem key={contract.id} value={contract.id}>
-                                  {format(new Date(contract.startDate), 'dd/MM/yyyy')} – {format(new Date(contract.endDate), 'dd/MM/yyyy')}
+                                  {getContractSelectionLabel(contract, properties || [])}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -937,7 +1085,7 @@ export default function InspectionsView() {
         </Select>
       </div>
 
-      {!filteredInspections.length ? (
+      {!inspectionGroups.length ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <ClipboardText size={64} weight="duotone" className="text-muted-foreground mb-4" />
@@ -950,79 +1098,102 @@ export default function InspectionsView() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {filteredInspections.map((inspection) => {
+        <div className="grid gap-5 xl:grid-cols-2">
+          {inspectionGroups.map((group) => (
+            <div key={group.root.id} className="rounded-2xl border border-border/80 bg-card/40 p-3 shadow-sm">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {labels.linkedGroup}
+                  </p>
+                  <p className="text-sm font-medium text-foreground">{getContractLabel(group.root.contractId)}</p>
+                </div>
+                <Badge variant="outline">
+                  {1 + group.children.length} {language === 'pt' ? 'vistorias' : 'inspections'}
+                </Badge>
+              </div>
+              <div className="space-y-3">
+          {[group.root, ...group.children].map((inspection, inspectionIndex, groupInspections) => {
             const issueCount = getIssueCount(inspection)
             const nextStatus = STATUS_NEXT[inspection.status]
             const canPdf = inspection.status === 'assessed'
             const canEdit = inspection.status !== 'assessed'
-            const linkedCheckIn = inspection.parentInspectionId
-              ? (inspections || []).find((i) => i.id === inspection.parentInspectionId)
-              : null
-            const canCreateLinked = inspection.type === 'check-in' &&
+            const isGroupRoot = inspection.id === group.root.id
+            const canCreateLinked = isGroupRoot &&
+              inspection.type === 'check-in' &&
               (inspection.status === 'in-progress' || inspection.status === 'assessed')
+            const previousInspection = inspectionIndex > 0 ? groupInspections[inspectionIndex - 1] : undefined
+            const inspectionDifferences = isGroupRoot ? [] : getInspectionDifferences(inspection, previousInspection)
 
             return (
-              <Card key={inspection.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
+              <Card key={inspection.id} className={`hover:shadow-md transition-shadow ${isGroupRoot ? 'border-primary/30' : 'ml-4 border-dashed bg-background/70'}`}>
+                <CardHeader className={isGroupRoot ? undefined : 'pb-3'}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-2">
-                      <CardTitle className="text-xl">{inspection.title}</CardTitle>
-                      <CardDescription>{getPropertyName(inspection.propertyId)}</CardDescription>
+                      <Badge variant="outline" className={isGroupRoot ? 'border-primary/40 text-primary' : ''}>
+                        {isGroupRoot ? labels.mainInspection : typeLabels[inspection.type]}
+                      </Badge>
+                      {isGroupRoot ? (
+                        <>
+                          <CardTitle className="text-xl">{inspection.title}</CardTitle>
+                          <CardDescription>{getPropertyName(inspection.propertyId)}</CardDescription>
+                        </>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                          <span>{format(new Date(inspection.scheduledDate), 'dd/MM/yyyy')}</span>
+                          <span>•</span>
+                          <span>{inspectionDifferences.length} {language === 'pt' ? 'diferença(s)' : 'difference(s)'}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={getStatusClass(inspection.status)}>
                         {statusLabels[inspection.status]}
                       </Badge>
-                      <Badge variant="outline">{typeLabels[inspection.type]}</Badge>
+                      {isGroupRoot && <Badge variant="outline">{typeLabels[inspection.type]}</Badge>}
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 md:grid-cols-2">
+                <CardContent className={isGroupRoot ? 'space-y-4' : 'space-y-3 pt-0'}>
+                  <div className={isGroupRoot ? 'grid gap-3 md:grid-cols-2' : 'grid gap-3'}>
+                    {isGroupRoot && (
+                      <>
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">{labels.inspector}</p>
+                          <p className="text-sm font-medium">{inspection.inspectorName}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">{labels.scheduledDate}</p>
+                          <p className="text-sm font-medium">{format(new Date(inspection.scheduledDate), 'dd/MM/yyyy')}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">{labels.contract}</p>
+                          <p className="text-sm font-medium">{getContractLabel(inspection.contractId)}</p>
+                        </div>
+                      </>
+                    )}
                     <div>
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground">{labels.inspector}</p>
-                      <p className="text-sm font-medium">{inspection.inspectorName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground">{labels.scheduledDate}</p>
-                      <p className="text-sm font-medium">{format(new Date(inspection.scheduledDate), 'dd/MM/yyyy')}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground">{labels.contract}</p>
-                      <p className="text-sm font-medium">{getContractLabel(inspection.contractId)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground">{labels.issues}</p>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                        {isGroupRoot ? labels.issues : labels.comparedToPrevious}
+                      </p>
                       <div className="flex items-center gap-2 text-sm font-medium">
-                        {issueCount > 0
+                        {(isGroupRoot ? issueCount : inspectionDifferences.length) > 0
                           ? <WarningCircle size={16} className="text-amber-600" />
                           : <CheckCircle size={16} className="text-emerald-600" />}
-                        {issueCount}
+                        {isGroupRoot ? issueCount : inspectionDifferences.length}
                       </div>
                     </div>
-                    {linkedCheckIn && (
-                      <div className="md:col-span-2">
-                        <p className="text-xs uppercase tracking-wider text-muted-foreground">{labels.linkedCheckIn}</p>
-                        <p className="text-sm font-medium flex items-center gap-1.5">
-                          <ClipboardText size={14} className="text-primary shrink-0" />
-                          {linkedCheckIn.title}
-                          <Badge className={`ml-1 text-xs ${getStatusClass(linkedCheckIn.status)}`}>
-                            {statusLabels[linkedCheckIn.status]}
-                          </Badge>
-                        </p>
-                      </div>
-                    )}
                   </div>
 
                   {inspection.summary && (
-                    <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                    <div className={`rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground ${!isGroupRoot ? 'line-clamp-2' : ''}`}>
                       {inspection.summary}
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    {inspection.areas.slice(0, 3).map((area) => {
+                  {isGroupRoot ? (
+                    <div className="space-y-2">
+                      {inspection.areas.slice(0, 3).map((area) => {
                       const highlighted = area.items.filter((item) => item.condition === 'attention' || item.condition === 'damaged')
                       return (
                         <div key={area.id} className="rounded-lg border border-border/70 p-3">
@@ -1039,13 +1210,64 @@ export default function InspectionsView() {
                           </div>
                         </div>
                       )
-                    })}
-                    {inspection.areas.length > 3 && (
-                      <p className="text-xs text-muted-foreground">
-                        +{inspection.areas.length - 3} {language === 'pt' ? 'seções adicionais' : 'additional sections'}
-                      </p>
-                    )}
-                  </div>
+                      })}
+                      {inspection.areas.length > 3 && (
+                        <p className="text-xs text-muted-foreground">
+                          +{inspection.areas.length - 3} {language === 'pt' ? 'seções adicionais' : 'additional sections'}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {inspectionDifferences.length === 0 ? (
+                        <p className="rounded-lg border border-border/70 bg-muted/40 p-3 text-sm text-muted-foreground">
+                          {labels.noDifferences}
+                        </p>
+                      ) : (
+                        inspectionDifferences.slice(0, 4).map((difference) => (
+                          <div key={`${difference.areaName}-${difference.itemLabel}`} className="rounded-lg border border-border/70 p-3 text-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium">{difference.areaName}</span>
+                                <span className="text-muted-foreground">•</span>
+                                <span>{difference.itemLabel}</span>
+                              </div>
+                              {isNegativeDifference(difference) && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 gap-1.5"
+                                  onClick={() => handleCreateTaskFromDifference(inspection, difference)}
+                                >
+                                  <CheckSquare size={14} />
+                                  {labels.createTask}
+                                </Button>
+                              )}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              {difference.previousCondition && (
+                                <Badge variant="outline" className={getConditionClass(difference.previousCondition)}>
+                                  {labels.previous}: {conditionLabels[difference.previousCondition]}
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className={getConditionClass(difference.currentCondition)}>
+                                {labels.current}: {conditionLabels[difference.currentCondition]}
+                              </Badge>
+                            </div>
+                            {difference.currentNotes && (
+                              <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{difference.currentNotes}</p>
+                            )}
+                          </div>
+                        ))
+                      )}
+                      {inspectionDifferences.length > 4 && (
+                        <p className="text-xs text-muted-foreground">
+                          +{inspectionDifferences.length - 4} {language === 'pt' ? 'diferenças adicionais' : 'additional differences'}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     {/* Advance status: draft → in-progress, in-progress → assessed */}
@@ -1121,6 +1343,9 @@ export default function InspectionsView() {
               </Card>
             )
           })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

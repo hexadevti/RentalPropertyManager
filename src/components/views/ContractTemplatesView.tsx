@@ -16,6 +16,7 @@ import { useCurrency } from '@/lib/CurrencyContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
 import RichTextEditor, { plainTextToHTML, RichTextEditorHandle } from '@/components/RichTextEditor'
 import { buildTemplateXPathContext, renderContractTemplateContent, resolveTemplateXPath, TemplateXPathContext } from '@/lib/contractPDF'
+import { getContractSelectionLabel } from '@/lib/contractLabels'
 
 type XPathPreviewRow = {
   path: string
@@ -244,13 +245,12 @@ export default function ContractTemplatesView() {
 
   const helpContractOptions = useMemo(
     () => (contracts || []).map((contract) => {
-      const contractGuest = (guests || []).find((guest) => guest.id === contract.guestId)
       return {
         id: contract.id,
-        label: `${contractGuest?.name || 'Hóspede não encontrado'} • ${contract.id.slice(0, 8)}`,
+        label: getContractSelectionLabel(contract, properties || []),
       }
     }),
-    [contracts, guests]
+    [contracts, properties]
   )
 
   const selectedPreviewContract = useMemo(

@@ -573,6 +573,12 @@ async function loadDocuments() {
     category: document.category,
     notes: document.notes || undefined,
     propertyId: document.property_id || undefined,
+    relationType: document.relation_type || (document.property_id ? 'property' : 'general'),
+    relationId: document.relation_id || document.property_id || undefined,
+    fileName: document.file_name || undefined,
+    filePath: document.file_path || undefined,
+    fileSize: document.file_size || undefined,
+    mimeType: document.mime_type || undefined,
     uploadDate: document.upload_date,
   }))
 }
@@ -1138,7 +1144,15 @@ async function persistDocuments(value: any[]) {
     name: document.name,
     category: document.category,
     notes: document.notes || null,
-    property_id: document.propertyId || null,
+    property_id: document.relationType === 'property'
+      ? (document.relationId || document.propertyId || null)
+      : (document.propertyId || null),
+    relation_type: document.relationType || (document.propertyId ? 'property' : 'general'),
+    relation_id: document.relationId || document.propertyId || null,
+    file_name: document.fileName || null,
+    file_path: document.filePath || null,
+    file_size: document.fileSize || null,
+    mime_type: document.mimeType || null,
     upload_date: document.uploadDate,
   })))
 }

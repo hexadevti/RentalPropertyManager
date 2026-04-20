@@ -213,6 +213,7 @@ export interface ContractTemplate {
 }
 
 export type DocumentCategory = 'contract' | 'receipt' | 'insurance' | 'tax' | 'other'
+export type DocumentRelationType = 'general' | 'property' | 'contract' | 'guest' | 'owner'
 
 export interface Document {
   id: string
@@ -220,5 +221,11 @@ export interface Document {
   category: DocumentCategory
   notes?: string
   propertyId?: string
+  relationType?: DocumentRelationType
+  relationId?: string
+  fileName?: string
+  filePath?: string
+  fileSize?: number
+  mimeType?: string
   uploadDate: string
 }
