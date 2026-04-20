@@ -143,7 +143,7 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems }: AppSidebarPr
         />
       </div>
 
-      <ScrollArea className="flex-1 py-4 px-2 transition-all duration-300 ease-out group-hover/sidebar:px-3">
+      <ScrollArea className="min-h-0 flex-1 px-2 py-4 transition-all duration-300 ease-out group-hover/sidebar:px-3">
         <nav className="space-y-1">
           {pinnedMenuItems.length > 0 && (
             <>

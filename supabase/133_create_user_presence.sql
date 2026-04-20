@@ -8,6 +8,9 @@ create table if not exists public.user_presence (
   current_tab text not null,
   current_tab_label text not null,
   activity text not null,
+  ip_address text,
+  browser text,
+  hostname text,
   last_seen_at timestamptz not null default timezone('utc', now()),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
@@ -19,6 +22,11 @@ create index if not exists idx_user_presence_tenant_seen
 
 create index if not exists idx_user_presence_auth_user_id
   on public.user_presence(auth_user_id);
+
+alter table public.user_presence
+  add column if not exists ip_address text,
+  add column if not exists browser text,
+  add column if not exists hostname text;
 
 alter table public.user_presence enable row level security;
 
