@@ -5,11 +5,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Eye, EyeSlash, SignIn, GithubLogo } from '@phosphor-icons/react'
+import { Eye, EyeSlash, SignIn, GithubLogo, GoogleLogo, ArrowLeft } from '@phosphor-icons/react'
 import Register from '@/components/Register'
 
-export function Login() {
-  const { signInWithEmail, signInWithGitHub, signInWithDevCredentials } = useAuth()
+interface LoginProps {
+  onBack?: () => void
+}
+
+export function Login({ onBack }: LoginProps = {}) {
+  const { signInWithEmail, signInWithGitHub, signInWithGoogle, signInWithDevCredentials } = useAuth()
   const [showRegister, setShowRegister] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -99,6 +103,17 @@ export function Login() {
     }
   }
 
+  const handleGoogle = async () => {
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      await signInWithGoogle()
+    } catch {
+      setError('Nao foi possivel entrar com Google.')
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 flex items-center justify-center p-6">
       <Card className="w-full max-w-md shadow-2xl border-2">
@@ -106,11 +121,22 @@ export function Login() {
           <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
             <SignIn size={30} weight="duotone" className="text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Entrar no RentFlow</CardTitle>
+          <CardTitle className="text-2xl font-bold">Entrar no RPM</CardTitle>
           <CardDescription>Acesse sua conta para continuar</CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            size="lg"
+            onClick={handleGoogle}
+            disabled={isSubmitting}
+          >
+            <GoogleLogo size={18} weight="bold" />
+            Entrar com Google
+          </Button>
+
           <Button
             variant="outline"
             className="w-full gap-2"
@@ -187,6 +213,15 @@ export function Login() {
           <p className="text-xs text-muted-foreground text-center">
             Novos cadastros aguardam aprovação de um administrador.
           </p>
+          {onBack && (
+            <button
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+              onClick={onBack}
+            >
+              <ArrowLeft size={12} />
+              Voltar ao site
+            </button>
+          )}
         </CardFooter>
       </Card>
     </div>

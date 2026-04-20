@@ -14,6 +14,7 @@ import AppointmentsView from './components/views/AppointmentsView'
 import OwnersView from './components/views/OwnersView'
 import SettingsView from './components/views/SettingsView'
 import UsersPermissionsView from './components/views/UsersPermissionsView'
+import InspectionsView from './components/views/InspectionsView'
 import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
@@ -22,6 +23,7 @@ import { DateFormatProvider } from '@/lib/DateFormatContext'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { UserInfo } from '@/components/UserInfo'
 import { Login } from '@/components/Login'
+import { HomePage } from '@/components/HomePage'
 import { PendingApproval } from '@/components/PendingApproval'
 import { Rejected } from '@/components/Rejected'
 import { useKVCleanup } from '@/hooks/use-kv-cleanup'
@@ -54,6 +56,7 @@ function AppContent() {
   } = useAuth()
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
+  const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState<string>(isGuest ? 'calendar' : 'properties')
   const [pinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([])
@@ -68,6 +71,7 @@ function AppContent() {
     reports: t.tabs.reports,
     guests: t.tabs.guests,
     contracts: t.tabs.contracts,
+    inspections: t.tabs.inspections,
     templates: t.tabs.templates,
     providers: t.tabs.providers,
     appointments: t.tabs.appointments,
@@ -119,8 +123,12 @@ function AppContent() {
     return <Rejected />
   }
 
+  if (!isAuthenticated && !showLogin) {
+    return <HomePage onLoginClick={() => setShowLogin(true)} />
+  }
+
   if (!isAuthenticated) {
-    return <Login />
+    return <Login onBack={() => setShowLogin(false)} />
   }
 
   if (!isApproved && isPending) {
@@ -212,7 +220,8 @@ function AppContent() {
           {activeTab === 'tasks' && isAdmin && <TasksView />}
           {activeTab === 'reports' && isAdmin && <ReportsView />}
           {activeTab === 'guests' && isAdmin && <GuestsView />}
-          {activeTab === 'contracts' && <ContractsView />}
+          {activeTab === 'contracts' && <ContractsView onNavigate={setActiveTab} />}
+          {activeTab === 'inspections' && isAdmin && <InspectionsView />}
           {activeTab === 'templates' && isAdmin && <ContractTemplatesView />}
           {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}
           {activeTab === 'appointments' && <AppointmentsView />}

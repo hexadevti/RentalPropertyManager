@@ -9,9 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye, ClipboardText } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Contract, Guest, Property, ContractStatus, RentalType, ContractTemplate, Owner } from '@/types'
+import { Contract, Guest, Inspection, Property, ContractStatus, RentalType, ContractTemplate, Owner } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
@@ -19,7 +19,11 @@ import { format } from 'date-fns'
 import GuestDialogForm from '../GuestDialogForm'
 import { generateContractPDF, downloadPDF, openPDFInNewTab } from '@/lib/contractPDF'
 
-export default function ContractsView() {
+interface ContractsViewProps {
+  onNavigate?: (tab: string) => void
+}
+
+export default function ContractsView({ onNavigate }: ContractsViewProps) {
   const { t, language } = useLanguage()
   const { formatCurrency } = useCurrency()
   const { formatDate } = useDateFormat()
@@ -28,6 +32,7 @@ export default function ContractsView() {
   const [properties] = useKV<Property[]>('properties', [])
   const [owners] = useKV<Owner[]>('owners', [])
   const [templates] = useKV<ContractTemplate[]>('contract-templates', [])
+  const [inspections] = useKV<Inspection[]>('inspections', [])
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -275,6 +280,9 @@ export default function ContractsView() {
     }
     return (templates || []).filter(t => t.type === typeMap[rentalType])
   }
+
+  const getContractInspections = (contractId: string) =>
+    (inspections || []).filter((i) => i.contractId === contractId)
 
   return (
     <div className="space-y-6">
@@ -619,6 +627,23 @@ export default function ContractsView() {
                     )}
                   </div>
                   <div className="flex gap-2 ml-4">
+                    {(() => {
+                      const contractInspections = getContractInspections(contract.id)
+                      return contractInspections.length > 0 ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 h-8 text-xs"
+                          onClick={() => onNavigate?.('inspections')}
+                          title={language === 'pt' ? 'Ver vistorias deste contrato' : 'View inspections for this contract'}
+                        >
+                          <ClipboardText size={14} weight="duotone" className="text-primary" />
+                          {contractInspections.length === 1
+                            ? (language === 'pt' ? '1 vistoria' : '1 inspection')
+                            : (language === 'pt' ? `${contractInspections.length} vistorias` : `${contractInspections.length} inspections`)}
+                        </Button>
+                      ) : null
+                    })()}
                     <Button
                       size="icon"
                       variant="ghost"

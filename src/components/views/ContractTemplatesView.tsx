@@ -40,7 +40,7 @@ function collectXPathPreviewRows(
   basePath: string,
   rows: XPathPreviewRow[],
   depth = 0,
-  maxDepth = 4
+  maxDepth = 5
 ) {
   if (rows.length >= 250) return
 
@@ -405,38 +405,7 @@ export default function ContractTemplatesView() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="type">Tipo de Contrato</Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value) => setFormData({ ...formData, type: value as TemplateType })}
-                  >
-                    <SelectTrigger id="type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="monthly">Mensal</SelectItem>
-                      <SelectItem value="short-term">Temporário</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="preview-contract">Contrato base para preview e ajuda</Label>
-                  <Select value={selectedPreviewContractId} onValueChange={setSelectedPreviewContractId}>
-                    <SelectTrigger id="preview-contract">
-                      <SelectValue placeholder="Selecione um contrato" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_PREVIEW_CONTRACT_VALUE}>Sem contrato base (sem preview)</SelectItem>
-                      {helpContractOptions.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label>Conteúdo do Contrato</Label>
-                    <Dialog open={helpDialogOpen} onOpenChange={(open) => {
+                  <Dialog open={helpDialogOpen} onOpenChange={(open) => {
                       if (open) {
                         editorRef.current?.captureCurrentSelection()
                         setTimeout(() => {
@@ -449,162 +418,184 @@ export default function ContractTemplatesView() {
                         restoreEditorFocus()
                       }
                     }}>
-                      <DialogTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onMouseDown={() => editorRef.current?.captureCurrentSelection()}
-                        >
-                          <Question size={16} className="mr-2" />
-                          Ajuda: Variáveis
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent
-                        className="max-w-3xl max-h-[85vh] overflow-y-hidden p-0"
-                        onCloseAutoFocus={(event) => {
-                          // Keep focus restoration under our control.
-                          event.preventDefault()
-                        }}
-                      >
-                        <DialogHeader className="px-6 pt-6 pb-3 pr-12 border-b bg-background">
-                          <DialogTitle>Variáveis disponíveis no template</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-3 px-6 pb-6 overflow-y-auto max-h-[calc(85vh-76px)]">
-                          <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
-                            {'Os templates agora aceitam XPath baseado nos objetos do contrato no formato: tabela{indice}.coluna{indice}.subcoluna. Exemplo: owners{1}.documents{1}.number.'}
+                    <Tabs value={editorTab} onValueChange={(value) => setEditorTab(value as 'template' | 'preview')}>
+                      {/* Single toolbar row */}
+                      <div className="flex items-end justify-between gap-3">
+                        <div className="flex items-end gap-2 min-w-0">
+                          <div className="space-y-1 w-40 shrink-0">
+                            <Label htmlFor="type">Tipo de Contrato</Label>
+                            <Select
+                              value={formData.type}
+                              onValueChange={(value) => setFormData({ ...formData, type: value as TemplateType })}
+                            >
+                              <SelectTrigger id="type">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="monthly">Mensal</SelectItem>
+                                <SelectItem value="short-term">Temporário</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
-
-                          <div className="rounded-md border p-3">
-                            <p className="text-sm font-medium mb-2">Exemplos para sponsors e dependents</p>
-                            <div className="flex flex-wrap gap-2">
-                              {[
-                                'guest.sponsors{1}.name',
-                                'guest.sponsors{x}.name',
-                                'guest.sponsors{1}.documents{1}.number',
-                                'guest.dependents{1}.name',
-                                'guest.dependents{x}.name',
-                                'guest.dependents{1}.documents{1}.number',
-                              ].map((example) => (
-                                <button
-                                  key={example}
-                                  type="button"
-                                  className="rounded border bg-muted/20 px-2 py-1 font-mono text-xs transition-colors hover:bg-muted/40"
-                                  onClick={() => setXpathInput(example)}
-                                  title="Usar este XPath"
-                                >
-                                  {example}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="grid gap-3 rounded-md border p-3">
-                            <div className="space-y-2">
-                              <Label>XPath</Label>
-                              <Input
-                                value={xpathInput}
-                                onChange={(e) => setXpathInput(e.target.value)}
-                                placeholder="Ex.: owners{1}.documents{1}.number"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                O token inserido no template será: {'{{seu_xpath}}'}
-                              </p>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label>Preview do valor</Label>
-                              <div className="max-h-32 overflow-auto rounded border bg-muted/40 px-3 py-2">
-                                <p className="font-mono text-xs whitespace-pre-wrap break-all">{xpathPreview || 'Digite um XPath para visualizar o valor'}</p>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2">
-                              <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyXPathToken()}>
-                                Copiar XPath
-                              </Button>
-                              <Button type="button" size="sm" onClick={handleInsertXPathToken}>
-                                Inserir no template
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="rounded-md border p-3">
-                            <p className="text-sm font-medium mb-2">Tabelas e propriedades com valores do contrato selecionado</p>
-                            <div className="relative mb-3">
-                              <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                              <Input
-                                ref={xpathTableFilterInputRef}
-                                value={xpathTableFilter}
-                                onChange={(e) => setXpathTableFilter(e.target.value)}
-                                placeholder="Filtrar caminhos e valores..."
-                                className="pl-9"
-                              />
-                            </div>
-                            {!selectedContractForPreview && (
-                              <p className="text-sm text-muted-foreground">Selecione um contrato para carregar os dados de referência.</p>
-                            )}
-                            {selectedContractForPreview && xpathPreviewRows.length === 0 && (
-                              <p className="text-sm text-muted-foreground">Não foi possível montar os dados desse contrato.</p>
-                            )}
-                            {selectedContractForPreview && xpathPreviewRows.length > 0 && filteredXPathPreviewRows.length === 0 && (
-                              <p className="text-sm text-muted-foreground">Nenhum caminho encontrado para esse filtro.</p>
-                            )}
-                            {filteredXPathPreviewRows.length > 0 && (
-                              <div className="max-h-64 overflow-auto space-y-2">
-                                {filteredXPathPreviewRows.map((row) => (
-                                  <button
-                                    key={row.path}
-                                    type="button"
-                                    className="block w-full rounded border bg-muted/20 px-2 py-1 text-left transition-colors hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-primary"
-                                    onClick={() => setXpathInput(row.path)}
-                                    onDoubleClick={() => {
-                                      setXpathInput(row.path)
-                                      handleInsertVariable(`{{${row.path}}}`)
-                                    }}
-                                    title="Usar este XPath"
-                                  >
-                                    <p className="font-mono text-xs font-semibold break-all">{row.path}</p>
-                                    <p className="font-mono text-xs text-muted-foreground whitespace-pre-wrap break-all">{row.value || '(vazio)'}</p>
-                                  </button>
+                          <div className="space-y-1 w-[360px] max-w-[45vw] min-w-0">
+                            <Label htmlFor="preview-contract">Contrato base para preview</Label>
+                            <Select value={selectedPreviewContractId} onValueChange={setSelectedPreviewContractId}>
+                              <SelectTrigger id="preview-contract">
+                                <SelectValue placeholder="Selecione um contrato" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NO_PREVIEW_CONTRACT_VALUE}>Sem contrato base (sem preview)</SelectItem>
+                                {helpContractOptions.map((option) => (
+                                  <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
                                 ))}
-                              </div>
-                            )}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                  <Tabs value={editorTab} onValueChange={(value) => setEditorTab(value as 'template' | 'preview')}>
-                    <TabsList>
-                      <TabsTrigger value="template">Template</TabsTrigger>
-                      <TabsTrigger value="preview">Preview</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="template" className="mt-3">
-                      <RichTextEditor
-                        ref={editorRef}
-                        content={formData.content}
-                        onChange={(html) => setFormData({ ...formData, content: html })}
-                        tokenPreviewResolver={inlineTokenPreviewResolver}
-                      />
-                    </TabsContent>
-                    <TabsContent value="preview" className="mt-3">
-                      <div className="rounded-md border bg-white p-4 h-auto min-h-[140px] max-h-[60vh] overflow-auto text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
+
+                        <div className="ml-auto flex items-end gap-2 shrink-0">
+                          <div className="space-y-1">
+                            <Label>Conteúdo do Contrato</Label>
+                            <TabsList className="shrink-0">
+                              <TabsTrigger value="template">Template</TabsTrigger>
+                              <TabsTrigger value="preview">Preview</TabsTrigger>
+                            </TabsList>
+                          </div>
+                          <DialogTrigger asChild>
+                            <Button
+                              type="button"
+                              className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                              onMouseDown={() => editorRef.current?.captureCurrentSelection()}
+                            >
+                              <Question size={16} className="mr-2" />
+                              Ajuda: Variáveis
+                            </Button>
+                          </DialogTrigger>
+                        </div>
+                      </div>
+
+                      {/* Editor / Preview — same fixed height */}
+                      <TabsContent value="template" className="mt-3">
+                        <div className="h-[50vh]">
+                          <RichTextEditor
+                            ref={editorRef}
+                            content={formData.content}
+                            onChange={(html) => setFormData({ ...formData, content: html })}
+                            tokenPreviewResolver={inlineTokenPreviewResolver}
+                          />
+                        </div>
+                      </TabsContent>
+                      <TabsContent value="preview" className="mt-3">
+                        <div className="h-[50vh] overflow-auto rounded-md border bg-white p-4 text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
+                          {!selectedContractForPreview && (
+                            <p className="text-muted-foreground">Selecione um contrato base para visualizar o preview em tempo real.</p>
+                          )}
+                          {selectedContractForPreview && !renderedPreviewContent && (
+                            <p className="text-muted-foreground">Preview indisponível para o contrato selecionado.</p>
+                          )}
+                          {selectedContractForPreview && renderedPreviewContent && (
+                            isHTML(renderedPreviewContent)
+                              ? <div dangerouslySetInnerHTML={{ __html: renderedPreviewContent }} />
+                              : <pre className="text-xs whitespace-pre-wrap font-mono">{renderedPreviewContent}</pre>
+                          )}
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+
+                    <DialogContent
+                      className="max-w-3xl max-h-[85vh] overflow-y-hidden p-0"
+                      onCloseAutoFocus={(event) => {
+                        // Keep focus restoration under our control.
+                        event.preventDefault()
+                      }}
+                    >
+                    <DialogHeader className="px-6 pt-6 pb-3 pr-12 border-b bg-background">
+                      <DialogTitle>Variáveis disponíveis no template</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3 px-6 pb-6 overflow-y-auto max-h-[calc(85vh-76px)]">
+                      <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
+                        {'Os templates agora aceitam XPath baseado nos objetos do contrato no formato: tabela{indice}.coluna{indice}.subcoluna. Exemplo: owners{1}.documents{1}.number.'}
+                      </div>
+
+                      <div className="grid gap-3 rounded-md border p-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label>XPath</Label>
+                            <Input
+                              value={xpathInput}
+                              onChange={(e) => setXpathInput(e.target.value)}
+                              placeholder="Ex.: owners{1}.documents{1}.number"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              O token inserido no template será: {'{{seu_xpath}}'}
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Preview do valor</Label>
+                            <div className="max-h-32 overflow-auto rounded border bg-muted/40 px-3 py-2">
+                              <p className="font-mono text-xs whitespace-pre-wrap break-all">{xpathPreview || 'Digite um XPath para visualizar o valor'}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyXPathToken()}>
+                            Copiar XPath
+                          </Button>
+                          <Button type="button" size="sm" onClick={handleInsertXPathToken}>
+                            Inserir no template
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border p-3">
+                        <p className="text-sm font-medium mb-2">Tabelas e propriedades com valores do contrato selecionado</p>
+                        <div className="relative mb-3">
+                          <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                          <Input
+                            ref={xpathTableFilterInputRef}
+                            value={xpathTableFilter}
+                            onChange={(e) => setXpathTableFilter(e.target.value)}
+                            placeholder="Filtrar caminhos e valores..."
+                            className="pl-9"
+                          />
+                        </div>
                         {!selectedContractForPreview && (
-                          <p className="text-muted-foreground">Selecione um contrato base para visualizar o preview em tempo real.</p>
+                          <p className="text-sm text-muted-foreground">Selecione um contrato para carregar os dados de referência.</p>
                         )}
-                        {selectedContractForPreview && !renderedPreviewContent && (
-                          <p className="text-muted-foreground">Preview indisponível para o contrato selecionado.</p>
+                        {selectedContractForPreview && xpathPreviewRows.length === 0 && (
+                          <p className="text-sm text-muted-foreground">Não foi possível montar os dados desse contrato.</p>
                         )}
-                        {selectedContractForPreview && renderedPreviewContent && (
-                          isHTML(renderedPreviewContent)
-                            ? <div dangerouslySetInnerHTML={{ __html: renderedPreviewContent }} />
-                            : <pre className="text-xs whitespace-pre-wrap font-mono">{renderedPreviewContent}</pre>
+                        {selectedContractForPreview && xpathPreviewRows.length > 0 && filteredXPathPreviewRows.length === 0 && (
+                          <p className="text-sm text-muted-foreground">Nenhum caminho encontrado para esse filtro.</p>
+                        )}
+                        {filteredXPathPreviewRows.length > 0 && (
+                          <div className="max-h-64 overflow-auto space-y-2">
+                            {filteredXPathPreviewRows.map((row) => (
+                              <button
+                                key={row.path}
+                                type="button"
+                                className="block w-full rounded border bg-muted/20 px-2 py-1 text-left transition-colors hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-primary"
+                                onClick={() => setXpathInput(row.path)}
+                                onDoubleClick={() => {
+                                  setXpathInput(row.path)
+                                  handleInsertVariable(`{{${row.path}}}`)
+                                }}
+                                title="Usar este XPath"
+                              >
+                                <p className="font-mono text-xs font-semibold break-all">{row.path}</p>
+                                <p className="font-mono text-xs text-muted-foreground whitespace-pre-wrap break-all">{row.value || '(vazio)'}</p>
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    </TabsContent>
-                  </Tabs>
+                    </div>
+                  </DialogContent>
+                  </Dialog>
                 </div>
+
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancelar

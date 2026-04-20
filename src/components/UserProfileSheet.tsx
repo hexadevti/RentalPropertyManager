@@ -63,7 +63,7 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto px-5 sm:px-7">
         <SheetHeader className="pb-4">
           <SheetTitle>{isPortuguese ? 'Perfil do Usuário' : 'User Profile'}</SheetTitle>
         </SheetHeader>

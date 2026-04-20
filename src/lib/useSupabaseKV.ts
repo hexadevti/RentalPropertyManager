@@ -15,6 +15,7 @@ const COLLECTION_KEYS = new Set([
   'contracts',
   'documents',
   'guests',
+  'inspections',
   'owners',
   'properties',
   'service-providers',
@@ -210,7 +211,9 @@ async function loadProperties() {
   const [
     { data: properties, error: propertiesError },
     { data: propertyOwners, error: ownersError },
+    { data: propertyEnvironments, error: environmentsError },
     { data: propertyFurniture, error: furnitureError },
+    { data: propertyInspectionItems, error: inspectionItemsError },
   ] = await Promise.all([
     supabase
       .from('properties')
@@ -222,7 +225,19 @@ async function loadProperties() {
       .select('property_id, owner_id')
       .eq('tenant_id', tenantId),
     supabase
+      .from('property_environments')
+      .select('property_id, environment_order, environment_name')
+      .eq('tenant_id', tenantId)
+      .order('property_id', { ascending: true })
+      .order('environment_order', { ascending: true }),
+    supabase
       .from('property_furniture')
+      .select('property_id, item_order, item_name')
+      .eq('tenant_id', tenantId)
+      .order('property_id', { ascending: true })
+      .order('item_order', { ascending: true }),
+    supabase
+      .from('property_inspection_items')
       .select('property_id, item_order, item_name')
       .eq('tenant_id', tenantId)
       .order('property_id', { ascending: true })
@@ -231,11 +246,20 @@ async function loadProperties() {
 
   if (propertiesError) throw propertiesError
   if (ownersError) throw ownersError
+  if (environmentsError) throw environmentsError
   if (furnitureError) throw furnitureError
+  if (inspectionItemsError) throw inspectionItemsError
 
   const ownerMap = new Map<string, string[]>()
   for (const row of propertyOwners || []) {
     ownerMap.set(row.property_id, [...(ownerMap.get(row.property_id) || []), row.owner_id])
+  }
+
+  const environmentMap = new Map<string, string[]>()
+  for (const row of propertyEnvironments || []) {
+    const currentItems = environmentMap.get(row.property_id) || []
+    currentItems.push(row.environment_name)
+    environmentMap.set(row.property_id, currentItems)
   }
 
   const furnitureMap = new Map<string, string[]>()
@@ -243,6 +267,13 @@ async function loadProperties() {
     const currentItems = furnitureMap.get(row.property_id) || []
     currentItems.push(row.item_name)
     furnitureMap.set(row.property_id, currentItems)
+  }
+
+  const inspectionItemsMap = new Map<string, string[]>()
+  for (const row of propertyInspectionItems || []) {
+    const currentItems = inspectionItemsMap.get(row.property_id) || []
+    currentItems.push(row.item_name)
+    inspectionItemsMap.set(row.property_id, currentItems)
   }
 
   return (properties || []).map((property) => ({
@@ -256,7 +287,9 @@ async function loadProperties() {
     address: property.address || undefined,
     city: property.city || undefined,
     conservationState: property.conservation_state || undefined,
+    environments: environmentMap.get(property.id) || [],
     furnitureItems: furnitureMap.get(property.id) || [],
+    inspectionItems: inspectionItemsMap.get(property.id) || [],
     description: property.description,
     ownerIds: ownerMap.get(property.id) || [],
     createdAt: property.created_at,
@@ -544,6 +577,155 @@ async function loadDocuments() {
   }))
 }
 
+async function loadInspections() {
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
+
+  const [
+    { data: inspections, error: inspectionsError },
+    { data: entries, error: entriesError },
+  ] = await Promise.all([
+    supabase
+      .from('inspections')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('inspection_entries')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('environment_order', { ascending: true })
+      .order('item_order', { ascending: true }),
+  ])
+
+  if (inspectionsError) throw inspectionsError
+  if (entriesError) throw entriesError
+
+  const entriesByInspection = new Map<string, any[]>()
+  for (const entry of entries || []) {
+    const current = entriesByInspection.get(entry.inspection_id) || []
+    current.push(entry)
+    entriesByInspection.set(entry.inspection_id, current)
+  }
+
+  return (inspections || []).map((inspection: any) => {
+    const inspectionEntries = entriesByInspection.get(inspection.id) || []
+
+    const environmentMap = new Map<number, { name: string; items: any[] }>()
+    for (const entry of inspectionEntries) {
+      const env: { name: string; items: any[] } = environmentMap.get(entry.environment_order) || { name: entry.environment_name, items: [] }
+      env.items.push(entry)
+      environmentMap.set(entry.environment_order, env)
+    }
+
+    const areas = Array.from(environmentMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([envOrder, env]) => ({
+        id: `${inspection.id}-env-${envOrder}`,
+        name: env.name,
+        notes: '',
+        items: env.items
+          .sort((a: any, b: any) => a.item_order - b.item_order)
+          .map((item: any) => ({
+            id: item.id,
+            label: item.item_name,
+            condition: item.condition,
+            notes: item.notes || '',
+          })),
+      }))
+
+    return {
+      id: inspection.id,
+      title: inspection.title,
+      propertyId: inspection.property_id,
+      contractId: inspection.contract_id,
+      parentInspectionId: inspection.parent_inspection_id || undefined,
+      type: inspection.type,
+      status: inspection.status,
+      inspectorName: inspection.inspector_name,
+      scheduledDate: inspection.scheduled_date,
+      completedDate: inspection.completed_date || undefined,
+      summary: inspection.summary || undefined,
+      areas,
+      createdAt: inspection.created_at,
+      updatedAt: inspection.updated_at,
+    }
+  })
+}
+
+async function persistInspections(value: any[]) {
+  const tenantId = await getTenantId()
+  if (!tenantId) return
+
+  const existingIds = await loadExistingIds('inspections', tenantId)
+  const nextIds = value.map((i) => i.id)
+  const removedIds = existingIds.filter((id) => !nextIds.includes(id))
+
+  if (removedIds.length > 0) {
+    const { error } = await supabase
+      .from('inspections')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .in('id', removedIds)
+    if (error) throw error
+  }
+
+  if (value.length > 0) {
+    const { error } = await supabase
+      .from('inspections')
+      .upsert(
+        value.map((inspection) => ({
+          tenant_id: tenantId,
+          id: inspection.id,
+          property_id: inspection.propertyId,
+          contract_id: inspection.contractId,
+          parent_inspection_id: inspection.parentInspectionId || null,
+          title: inspection.title,
+          type: inspection.type,
+          status: inspection.status,
+          inspector_name: inspection.inspectorName,
+          scheduled_date: inspection.scheduledDate,
+          completed_date: inspection.completedDate || null,
+          summary: inspection.summary || null,
+          created_at: inspection.createdAt,
+          updated_at: inspection.updatedAt,
+        })),
+        { onConflict: 'tenant_id,id' }
+      )
+    if (error) throw error
+  }
+
+  if (nextIds.length > 0) {
+    const { error } = await supabase
+      .from('inspection_entries')
+      .delete()
+      .eq('tenant_id', tenantId)
+      .in('inspection_id', nextIds)
+    if (error) throw error
+  }
+
+  const entryRows = value.flatMap((inspection) =>
+    (inspection.areas || []).flatMap((area: any, areaIndex: number) =>
+      (area.items || []).map((item: any, itemIndex: number) => ({
+        id: item.id,
+        tenant_id: tenantId,
+        inspection_id: inspection.id,
+        environment_name: area.name,
+        environment_order: areaIndex + 1,
+        item_name: item.label,
+        item_order: itemIndex + 1,
+        condition: item.condition,
+        notes: item.notes || null,
+      }))
+    )
+  )
+
+  if (entryRows.length > 0) {
+    const { error } = await supabase.from('inspection_entries').insert(entryRows)
+    if (error) throw error
+  }
+}
+
 async function loadCollection(key: string) {
   switch (key) {
     case 'owners': return loadOwners()
@@ -556,6 +738,7 @@ async function loadCollection(key: string) {
     case 'appointments': return loadAppointments()
     case 'contract-templates': return loadTemplates()
     case 'documents': return loadDocuments()
+    case 'inspections': return loadInspections()
     default: return []
   }
 }
@@ -657,6 +840,30 @@ async function persistProperties(value: any[]) {
     if (error) throw error
   }
 
+  const { error: deleteEnvironmentsError } = await supabase
+    .from('property_environments')
+    .delete()
+    .eq('tenant_id', tenantId)
+
+  if (deleteEnvironmentsError) throw deleteEnvironmentsError
+
+  const propertyEnvironments = value.flatMap((property) =>
+    (property.environments || [])
+      .map((environmentName: string) => environmentName.trim())
+      .filter(Boolean)
+      .map((environmentName: string, index: number) => ({
+        tenant_id: tenantId,
+        property_id: property.id,
+        environment_order: index + 1,
+        environment_name: environmentName,
+      }))
+  )
+
+  if (propertyEnvironments.length > 0) {
+    const { error } = await supabase.from('property_environments').insert(propertyEnvironments)
+    if (error) throw error
+  }
+
   const { error: deleteFurnitureError } = await supabase
     .from('property_furniture')
     .delete()
@@ -678,6 +885,30 @@ async function persistProperties(value: any[]) {
 
   if (propertyFurniture.length > 0) {
     const { error } = await supabase.from('property_furniture').insert(propertyFurniture)
+    if (error) throw error
+  }
+
+  const { error: deleteInspectionItemsError } = await supabase
+    .from('property_inspection_items')
+    .delete()
+    .eq('tenant_id', tenantId)
+
+  if (deleteInspectionItemsError) throw deleteInspectionItemsError
+
+  const propertyInspectionItems = value.flatMap((property) =>
+    (property.inspectionItems || [])
+      .map((itemName: string) => itemName.trim())
+      .filter(Boolean)
+      .map((itemName: string, index: number) => ({
+        tenant_id: tenantId,
+        property_id: property.id,
+        item_order: index + 1,
+        item_name: itemName,
+      }))
+  )
+
+  if (propertyInspectionItems.length > 0) {
+    const { error } = await supabase.from('property_inspection_items').insert(propertyInspectionItems)
     if (error) throw error
   }
 }
@@ -926,6 +1157,7 @@ async function persistCollection(key: string, value: unknown) {
     case 'appointments': return persistAppointments(rows)
     case 'contract-templates': return persistTemplates(rows)
     case 'documents': return persistDocuments(rows)
+    case 'inspections': return persistInspections(rows)
     default: return undefined
   }
 }
