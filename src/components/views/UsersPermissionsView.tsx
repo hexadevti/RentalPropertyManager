@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import type { UserRole, UserStatus } from '@/types'
-import { BuildingOffice, ClockCounterClockwise, User, PencilSimpleLine, ShieldCheck } from '@phosphor-icons/react'
+import { BuildingOffice, ClockCounterClockwise, Circle, User, PencilSimpleLine, ShieldCheck, UsersThree } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 type TenantOption = {
@@ -39,6 +39,18 @@ type AuditLogRow = {
   created_at: string
 }
 
+type UserPresenceRow = {
+  session_id: string
+  auth_user_id: string | null
+  user_login: string
+  user_email: string | null
+  avatar_url: string | null
+  current_tab: string
+  current_tab_label: string
+  activity: string
+  last_seen_at: string
+}
+
 export default function UsersPermissionsView() {
   const { isAdmin, isPlatformAdmin, setSessionTenant, currentUser, currentTenantId } = useAuth()
 
@@ -63,6 +75,8 @@ export default function UsersPermissionsView() {
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all')
   const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([])
   const [isLoadingAuditLogs, setIsLoadingAuditLogs] = useState(false)
+  const [onlineUsers, setOnlineUsers] = useState<UserPresenceRow[]>([])
+  const [isLoadingOnlineUsers, setIsLoadingOnlineUsers] = useState(false)
 
   const selectedTenant = useMemo(
     () => tenants.find((tenant) => tenant.id === selectedTenantId) || null,
@@ -159,6 +173,31 @@ export default function UsersPermissionsView() {
     setIsLoadingAuditLogs(false)
   }, [selectedTenantId])
 
+  const loadOnlineUsers = useCallback(async (tenantId?: string) => {
+    const scopedTenantId = tenantId || selectedTenantId
+    if (!scopedTenantId) {
+      setOnlineUsers([])
+      return
+    }
+
+    setIsLoadingOnlineUsers(true)
+    const cutoff = new Date(Date.now() - 90_000).toISOString()
+    const { data, error } = await supabase
+      .from('user_presence')
+      .select('session_id, auth_user_id, user_login, user_email, avatar_url, current_tab, current_tab_label, activity, last_seen_at')
+      .eq('tenant_id', scopedTenantId)
+      .gte('last_seen_at', cutoff)
+      .order('last_seen_at', { ascending: false })
+
+    if (error) {
+      console.warn('Failed to load online users:', error)
+      setOnlineUsers([])
+    } else {
+      setOnlineUsers((data || []) as UserPresenceRow[])
+    }
+    setIsLoadingOnlineUsers(false)
+  }, [selectedTenantId])
+
   useEffect(() => {
     void loadTenants()
   }, [loadTenants])
@@ -167,7 +206,26 @@ export default function UsersPermissionsView() {
     if (!selectedTenantId) return
     void loadProfilesByTenant(selectedTenantId)
     void loadAuditLogs(selectedTenantId)
-  }, [selectedTenantId, loadProfilesByTenant, loadAuditLogs])
+    void loadOnlineUsers(selectedTenantId)
+  }, [selectedTenantId, loadProfilesByTenant, loadAuditLogs, loadOnlineUsers])
+
+  useEffect(() => {
+    if (!selectedTenantId) return
+    const interval = window.setInterval(() => {
+      void loadOnlineUsers(selectedTenantId)
+    }, 15000)
+    return () => window.clearInterval(interval)
+  }, [selectedTenantId, loadOnlineUsers])
+
+  const onlineProfiles = useMemo(() => {
+    return onlineUsers.map((presence) => ({
+      presence,
+      profile: profiles.find((profile) => (
+        (presence.auth_user_id && profile.authUserId === presence.auth_user_id)
+        || profile.githubLogin === presence.user_login
+      )) || null,
+    }))
+  }, [onlineUsers, profiles])
 
   if (!isAdmin) {
     return (
@@ -370,6 +428,66 @@ export default function UsersPermissionsView() {
           <Button onClick={handleSaveTenant} disabled={isSavingTenant || !tenantDraft.trim()}>
             {isSavingTenant ? 'Salvando...' : 'Salvar Tenant'}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <UsersThree size={20} weight="duotone" />
+              Usuários online agora
+            </CardTitle>
+            <CardDescription>
+              Sessões ativas no tenant selecionado, considerando atividade nos últimos 90 segundos.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void loadOnlineUsers(selectedTenantId)} disabled={isLoadingOnlineUsers || !selectedTenantId}>
+            {isLoadingOnlineUsers ? 'Atualizando...' : 'Atualizar'}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {onlineProfiles.map(({ presence, profile }) => (
+            <div key={presence.session_id} className="flex flex-col gap-3 rounded-lg border border-border p-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                <img
+                  src={presence.avatar_url || profile?.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(presence.user_login)}&background=random`}
+                  alt={presence.user_login}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium truncate">{profile?.githubLogin || presence.user_login}</p>
+                    <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
+                      <Circle size={8} weight="fill" />
+                      online
+                    </Badge>
+                    {profile && <Badge variant="secondary">{profile.role}</Badge>}
+                  </div>
+                  <p className="text-sm text-muted-foreground truncate">{presence.user_email || profile?.email || '-'}</p>
+                </div>
+              </div>
+              <div className="grid gap-2 text-sm lg:min-w-[520px] lg:grid-cols-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Tela</p>
+                  <p className="font-medium">{presence.current_tab_label}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">O que está fazendo</p>
+                  <p className="font-medium">{presence.activity}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Último sinal</p>
+                  <p className="font-medium">{new Date(presence.last_seen_at).toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!isLoadingOnlineUsers && onlineUsers.length === 0 && (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              Nenhum usuário online no tenant selecionado neste momento.
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency, currencies, Currency } from '@/lib/CurrencyContext'
+import { DecimalSeparator, useNumberFormat } from '@/lib/NumberFormatContext'
 import { useDateFormat, dateFormats, DateFormat } from '@/lib/DateFormatContext'
 import { SignOut, Globe, CurrencyCircleDollar, CalendarBlank, IdentificationCard, EnvelopeSimple, User } from '@phosphor-icons/react'
 import { useState } from 'react'
@@ -22,6 +23,7 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
   const { currentUser, userProfile, signOut } = useAuth()
   const { t, language, setLanguage } = useLanguage()
   const { currency, setCurrency } = useCurrency()
+  const { decimalSeparator, setDecimalSeparator } = useNumberFormat()
   const { dateFormat, setDateFormat } = useDateFormat()
   const [isSigningOut, setIsSigningOut] = useState(false)
 
@@ -55,6 +57,11 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
   const handleDateFormatChange = (val: string) => {
     setDateFormat(val as DateFormat)
     toast.success(t.settings_view.date_format_updated)
+  }
+
+  const handleDecimalSeparatorChange = (val: string) => {
+    setDecimalSeparator(val as DecimalSeparator)
+    toast.success(isPortuguese ? 'Formato de número atualizado' : 'Number format updated')
   }
 
   if (!currentUser || !userProfile) return null
@@ -165,6 +172,27 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <CurrencyCircleDollar size={14} className="text-muted-foreground" />
+              {isPortuguese ? 'Formato de número' : 'Number format'}
+            </Label>
+            <Select value={decimalSeparator} onValueChange={handleDecimalSeparatorChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value=",">{isPortuguese ? 'Vírgula decimal: 1.234,56' : 'Decimal comma: 1.234,56'}</SelectItem>
+                <SelectItem value=".">{isPortuguese ? 'Ponto decimal: 1,234.56' : 'Decimal point: 1,234.56'}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {isPortuguese
+                ? 'Essa preferência é salva para o seu usuário e aplicada nos campos de valores.'
+                : 'This preference is saved for your user and applied to amount fields.'}
+            </p>
           </div>
         </div>
 

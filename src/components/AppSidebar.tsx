@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   PushPin,
   ClipboardText,
-  FolderOpen
+  FolderOpen,
+  Bug
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -28,6 +29,8 @@ export interface MenuItem {
   icon: any
   value: string
   adminOnly?: boolean
+  platformAdminOnly?: boolean
+  regularAdminOnly?: boolean
 }
 
 export const menuItems: MenuItem[] = [
@@ -44,6 +47,8 @@ export const menuItems: MenuItem[] = [
   { id: 'templates', icon: FileText, value: 'templates', adminOnly: true },
   { id: 'providers', icon: Wrench, value: 'providers', adminOnly: true },
   { id: 'appointments', icon: CalendarCheck, value: 'appointments' },
+  { id: 'my-bug-reports', icon: Bug, value: 'my-bug-reports', regularAdminOnly: true },
+  { id: 'bug-reports', icon: Bug, value: 'bug-reports', platformAdminOnly: true },
   { id: 'users-permissions', icon: ShieldCheck, value: 'users-permissions', adminOnly: true },
   { id: 'settings', icon: Gear, value: 'settings' },
 ]
@@ -55,11 +60,13 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ activeTab, onTabChange, pinnedItems }: AppSidebarProps) {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isPlatformAdmin } = useAuth()
   const { t } = useLanguage()
 
   const visibleItems = menuItems.filter(item => {
     if (item.adminOnly && !isAdmin) return false
+    if (item.platformAdminOnly && !isPlatformAdmin) return false
+    if (item.regularAdminOnly && (!isAdmin || isPlatformAdmin)) return false
     return true
   })
 
