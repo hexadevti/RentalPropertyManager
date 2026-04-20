@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency, currencies, Currency } from '@/lib/CurrencyContext'
 import { DecimalSeparator, useNumberFormat } from '@/lib/NumberFormatContext'
+import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 import { useDateFormat, dateFormats, DateFormat } from '@/lib/DateFormatContext'
 import { SignOut, Globe, CurrencyCircleDollar, CalendarBlank, IdentificationCard, EnvelopeSimple, User } from '@phosphor-icons/react'
 import { useState } from 'react'
@@ -24,8 +25,10 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
   const { t, language, setLanguage } = useLanguage()
   const { currency, setCurrency } = useCurrency()
   const { decimalSeparator, setDecimalSeparator } = useNumberFormat()
+  const { validPhoneMasks, setValidPhoneMasks } = usePhoneFormat()
   const { dateFormat, setDateFormat } = useDateFormat()
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [newPhoneMask, setNewPhoneMask] = useState('')
 
   const login = currentUser?.login || userProfile?.githubLogin || 'user'
   const initials = login.slice(0, 2).toUpperCase()
@@ -62,6 +65,26 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
   const handleDecimalSeparatorChange = (val: string) => {
     setDecimalSeparator(val as DecimalSeparator)
     toast.success(isPortuguese ? 'Formato de número atualizado' : 'Number format updated')
+  }
+
+  const handleAddPhoneMask = () => {
+    const trimmed = newPhoneMask.trim()
+    if (!trimmed || !trimmed.toLowerCase().includes('x')) {
+      toast.error(isPortuguese ? 'Informe uma máscara usando x para os dígitos.' : 'Use x for phone digits.')
+      return
+    }
+    setValidPhoneMasks([...validPhoneMasks, trimmed])
+    setNewPhoneMask('')
+    toast.success(isPortuguese ? 'Máscara adicionada' : 'Mask added')
+  }
+
+  const handleRemovePhoneMask = (mask: string) => {
+    if (validPhoneMasks.length <= 1) {
+      toast.error(isPortuguese ? 'Mantenha pelo menos uma máscara.' : 'Keep at least one mask.')
+      return
+    }
+    const nextMasks = validPhoneMasks.filter((item) => item !== mask)
+    setValidPhoneMasks(nextMasks)
   }
 
   if (!currentUser || !userProfile) return null
@@ -192,6 +215,44 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
               {isPortuguese
                 ? 'Essa preferência é salva para o seu usuário e aplicada nos campos de valores.'
                 : 'This preference is saved for your user and applied to amount fields.'}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <IdentificationCard size={14} className="text-muted-foreground" />
+              {isPortuguese ? 'Máscaras de telefone' : 'Phone masks'}
+            </Label>
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-xs font-medium text-muted-foreground">
+                {isPortuguese ? 'Máscaras válidas' : 'Valid masks'}
+              </p>
+              <div className="space-y-2">
+                {validPhoneMasks.map((mask) => (
+                  <div key={mask} className="flex items-center justify-between gap-2 rounded bg-muted px-2 py-1 text-sm">
+                    <span className="font-mono">{mask}</span>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemovePhoneMask(mask)}>
+                      {isPortuguese ? 'Remover' : 'Remove'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={newPhoneMask}
+                  onChange={(event) => setNewPhoneMask(event.target.value)}
+                  placeholder="(xx) xxxxx-xxxx"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleAddPhoneMask}>
+                  {isPortuguese ? 'Adicionar' : 'Add'}
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isPortuguese
+                ? 'Use x para indicar dígitos. O sistema escolhe automaticamente uma máscara compatível com o telefone digitado.'
+                : 'Use x for digits. The system automatically chooses a compatible mask for the typed phone.'}
             </p>
           </div>
         </div>

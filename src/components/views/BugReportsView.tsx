@@ -69,7 +69,7 @@ export default function BugReportsView() {
   const [reports, setReports] = useState<BugReport[]>([])
   const [attachments, setAttachments] = useState<BugReportAttachment[]>([])
   const [tenants, setTenants] = useState<TenantOption[]>([])
-  const [statusFilter, setStatusFilter] = useState<BugReportStatus | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<BugReportStatus | 'active' | 'all'>('active')
   const [search, setSearch] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
@@ -144,7 +144,8 @@ export default function BugReportsView() {
   }, [tenants])
 
   const filteredReports = reports.filter((report) => {
-    if (statusFilter !== 'all' && report.status !== statusFilter) return false
+    if (statusFilter === 'active' && !['open', 'in-review'].includes(report.status)) return false
+    if (statusFilter !== 'all' && statusFilter !== 'active' && report.status !== statusFilter) return false
     const term = search.trim().toLowerCase()
     if (!term) return true
     return [
@@ -205,12 +206,13 @@ export default function BugReportsView() {
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Buscar por usuário, tenant, tela, registro ou descrição..."
         />
-        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as BugReportStatus | 'all')}>
+        <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as BugReportStatus | 'active' | 'all')}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
+            <SelectItem value="active">Aberto e em análise</SelectItem>
             {Object.entries(statusLabels).map(([value, label]) => (
               <SelectItem key={value} value={value}>{label}</SelectItem>
             ))}

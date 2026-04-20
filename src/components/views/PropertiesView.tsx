@@ -317,6 +317,14 @@ export default function PropertiesView() {
   }
 
   const handleGenerateContract = (propertyId: string) => {
+    if (getPropertyStatus(propertyId) !== 'available') {
+      toast.error(language === 'pt'
+        ? 'Só é possível criar contrato para propriedades disponíveis.'
+        : 'Contracts can only be created for available properties.'
+      )
+      return
+    }
+
     setSelectedPropertyForContract(propertyId)
     setContractDialogOpen(true)
   }
@@ -780,15 +788,17 @@ export default function PropertiesView() {
                       {language === 'pt' ? 'Mostrar no mapa' : 'Show on map'}
                     </Button>
                   )}
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="w-full gap-2"
-                    onClick={() => handleGenerateContract(property.id)}
-                  >
-                    <FileText size={14} />
-                    {t.properties_view.generate_contract}
-                  </Button>
+                  {currentStatus === 'available' && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="w-full gap-2"
+                      onClick={() => handleGenerateContract(property.id)}
+                    >
+                      <FileText size={14} />
+                      {t.properties_view.generate_contract}
+                    </Button>
+                  )}
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleEdit(property)}>
                       <Pencil size={14} />

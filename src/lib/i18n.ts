@@ -28,6 +28,7 @@ export const translations = {
       'bug-reports': 'Bug reports',
       'my-bug-reports': 'Bugs reportados',
       'users-permissions': 'Usuários e Permissões',
+      'audit-logs': 'Log de Auditoria',
       settings: 'Configurações',
     },
     
@@ -543,6 +544,7 @@ export const translations = {
       'bug-reports': 'Bug reports',
       'my-bug-reports': 'Reported bugs',
       'users-permissions': 'Users & Permissions',
+      'audit-logs': 'Audit Logs',
       settings: 'Settings',
     },
     

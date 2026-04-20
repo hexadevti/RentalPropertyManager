@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -9,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { MagnifyingGlass, Plus, Pencil, Trash, Wrench, Envelope, Phone, Briefcase, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
+import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 
 export interface ServiceProvider {
   id: string
@@ -24,6 +26,7 @@ export interface ServiceProvider {
 
 export default function ServiceProvidersView() {
   const { t } = useLanguage()
+  const { formatPhone } = usePhoneFormat()
   const [providers, setProviders] = useKV<ServiceProvider[]>('service-providers', [])
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -160,10 +163,10 @@ export default function ServiceProvidersView() {
 
                 <div>
                   <Label htmlFor="provider-phone">Telefone *</Label>
-                  <Input
+                  <PhoneInput
                     id="provider-phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onValueChange={(value) => setFormData({ ...formData, phone: value })}
                     placeholder="(00) 00000-0000"
                     required
                   />
@@ -270,7 +273,7 @@ export default function ServiceProvidersView() {
                       <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <Phone size={16} weight="duotone" />
-                          {provider.phone}
+                          {formatPhone(provider.phone)}
                         </div>
                         {provider.email && (
                           <div className="flex items-center gap-1.5">

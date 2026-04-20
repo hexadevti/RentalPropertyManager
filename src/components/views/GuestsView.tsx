@@ -8,11 +8,13 @@ import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, Identifica
 import { toast } from 'sonner'
 import { Guest, Contract } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
+import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 import { format } from 'date-fns'
 import GuestDialogForm from '@/components/GuestDialogForm'
 
 export default function GuestsView() {
   const { t, language } = useLanguage()
+  const { formatPhone } = usePhoneFormat()
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [searchQuery, setSearchQuery] = useState('')
@@ -118,7 +120,7 @@ export default function GuestsView() {
                           </div>
                           <div className="flex items-center gap-1.5">
                             <Phone size={16} weight="duotone" />
-                            {guest.phone}
+                            {formatPhone(guest.phone)}
                           </div>
                           {((guest.sponsors?.length || 0) > 0 || (guest.dependents?.length || 0) > 0) && (
                             <div className="flex items-center gap-1.5">
@@ -164,7 +166,7 @@ export default function GuestsView() {
                           <div key={sponsor.id} className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
                             <div className="font-medium">{sponsor.name || (language === 'pt' ? 'Sem nome' : 'Unnamed')}</div>
                             <div className="text-muted-foreground">
-                              {[sponsor.email, sponsor.phone].filter(Boolean).join(' • ')}
+                              {[sponsor.email, sponsor.phone ? formatPhone(sponsor.phone) : ''].filter(Boolean).join(' • ')}
                             </div>
                           </div>
                         ))}
@@ -182,7 +184,7 @@ export default function GuestsView() {
                           <div key={dependent.id} className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
                             <div className="font-medium">{dependent.name || (language === 'pt' ? 'Sem nome' : 'Unnamed')}</div>
                             <div className="text-muted-foreground">
-                              {[dependent.email, dependent.phone].filter(Boolean).join(' • ')}
+                              {[dependent.email, dependent.phone ? formatPhone(dependent.phone) : ''].filter(Boolean).join(' • ')}
                             </div>
                           </div>
                         ))}

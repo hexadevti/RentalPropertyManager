@@ -9,8 +9,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
+import { logAppAudit } from '@/lib/appAudit'
 import type { UserRole, UserStatus } from '@/types'
-import { BuildingOffice, ClockCounterClockwise, Circle, User, PencilSimpleLine, ShieldCheck, UsersThree } from '@phosphor-icons/react'
+import { BuildingOffice, Circle, User, PencilSimpleLine, ShieldCheck, UsersThree } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 type TenantOption = {
@@ -28,15 +29,6 @@ type TenantProfile = {
   avatarUrl: string
   createdAt: string
   updatedAt: string
-}
-
-type AuditLogRow = {
-  id: string
-  actor_login: string | null
-  target_login: string | null
-  action: string
-  details: Record<string, any>
-  created_at: string
 }
 
 type UserPresenceRow = {
@@ -76,8 +68,6 @@ export default function UsersPermissionsView() {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all')
-  const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([])
-  const [isLoadingAuditLogs, setIsLoadingAuditLogs] = useState(false)
   const [onlineUsers, setOnlineUsers] = useState<UserPresenceRow[]>([])
   const [isLoadingOnlineUsers, setIsLoadingOnlineUsers] = useState(false)
 
@@ -157,25 +147,6 @@ export default function UsersPermissionsView() {
     setIsLoadingProfiles(false)
   }, [])
 
-  const loadAuditLogs = useCallback(async (tenantId?: string) => {
-    const scopedTenantId = tenantId || selectedTenantId
-    if (!scopedTenantId) return
-    setIsLoadingAuditLogs(true)
-    const { data, error } = await supabase
-      .from('tenant_audit_logs')
-      .select('id, actor_login, target_login, action, details, created_at')
-      .eq('tenant_id', scopedTenantId)
-      .order('created_at', { ascending: false })
-      .limit(40)
-    if (error) {
-      console.warn('Failed to load audit logs:', error)
-      setAuditLogs([])
-    } else {
-      setAuditLogs((data || []) as AuditLogRow[])
-    }
-    setIsLoadingAuditLogs(false)
-  }, [selectedTenantId])
-
   const loadOnlineUsers = useCallback(async (tenantId?: string) => {
     const scopedTenantId = tenantId || selectedTenantId
     if (!scopedTenantId) {
@@ -208,9 +179,8 @@ export default function UsersPermissionsView() {
   useEffect(() => {
     if (!selectedTenantId) return
     void loadProfilesByTenant(selectedTenantId)
-    void loadAuditLogs(selectedTenantId)
     void loadOnlineUsers(selectedTenantId)
-  }, [selectedTenantId, loadProfilesByTenant, loadAuditLogs, loadOnlineUsers])
+  }, [selectedTenantId, loadProfilesByTenant, loadOnlineUsers])
 
   useEffect(() => {
     if (!selectedTenantId) return
@@ -276,8 +246,15 @@ export default function UsersPermissionsView() {
       setTenants(prev => prev.map((tenant) => (
         tenant.id === selectedTenantId ? { ...tenant, name: trimmed } : tenant
       )))
+      await logAppAudit({
+        entity: 'tenants',
+        action: 'update',
+        recordId: selectedTenantId,
+        tenantId: selectedTenantId,
+        actorAuthUserId: currentUser?.id,
+        actorLogin: currentUser?.login,
+      })
       toast.success('Tenant atualizado com sucesso')
-      await loadAuditLogs(selectedTenantId)
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao atualizar tenant')
     } finally {
@@ -340,9 +317,16 @@ export default function UsersPermissionsView() {
 
       if (updateError) throw updateError
 
+      await logAppAudit({
+        entity: 'user_profiles',
+        action: 'update',
+        recordId: selectedProfile.id,
+        tenantId: selectedTenantId,
+        actorAuthUserId: currentUser?.id,
+        actorLogin: currentUser?.login,
+      })
       toast.success('Perfil atualizado com sucesso')
       await loadProfilesByTenant(selectedTenantId)
-      await loadAuditLogs(selectedTenantId)
       setEditingLogin(null)
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao atualizar perfil')
@@ -577,48 +561,6 @@ export default function UsersPermissionsView() {
           {!isLoadingProfiles && filteredProfiles.length === 0 && (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               Nenhum usuário encontrado com os filtros atuais.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <ClockCounterClockwise size={20} weight="duotone" />
-              Trilha de Auditoria
-            </CardTitle>
-            <CardDescription>
-              Histórico das alterações administrativas de usuários, permissões e tenant.
-            </CardDescription>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void loadAuditLogs(selectedTenantId)} disabled={isLoadingAuditLogs || !selectedTenantId}>
-            {isLoadingAuditLogs ? 'Atualizando...' : 'Atualizar'}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {auditLogs.map((log) => (
-            <div key={log.id} className="rounded-lg border border-border p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{log.action}</Badge>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(log.created_at).toLocaleString()}
-                </span>
-              </div>
-              <p className="mt-2 text-sm">
-                <strong>Ator:</strong> {log.actor_login || 'sistema'}
-                {' • '}
-                <strong>Alvo:</strong> {log.target_login || '-'}
-              </p>
-              <pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-xs text-muted-foreground">
-                {JSON.stringify(log.details || {}, null, 2)}
-              </pre>
-            </div>
-          ))}
-          {!isLoadingAuditLogs && auditLogs.length === 0 && (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Sem eventos de auditoria para este tenant.
             </div>
           )}
         </CardContent>

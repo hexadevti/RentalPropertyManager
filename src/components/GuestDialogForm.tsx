@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { DateInput } from '@/components/ui/date-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -296,9 +297,9 @@ export default function GuestDialogForm({
 
               <div>
                 <Label>{t.guests_view.form.phone}</Label>
-                <Input
+                <PhoneInput
                   value={person.phone}
-                  onChange={(e) => updateRelatedPerson(key, index, { phone: e.target.value })}
+                  onValueChange={(value) => updateRelatedPerson(key, index, { phone: value })}
                   placeholder={t.guests_view.form.phone_placeholder}
                 />
               </div>
@@ -428,10 +429,10 @@ export default function GuestDialogForm({
 
             <div>
               <Label htmlFor="guest-phone">{t.guests_view.form.phone}</Label>
-              <Input
+              <PhoneInput
                 id="guest-phone"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onValueChange={(value) => setFormData({ ...formData, phone: value })}
                 placeholder={t.guests_view.form.phone_placeholder}
                 required
               />

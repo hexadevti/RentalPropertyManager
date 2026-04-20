@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ClipboardEvent, DragEvent, FormEvent } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthContext'
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { ArrowsClockwise, DownloadSimple, FileText, Plus, Trash, UploadSimple } from '@phosphor-icons/react'
+import { ArrowsClockwise, DownloadSimple, Eye, FileText, Plus, Trash, UploadSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -55,8 +55,10 @@ export default function DocumentsView() {
   const [owners] = useKV<Owner[]>('owners', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [viewingId, setViewingId] = useState<string | null>(null)
   const [relationFilter, setRelationFilter] = useState<DocumentRelationType | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -77,7 +79,11 @@ export default function DocumentsView() {
     noDocuments: language === 'pt' ? 'Nenhum documento cadastrado' : 'No documents yet',
     noDocumentsHelp: language === 'pt' ? 'Envie seu primeiro arquivo para organizar o repositório.' : 'Upload your first file to organize the repository.',
     download: language === 'pt' ? 'Baixar' : 'Download',
+    view: language === 'pt' ? 'Visualizar' : 'View',
     delete: language === 'pt' ? 'Excluir' : 'Delete',
+    deleteConfirm: language === 'pt'
+      ? 'Tem certeza que deseja excluir este documento? Esta ação não pode ser desfeita.'
+      : 'Are you sure you want to delete this document? This action cannot be undone.',
     cancel: language === 'pt' ? 'Cancelar' : 'Cancel',
     refresh: language === 'pt' ? 'Atualizar' : 'Refresh',
     search: language === 'pt' ? 'Buscar documentos...' : 'Search documents...',
@@ -86,8 +92,12 @@ export default function DocumentsView() {
     uploadSuccess: language === 'pt' ? 'Documento enviado com sucesso' : 'Document uploaded successfully',
     uploadError: language === 'pt' ? 'Falha ao enviar documento' : 'Failed to upload document',
     downloadError: language === 'pt' ? 'Falha ao baixar documento' : 'Failed to download document',
+    viewError: language === 'pt' ? 'Falha ao visualizar documento' : 'Failed to view document',
     deleteSuccess: language === 'pt' ? 'Documento excluído com sucesso' : 'Document deleted successfully',
     fileRequired: language === 'pt' ? 'Selecione um arquivo.' : 'Select a file.',
+    pasteOrDrop: language === 'pt' ? 'Cole com Ctrl+V ou arraste um arquivo para anexar.' : 'Paste with Ctrl+V or drag a file to attach.',
+    dropHere: language === 'pt' ? 'Solte o arquivo aqui' : 'Drop the file here',
+    fileAttached: language === 'pt' ? 'Arquivo anexado' : 'File attached',
     relationRequired: language === 'pt' ? 'Selecione o registro vinculado.' : 'Select the linked record.',
     tenantRequired: language === 'pt' ? 'Tenant não carregado. Entre novamente.' : 'Tenant not loaded. Sign in again.',
   }), [language])
@@ -181,6 +191,48 @@ export default function DocumentsView() {
     setIsDialogOpen(false)
   }
 
+  const attachFile = (file: File | null, shouldOpenDialog = false) => {
+    if (!file) return false
+    setSelectedFile(file)
+    setFormData((current) => ({
+      ...current,
+      name: current.name || file.name.replace(/\.[^/.]+$/, ''),
+    }))
+    if (shouldOpenDialog) setIsDialogOpen(true)
+    toast.success(`${labels.fileAttached}: ${file.name}`)
+    return true
+  }
+
+  const getClipboardFile = (event: ClipboardEvent) => {
+    const fileItem = Array.from(event.clipboardData.items).find((item) => item.kind === 'file')
+    const pastedFile = fileItem?.getAsFile()
+    if (!pastedFile) return null
+
+    if (pastedFile.name && pastedFile.name !== 'image.png') return pastedFile
+    const extension = pastedFile.type.split('/')[1] || 'png'
+    return new File(
+      [pastedFile],
+      `documento-colado-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`,
+      { type: pastedFile.type }
+    )
+  }
+
+  const handlePasteFile = (event: ClipboardEvent, shouldOpenDialog = false) => {
+    const file = getClipboardFile(event)
+    if (!file) return
+    event.preventDefault()
+    event.stopPropagation()
+    attachFile(file, shouldOpenDialog)
+  }
+
+  const handleDropFile = (event: DragEvent, shouldOpenDialog = false) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingFile(false)
+    const file = event.dataTransfer.files?.[0] || null
+    attachFile(file, shouldOpenDialog)
+  }
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!currentTenantId) {
@@ -263,7 +315,30 @@ export default function DocumentsView() {
     URL.revokeObjectURL(url)
   }
 
+  const handleView = async (document: Document) => {
+    if (!document.filePath) {
+      toast.error(labels.viewError)
+      return
+    }
+
+    setViewingId(document.id)
+    const { data, error } = await supabase.storage
+      .from(DOCUMENTS_BUCKET)
+      .createSignedUrl(document.filePath, 60 * 5)
+
+    setViewingId(null)
+
+    if (error || !data?.signedUrl) {
+      toast.error(error?.message || labels.viewError)
+      return
+    }
+
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
   const handleDelete = async (document: Document) => {
+    if (!window.confirm(labels.deleteConfirm)) return
+
     if (document.filePath) {
       const { error } = await supabase.storage.from(DOCUMENTS_BUCKET).remove([document.filePath])
       if (error) {
@@ -291,7 +366,19 @@ export default function DocumentsView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      className={`space-y-6 rounded-xl ${isDraggingFile ? 'ring-2 ring-primary ring-offset-4 ring-offset-background' : ''}`}
+      onPaste={(event) => handlePasteFile(event, true)}
+      onDragOver={(event) => {
+        event.preventDefault()
+        setIsDraggingFile(true)
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node)) return
+        setIsDraggingFile(false)
+      }}
+      onDrop={(event) => handleDropFile(event, true)}
+    >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">{labels.title}</h2>
@@ -314,7 +401,13 @@ export default function DocumentsView() {
                 <DialogTitle>{labels.upload}</DialogTitle>
                 <DialogDescription>{labels.subtitle}</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form
+                onSubmit={handleSubmit}
+                onPaste={(event) => handlePasteFile(event)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => handleDropFile(event)}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
                   <Label htmlFor="document-file">{labels.file}</Label>
                   <Input
@@ -322,13 +415,17 @@ export default function DocumentsView() {
                     type="file"
                     onChange={(e) => {
                       const file = e.target.files?.[0] || null
-                      setSelectedFile(file)
-                      if (file && !formData.name) {
-                        setFormData((current) => ({ ...current, name: file.name.replace(/\.[^/.]+$/, '') }))
-                      }
+                      attachFile(file)
                     }}
-                    required
                   />
+                  <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+                    {isDraggingFile ? labels.dropHere : labels.pasteOrDrop}
+                    {selectedFile && (
+                      <p className="mt-2 font-medium text-foreground">
+                        {selectedFile.name} - {formatFileSize(selectedFile.size)}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -483,6 +580,16 @@ export default function DocumentsView() {
                 )}
 
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-2"
+                    disabled={!document.filePath || viewingId === document.id}
+                    onClick={() => handleView(document)}
+                  >
+                    <Eye size={16} />
+                    {labels.view}
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"

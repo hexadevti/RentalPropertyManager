@@ -6,15 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Plus, User, Pencil, Trash, House, EnvelopeSimple, Phone, IdentificationCard } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
+import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 
 export default function OwnersView() {
   const { language } = useLanguage()
+  const { formatPhone } = usePhoneFormat()
   const [owners, setOwners] = useKV<Owner[]>('owners', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -182,10 +185,10 @@ export default function OwnersView() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">{language === 'pt' ? 'Telefone' : 'Phone'}</Label>
-                  <Input
+                  <PhoneInput
                     id="phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onValueChange={(value) => setFormData({ ...formData, phone: value })}
                     placeholder={language === 'pt' ? 'Digite o telefone' : 'Enter phone'}
                     required
                   />
@@ -323,7 +326,7 @@ export default function OwnersView() {
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Phone size={16} />
-                      <span>{owner.phone}</span>
+                      <span>{formatPhone(owner.phone)}</span>
                     </div>
                     {(owner.documents || []).length > 0 && (
                       <div className="flex items-start gap-2 text-muted-foreground">
