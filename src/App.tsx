@@ -15,10 +15,13 @@ import OwnersView from './components/views/OwnersView'
 import SettingsView from './components/views/SettingsView'
 import UsersPermissionsView from './components/views/UsersPermissionsView'
 import InspectionsView from './components/views/InspectionsView'
+import BugReportsView from './components/views/BugReportsView'
+import MyBugReportsView from './components/views/MyBugReportsView'
 import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
 import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
+import { NumberFormatProvider } from '@/lib/NumberFormatContext'
 import { DateFormatProvider } from '@/lib/DateFormatContext'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { UserInfo } from '@/components/UserInfo'
@@ -28,7 +31,9 @@ import { PendingApproval } from '@/components/PendingApproval'
 import { Rejected } from '@/components/Rejected'
 import { useKVCleanup } from '@/hooks/use-kv-cleanup'
 import { usePropertyMigration } from '@/hooks/use-property-migration'
+import { useUserPresence } from '@/hooks/use-user-presence'
 import { AppSidebar } from '@/components/AppSidebar'
+import { BugReportDialog } from '@/components/BugReportDialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -76,12 +81,15 @@ function AppContent() {
     templates: t.tabs.templates,
     providers: t.tabs.providers,
     appointments: t.tabs.appointments,
+    'bug-reports': t.tabs['bug-reports'],
+    'my-bug-reports': t.tabs['my-bug-reports'],
     'users-permissions': t.tabs['users-permissions'],
     settings: t.tabs.settings,
   }
   
   useKVCleanup()
   usePropertyMigration()
+  useUserPresence(activeTab, tabTitleMap[activeTab] || t.appName)
 
   useEffect(() => {
     const loadTenantsForMaster = async () => {
@@ -160,6 +168,11 @@ function AppContent() {
                 </h1>
               </div>
               <div className="flex items-center gap-8">
+                <BugReportDialog
+                  activeTab={activeTab}
+                  activeTabLabel={tabTitleMap[activeTab] || t.appName}
+                  tabTitleMap={tabTitleMap}
+                />
                 {isPlatformAdmin && (
                   <div className="min-w-[260px]">
                     <p className="mb-1 text-xs text-muted-foreground font-medium uppercase tracking-wider">Tenant da Sessao</p>
@@ -227,6 +240,8 @@ function AppContent() {
           {activeTab === 'templates' && isAdmin && <ContractTemplatesView />}
           {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}
           {activeTab === 'appointments' && <AppointmentsView />}
+          {activeTab === 'my-bug-reports' && isAdmin && !isPlatformAdmin && <MyBugReportsView />}
+          {activeTab === 'bug-reports' && isPlatformAdmin && <BugReportsView />}
           {activeTab === 'users-permissions' && isAdmin && <UsersPermissionsView />}
           {activeTab === 'settings' && <SettingsView />}
         </main>
@@ -240,9 +255,11 @@ function App() {
     <AuthProvider>
       <LanguageProvider>
         <CurrencyProvider>
-          <DateFormatProvider>
-            <AppContent />
-          </DateFormatProvider>
+          <NumberFormatProvider>
+            <DateFormatProvider>
+              <AppContent />
+            </DateFormatProvider>
+          </NumberFormatProvider>
         </CurrencyProvider>
       </LanguageProvider>
     </AuthProvider>

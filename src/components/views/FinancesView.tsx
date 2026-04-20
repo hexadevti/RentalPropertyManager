@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { DateInput } from '@/components/ui/date-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -203,13 +204,11 @@ export default function FinancesView() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="amount">{t.finances_view.form.amount} ({config.symbol})</Label>
-                  <Input
+                  <DecimalInput
                     id="amount"
-                    type="number"
                     min="0"
-                    step="0.01"
                     value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+                    onValueChange={(value) => setFormData({ ...formData, amount: value })}
                     required
                   />
                 </div>

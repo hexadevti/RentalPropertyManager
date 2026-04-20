@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -467,26 +468,22 @@ export default function PropertiesView() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pricePerNight">{t.properties_view.form.price_night}</Label>
-                  <Input
+                  <DecimalInput
                     id="pricePerNight"
-                    type="number"
                     min="0"
-                    step="0.01"
                     value={formData.pricePerNight}
-                    onChange={(e) => setFormData({ ...formData, pricePerNight: parseFloat(e.target.value) })}
+                    onValueChange={(value) => setFormData({ ...formData, pricePerNight: value })}
                     placeholder={t.properties_view.form.price_night_placeholder}
                     required
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pricePerMonth">{t.properties_view.form.price_month}</Label>
-                  <Input
+                  <DecimalInput
                     id="pricePerMonth"
-                    type="number"
                     min="0"
-                    step="0.01"
                     value={formData.pricePerMonth}
-                    onChange={(e) => setFormData({ ...formData, pricePerMonth: parseFloat(e.target.value) })}
+                    onValueChange={(value) => setFormData({ ...formData, pricePerMonth: value })}
                     placeholder={t.properties_view.form.price_month_placeholder}
                     required
                   />

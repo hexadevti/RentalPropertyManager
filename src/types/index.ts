@@ -229,3 +229,32 @@ export interface Document {
   mimeType?: string
   uploadDate: string
 }
+
+export type BugReportStatus = 'open' | 'in-review' | 'resolved' | 'dismissed'
+
+export interface BugReport {
+  id: string
+  tenantId?: string
+  reporterAuthUserId?: string
+  reporterLogin: string
+  reporterEmail?: string
+  screen: string
+  screenLabel: string
+  recordId?: string
+  recordLabel?: string
+  description: string
+  status: BugReportStatus
+  resolutionNotes?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BugReportAttachment {
+  id: string
+  bugReportId: string
+  fileName: string
+  filePath: string
+  fileSize?: number
+  mimeType?: string
+  createdAt: string
+}

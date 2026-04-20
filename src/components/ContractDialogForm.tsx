@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { DateInput } from '@/components/ui/date-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -315,13 +316,11 @@ export default function ContractDialogForm({
 
             <div className="col-span-2">
               <Label htmlFor="contract-amount">{t.contracts_view.form.monthly_amount}</Label>
-              <Input
+              <DecimalInput
                 id="contract-amount"
-                type="number"
-                step="0.01"
                 min="0"
-                value={formData.monthlyAmount || ''}
-                onChange={(e) => setFormData({ ...formData, monthlyAmount: parseFloat(e.target.value) || 0 })}
+                value={formData.monthlyAmount || undefined}
+                onValueChange={(value) => setFormData({ ...formData, monthlyAmount: value || 0 })}
                 placeholder={t.contracts_view.form.monthly_amount_placeholder}
                 required
               />

@@ -26,6 +26,7 @@ const COLLECTION_KEYS = new Set([
 function isSettingKey(key: string) {
   return key === 'app-language'
     || key === 'app-currency'
+    || key === 'app-decimal-separator'
     || key.startsWith('pinned-items-')
     || key.startsWith('sidebar-collapsed-')
 }
