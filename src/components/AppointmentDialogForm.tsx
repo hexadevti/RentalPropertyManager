@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Appointment, ServiceProvider, Contract, Guest, Property } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
+import { getContractSelectionLabel } from '@/lib/contractLabels'
 
 interface AppointmentDialogFormProps {
   open: boolean
@@ -199,14 +200,11 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nenhum</SelectItem>
-                    {(contracts || []).map((contract) => {
-                      const guest = (guests || []).find(g => g.id === contract.guestId)
-                      return (
-                        <SelectItem key={contract.id} value={contract.id}>
-                          {guest?.name || 'Desconhecido'} - {contract.rentalType === 'monthly' ? 'Mensal' : 'Temporada'}
-                        </SelectItem>
-                      )
-                    })}
+                    {(contracts || []).map((contract) => (
+                      <SelectItem key={contract.id} value={contract.id}>
+                        {getContractSelectionLabel(contract, properties || [])}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

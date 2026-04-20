@@ -32,8 +32,12 @@ export default function PropertiesView() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [focusPropertyId, setFocusPropertyId] = useState<string | null>(null)
   const [selectedPropertyForContract, setSelectedPropertyForContract] = useState<string | undefined>(undefined)
+  const [environmentInput, setEnvironmentInput] = useState('')
+  const [editingEnvironmentIndex, setEditingEnvironmentIndex] = useState<number | null>(null)
   const [furnitureInput, setFurnitureInput] = useState('')
   const [editingFurnitureIndex, setEditingFurnitureIndex] = useState<number | null>(null)
+  const [inspectionItemInput, setInspectionItemInput] = useState('')
+  const [editingInspectionItemIndex, setEditingInspectionItemIndex] = useState<number | null>(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -44,10 +48,30 @@ export default function PropertiesView() {
     address: '',
     city: '',
     conservationState: '',
+    environments: [] as string[],
     furnitureItems: [] as string[],
+    inspectionItems: [] as string[],
     description: '',
     ownerIds: [] as string[]
   })
+
+  const supportsEnvironments = formData.type === 'house' || formData.type === 'apartment'
+
+  const getDefaultEnvironments = (propertyType: PropertyType) => {
+    if (propertyType === 'house') {
+      return language === 'pt'
+        ? ['Sala', 'Cozinha', 'Quarto principal', 'Quarto 2', 'Banheiro social', 'Área de serviço', 'Garagem', 'Área externa']
+        : ['Living room', 'Kitchen', 'Primary bedroom', 'Bedroom 2', 'Main bathroom', 'Laundry area', 'Garage', 'Outdoor area']
+    }
+
+    if (propertyType === 'apartment') {
+      return language === 'pt'
+        ? ['Sala', 'Cozinha', 'Quarto principal', 'Quarto 2', 'Banheiro', 'Lavanderia', 'Varanda']
+        : ['Living room', 'Kitchen', 'Primary bedroom', 'Bedroom 2', 'Bathroom', 'Laundry area', 'Balcony']
+    }
+
+    return []
+  }
 
   const getPropertyStatus = (propertyId: string): PropertyStatus => {
     const activeContracts = (contracts || []).filter(contract => 
@@ -62,9 +86,13 @@ export default function PropertiesView() {
     e.preventDefault()
     
     if (editingProperty) {
+      const normalizedFormData = {
+        ...formData,
+        environments: supportsEnvironments ? formData.environments : [],
+      }
       setProperties((current) => 
         (current || []).map(p => p.id === editingProperty.id 
-          ? { ...formData, id: p.id, createdAt: p.createdAt, status: getPropertyStatus(p.id), ownerIds: formData.ownerIds }
+          ? { ...normalizedFormData, id: p.id, createdAt: p.createdAt, status: getPropertyStatus(p.id), ownerIds: normalizedFormData.ownerIds }
           : p
         )
       )
@@ -72,6 +100,7 @@ export default function PropertiesView() {
     } else {
       const newProperty: Property = {
         ...formData,
+        environments: supportsEnvironments ? formData.environments : [],
         id: Date.now().toString(),
         createdAt: new Date().toISOString(),
         status: 'available',
@@ -94,12 +123,18 @@ export default function PropertiesView() {
       address: '',
       city: '',
       conservationState: '',
+      environments: [],
       furnitureItems: [],
+      inspectionItems: [],
       description: '',
       ownerIds: []
     })
+    setEnvironmentInput('')
+    setEditingEnvironmentIndex(null)
     setFurnitureInput('')
     setEditingFurnitureIndex(null)
+    setInspectionItemInput('')
+    setEditingInspectionItemIndex(null)
     setEditingProperty(null)
     setIsDialogOpen(false)
   }
@@ -115,12 +150,18 @@ export default function PropertiesView() {
       address: property.address || '',
       city: property.city || '',
       conservationState: property.conservationState || '',
+      environments: property.environments || [],
       furnitureItems: property.furnitureItems || [],
+      inspectionItems: property.inspectionItems || [],
       description: property.description,
       ownerIds: property.ownerIds || []
     })
+    setEnvironmentInput('')
+    setEditingEnvironmentIndex(null)
     setFurnitureInput('')
     setEditingFurnitureIndex(null)
+    setInspectionItemInput('')
+    setEditingInspectionItemIndex(null)
     setIsDialogOpen(true)
   }
 
@@ -160,6 +201,94 @@ export default function PropertiesView() {
     if (editingFurnitureIndex === index) {
       setFurnitureInput('')
       setEditingFurnitureIndex(null)
+    }
+  }
+
+  const handleAddOrUpdateEnvironment = () => {
+    const normalized = environmentInput.trim()
+    if (!normalized) return
+
+    if (editingEnvironmentIndex === null) {
+      setFormData((current) => ({
+        ...current,
+        environments: [...current.environments, normalized],
+      }))
+    } else {
+      setFormData((current) => ({
+        ...current,
+        environments: current.environments.map((item, index) =>
+          index === editingEnvironmentIndex ? normalized : item
+        ),
+      }))
+    }
+
+    setEnvironmentInput('')
+    setEditingEnvironmentIndex(null)
+  }
+
+  const handleEditEnvironment = (index: number) => {
+    setEnvironmentInput(formData.environments[index] || '')
+    setEditingEnvironmentIndex(index)
+  }
+
+  const handleRemoveEnvironment = (index: number) => {
+    setFormData((current) => ({
+      ...current,
+      environments: current.environments.filter((_item, itemIndex) => itemIndex !== index),
+    }))
+
+    if (editingEnvironmentIndex === index) {
+      setEnvironmentInput('')
+      setEditingEnvironmentIndex(null)
+    }
+  }
+
+  const handleLoadDefaultEnvironments = () => {
+    if (!supportsEnvironments) return
+    setFormData((current) => ({
+      ...current,
+      environments: getDefaultEnvironments(current.type),
+    }))
+    setEnvironmentInput('')
+    setEditingEnvironmentIndex(null)
+  }
+
+  const handleAddOrUpdateInspectionItem = () => {
+    const normalized = inspectionItemInput.trim()
+    if (!normalized) return
+
+    if (editingInspectionItemIndex === null) {
+      setFormData((current) => ({
+        ...current,
+        inspectionItems: [...current.inspectionItems, normalized],
+      }))
+    } else {
+      setFormData((current) => ({
+        ...current,
+        inspectionItems: current.inspectionItems.map((item, index) =>
+          index === editingInspectionItemIndex ? normalized : item
+        ),
+      }))
+    }
+
+    setInspectionItemInput('')
+    setEditingInspectionItemIndex(null)
+  }
+
+  const handleEditInspectionItem = (index: number) => {
+    setInspectionItemInput(formData.inspectionItems[index] || '')
+    setEditingInspectionItemIndex(index)
+  }
+
+  const handleRemoveInspectionItem = (index: number) => {
+    setFormData((current) => ({
+      ...current,
+      inspectionItems: current.inspectionItems.filter((_item, itemIndex) => itemIndex !== index),
+    }))
+
+    if (editingInspectionItemIndex === index) {
+      setInspectionItemInput('')
+      setEditingInspectionItemIndex(null)
     }
   }
 
@@ -214,7 +343,9 @@ export default function PropertiesView() {
         createdAt: new Date().toISOString(),
         status: 'available',
         name: buildDuplicatePropertyName(property.name, existingNames),
+        environments: [...(property.environments || [])],
         furnitureItems: [...(property.furnitureItems || [])],
+        inspectionItems: [...(property.inspectionItems || [])],
         ownerIds: [...(property.ownerIds || [])],
       }
 
@@ -297,7 +428,18 @@ export default function PropertiesView() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="type">{t.properties_view.form.type}</Label>
-                  <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value as PropertyType })}>
+                  <Select value={formData.type} onValueChange={(value) => {
+                    const nextType = value as PropertyType
+                    setFormData((current) => ({
+                      ...current,
+                      type: nextType,
+                      environments: nextType === 'house' || nextType === 'apartment'
+                        ? current.environments
+                        : [],
+                    }))
+                    setEnvironmentInput('')
+                    setEditingEnvironmentIndex(null)
+                  }}>
                     <SelectTrigger id="type">
                       <SelectValue />
                     </SelectTrigger>
@@ -434,6 +576,99 @@ export default function PropertiesView() {
                   </p>
                 )}
               </div>
+
+              <div className="space-y-2">
+                <Label>{t.language === 'pt' ? 'Itens para vistoria' : 'Inspection items'}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={inspectionItemInput}
+                    onChange={(e) => setInspectionItemInput(e.target.value)}
+                    placeholder={t.language === 'pt' ? 'Ex.: Interfone, Fechadura digital, Ar-condicionado' : 'E.g.: Intercom, Smart lock, Air conditioner'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddOrUpdateInspectionItem()
+                      }
+                    }}
+                  />
+                  <Button type="button" onClick={handleAddOrUpdateInspectionItem}>
+                    {editingInspectionItemIndex === null
+                      ? (t.language === 'pt' ? 'Adicionar' : 'Add')
+                      : (t.language === 'pt' ? 'Alterar' : 'Update')}
+                  </Button>
+                </div>
+                {formData.inspectionItems.length > 0 ? (
+                  <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                    {formData.inspectionItems.map((item, index) => (
+                      <div key={`${item}-${index}`} className="flex items-center justify-between gap-2">
+                        <span className="text-sm">{item}</span>
+                        <div className="flex items-center gap-1">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleEditInspectionItem(index)}>
+                            <Pencil size={14} />
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleRemoveInspectionItem(index)}>
+                            <Trash size={14} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {t.language === 'pt' ? 'Nenhum item de vistoria adicionado' : 'No inspection items added'}
+                  </p>
+                )}
+              </div>
+
+              {supportsEnvironments && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label>{t.language === 'pt' ? 'Ambientes' : 'Environments'}</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={handleLoadDefaultEnvironments}>
+                      {t.language === 'pt' ? 'Carregar base' : 'Load defaults'}
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={environmentInput}
+                      onChange={(e) => setEnvironmentInput(e.target.value)}
+                      placeholder={t.language === 'pt' ? 'Ex.: Sala, Cozinha, Suíte, Lavanderia' : 'E.g.: Living room, Kitchen, Suite, Laundry'}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddOrUpdateEnvironment()
+                        }
+                      }}
+                    />
+                    <Button type="button" onClick={handleAddOrUpdateEnvironment}>
+                      {editingEnvironmentIndex === null
+                        ? (t.language === 'pt' ? 'Adicionar' : 'Add')
+                        : (t.language === 'pt' ? 'Alterar' : 'Update')}
+                    </Button>
+                  </div>
+                  {formData.environments.length > 0 ? (
+                    <div className="border rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto">
+                      {formData.environments.map((item, index) => (
+                        <div key={`${item}-${index}`} className="flex items-center justify-between gap-2">
+                          <span className="text-sm">{item}</span>
+                          <div className="flex items-center gap-1">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => handleEditEnvironment(index)}>
+                              <Pencil size={14} />
+                            </Button>
+                            <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleRemoveEnvironment(index)}>
+                              <Trash size={14} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {t.language === 'pt' ? 'Nenhum ambiente cadastrado' : 'No environments added'}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>{t.language === 'pt' ? 'Proprietários' : 'Owners'}</Label>

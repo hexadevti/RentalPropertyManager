@@ -27,6 +27,7 @@ interface AuthContextType {
   getAllProfiles: () => UserProfile[]
   signInWithEmail: (email: string, password: string) => Promise<void>
   signInWithGitHub: () => Promise<void>
+  signInWithGoogle: () => Promise<void>
   signUp: (orgName: string, name: string, email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>
   signInWithDevCredentials: (email: string, userId?: string) => Promise<void>
   signOut: () => Promise<void>
@@ -640,6 +641,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
   }
 
+  const signInWithGoogle = async () => {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    const redirectTo = isLocalhost
+      ? `${window.location.origin}/`
+      : (import.meta.env.VITE_AUTH_REDIRECT_URL || `${window.location.origin}/`)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    })
+    if (error) throw error
+  }
+
   const signUp = async (orgName: string, name: string, email: string, password: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -718,6 +731,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getAllProfiles,
     signInWithEmail,
     signInWithGitHub,
+    signInWithGoogle,
     signUp,
     signInWithDevCredentials,
     signOut,

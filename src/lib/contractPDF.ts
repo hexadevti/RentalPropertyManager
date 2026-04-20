@@ -308,7 +308,7 @@ function findWhitespaceBreakY(
 
 // ── HTML-based PDF generation (rich text templates) ──────────────────────────
 
-async function generatePDFFromHTML(htmlContent: string): Promise<jsPDF> {
+export async function generatePDFFromHTML(htmlContent: string): Promise<jsPDF> {
   // Clean up the HTML content to avoid trailing empty lines and extra whitespace
   let cleanedContent = htmlContent
     .trim()

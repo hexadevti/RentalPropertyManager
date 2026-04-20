@@ -6,6 +6,9 @@ export type TaskPriority = 'low' | 'medium' | 'high'
 export type TaskStatus = 'pending' | 'in-progress' | 'completed'
 export type RentalType = 'short-term' | 'monthly'
 export type ContractStatus = 'active' | 'expired' | 'cancelled'
+export type InspectionType = 'check-in' | 'check-out' | 'maintenance' | 'periodic'
+export type InspectionStatus = 'draft' | 'in-progress' | 'assessed'
+export type InspectionItemCondition = 'excellent' | 'good' | 'attention' | 'damaged' | 'na'
 
 export interface GuestDocument {
   type: string
@@ -54,7 +57,9 @@ export interface Property {
   address?: string
   city?: string
   conservationState?: string
+  environments?: string[]
   furnitureItems?: string[]
+  inspectionItems?: string[]
   description: string
   ownerIds: string[]
   createdAt: string
@@ -127,6 +132,37 @@ export interface Contract {
   createdAt: string
 }
 
+export interface InspectionAreaItem {
+  id: string
+  label: string
+  condition: InspectionItemCondition
+  notes?: string
+}
+
+export interface InspectionArea {
+  id: string
+  name: string
+  notes?: string
+  items: InspectionAreaItem[]
+}
+
+export interface Inspection {
+  id: string
+  title: string
+  propertyId: string
+  contractId: string
+  parentInspectionId?: string
+  type: InspectionType
+  status: InspectionStatus
+  inspectorName: string
+  scheduledDate: string
+  completedDate?: string
+  summary?: string
+  areas: InspectionArea[]
+  createdAt: string
+  updatedAt: string
+}
+
 export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled'
 
 export interface Appointment {
@@ -177,6 +213,7 @@ export interface ContractTemplate {
 }
 
 export type DocumentCategory = 'contract' | 'receipt' | 'insurance' | 'tax' | 'other'
+export type DocumentRelationType = 'general' | 'property' | 'contract' | 'guest' | 'owner'
 
 export interface Document {
   id: string
@@ -184,5 +221,11 @@ export interface Document {
   category: DocumentCategory
   notes?: string
   propertyId?: string
+  relationType?: DocumentRelationType
+  relationId?: string
+  fileName?: string
+  filePath?: string
+  fileSize?: number
+  mimeType?: string
   uploadDate: string
 }

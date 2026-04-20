@@ -1,20 +1,24 @@
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
-import { 
-  House, 
-  Wallet, 
-  Calendar, 
-  CheckSquare, 
-  ChartBar, 
-  User, 
-  Gear, 
-  Files, 
-  Wrench, 
-  CalendarCheck, 
-  FileText, 
+import logo1 from '@/assets/logo1.PNG'
+import logoFull from '@/assets/rpm-go-tranparent.png'
+import {
+  Wallet,
+  Calendar,
+  CheckSquare,
+  ChartBar,
+  User,
+  Gear,
+  Files,
+  Wrench,
+  CalendarCheck,
+  FileText,
   Users,
+  House,
   ShieldCheck,
-  PushPin
+  PushPin,
+  ClipboardText,
+  FolderOpen
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -35,6 +39,8 @@ export const menuItems: MenuItem[] = [
   { id: 'reports', icon: ChartBar, value: 'reports', adminOnly: true },
   { id: 'guests', icon: User, value: 'guests', adminOnly: true },
   { id: 'contracts', icon: Files, value: 'contracts' },
+  { id: 'documents', icon: FolderOpen, value: 'documents', adminOnly: true },
+  { id: 'inspections', icon: ClipboardText, value: 'inspections' },
   { id: 'templates', icon: FileText, value: 'templates', adminOnly: true },
   { id: 'providers', icon: Wrench, value: 'providers', adminOnly: true },
   { id: 'appointments', icon: CalendarCheck, value: 'appointments' },
@@ -115,21 +121,19 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems }: AppSidebarPr
       "group/sidebar fixed left-0 top-0 z-50 border-r border-border bg-card/50 backdrop-blur-sm flex flex-col h-screen",
       "w-20 hover:w-64 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
     )}>
-      <div className="border-b border-border h-20 px-3">
-        <div className="h-full flex items-center gap-3">
-          <div className="h-12 w-12 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center transition-[margin] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] mx-auto group-hover/sidebar:mx-0">
-            <House size={24} weight="duotone" className="text-primary" />
-          </div>
-
-          <div className="min-w-0 overflow-hidden">
-            <h2 className="text-xl font-bold text-foreground whitespace-nowrap max-w-0 opacity-0 -translate-x-2 transition-all duration-300 ease-out group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0">
-              {t.appName}
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap max-w-0 opacity-0 -translate-x-2 transition-all duration-300 ease-out group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0">
-              {t.appSubtitle}
-            </p>
-          </div>
-        </div>
+      <div className="border-b border-border h-20 px-3 flex items-center overflow-hidden">
+        {/* Closed: circular icon only */}
+        <img
+          src={logo1}
+          alt="RPM GO"
+          className="h-12 w-auto shrink-0 object-contain transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/sidebar:hidden"
+        />
+        {/* Open: full logo filling the available space */}
+        <img
+          src={logoFull}
+          alt="RPM GO"
+          className="hidden group-hover/sidebar:block w-full h-full object-contain object-center py-2 px-1"
+        />
       </div>
 
       <ScrollArea className="flex-1 py-4 px-2 transition-all duration-300 ease-out group-hover/sidebar:px-3">

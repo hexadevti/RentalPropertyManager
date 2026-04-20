@@ -17,6 +17,7 @@ import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'da
 import { ptBR, enUS } from 'date-fns/locale'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
+import { getContractSelectionLabel } from '@/lib/contractLabels'
 
 interface MonthlyData {
   month: string
@@ -262,15 +263,11 @@ export default function FinancesView() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhum</SelectItem>
-                      {(contracts || []).map((contract) => {
-                        const guest = (guests || []).find(g => g.id === contract.guestId)
-                        const contractProperties = (properties || []).filter(p => contract.propertyIds.includes(p.id))
-                        return (
-                          <SelectItem key={contract.id} value={contract.id}>
-                            {guest?.name} - {contractProperties.map(p => p.name).join(', ')}
-                          </SelectItem>
-                        )
-                      })}
+                      {(contracts || []).map((contract) => (
+                        <SelectItem key={contract.id} value={contract.id}>
+                          {getContractSelectionLabel(contract, properties || [])}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
