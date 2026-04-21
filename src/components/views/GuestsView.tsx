@@ -11,6 +11,8 @@ import { useLanguage } from '@/lib/LanguageContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 import { format } from 'date-fns'
 import GuestDialogForm from '@/components/GuestDialogForm'
+import helpContent from '@/docs/guests.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 
 export default function GuestsView() {
   const { t, language } = useLanguage()
@@ -54,7 +56,10 @@ export default function GuestsView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.guests_view.title}</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.guests_view.title}</h2>
+            <HelpButton content={helpContent} title="Ajuda — Hóspedes" />
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">

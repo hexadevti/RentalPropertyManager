@@ -17,6 +17,7 @@ import InspectionsView from './components/views/InspectionsView'
 import BugReportsView from './components/views/BugReportsView'
 import MyBugReportsView from './components/views/MyBugReportsView'
 import AuditLogsView from './components/views/AuditLogsView'
+import AiAssistantView from './components/views/AiAssistantView'
 import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
@@ -78,6 +79,7 @@ function AppContent() {
     guests: t.tabs.guests,
     contracts: t.tabs.contracts,
     documents: t.tabs.documents,
+    'ai-assistant': t.tabs['ai-assistant'],
     inspections: t.tabs.inspections,
     templates: t.tabs.templates,
     providers: t.tabs.providers,
@@ -249,6 +251,7 @@ function AppContent() {
           {activeTab === 'guests' && isAdmin && <GuestsView />}
           {activeTab === 'contracts' && <ContractsView onNavigate={setActiveTab} />}
           {activeTab === 'documents' && isAdmin && <DocumentsView />}
+          {activeTab === 'ai-assistant' && isAdmin && <AiAssistantView />}
           {activeTab === 'inspections' && isAdmin && <InspectionsView />}
           {activeTab === 'templates' && isAdmin && <ContractTemplatesView />}
           {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}

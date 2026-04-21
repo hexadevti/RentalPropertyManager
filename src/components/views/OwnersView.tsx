@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Owner, Property, GuestDocument } from '@/types'
+import helpContent from '@/docs/owners.md?raw'
+import formHelpContent from '@/docs/form-owner.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -138,9 +141,12 @@ export default function OwnersView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {language === 'pt' ? 'Proprietários' : 'Owners'}
-          </h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              {language === 'pt' ? 'Proprietários' : 'Owners'}
+            </h2>
+            <HelpButton content={helpContent} title="Ajuda — Proprietários" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             {language === 'pt' ? 'Gerencie os proprietários das propriedades' : 'Manage property owners'}
           </p>
@@ -154,10 +160,11 @@ export default function OwnersView() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                {editingOwner 
+              <DialogTitle className="flex items-center gap-1">
+                {editingOwner
                   ? (language === 'pt' ? 'Editar Proprietário' : 'Edit Owner')
                   : (language === 'pt' ? 'Novo Proprietário' : 'New Owner')}
+                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Proprietário" />
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">

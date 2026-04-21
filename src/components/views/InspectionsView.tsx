@@ -38,6 +38,9 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { downloadInspectionPDF } from '@/lib/inspectionPDF'
 import { getContractSelectionLabel } from '@/lib/contractLabels'
+import helpContent from '@/docs/inspections.md?raw'
+import formHelpContent from '@/docs/form-inspection.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 
 type InspectionFormState = {
   title: string
@@ -695,7 +698,10 @@ export default function InspectionsView() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{labels.title}</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">{labels.title}</h2>
+            <HelpButton content={helpContent} title="Ajuda — Vistorias Digitais" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">{labels.subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -712,7 +718,10 @@ export default function InspectionsView() {
             </DialogTrigger>
             <DialogContent className="flex flex-col w-[calc(100vw-2rem)] max-w-6xl h-[90vh] overflow-hidden p-0">
               <DialogHeader className="border-b px-6 py-4 pr-12">
-                <DialogTitle>{editingInspection ? labels.edit : isLinkedCreation ? labels.createLinked : labels.add}</DialogTitle>
+                <DialogTitle className="flex items-center gap-1">
+                  {editingInspection ? labels.edit : isLinkedCreation ? labels.createLinked : labels.add}
+                  <HelpButton content={formHelpContent} title="Ajuda — Formulário de Vistoria" />
+                </DialogTitle>
               </DialogHeader>
 
               <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">

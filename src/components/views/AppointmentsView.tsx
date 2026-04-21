@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
+import helpContent from '@/docs/appointments.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -180,7 +182,10 @@ export default function AppointmentsView() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">{t.appointments_view.title}</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-3xl font-bold tracking-tight">{t.appointments_view.title}</h2>
+            <HelpButton content={helpContent} title="Ajuda — Agenda" />
+          </div>
         </div>
         <Button onClick={() => {
           setEditingAppointment(null)

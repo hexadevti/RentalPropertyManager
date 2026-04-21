@@ -23,7 +23,8 @@ import {
   Bug,
   ClockCounterClockwise,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Brain
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -48,6 +49,7 @@ export const menuItems: MenuItem[] = [
   { id: 'guests', icon: User, value: 'guests', adminOnly: true },
   { id: 'contracts', icon: Files, value: 'contracts' },
   { id: 'documents', icon: FolderOpen, value: 'documents', adminOnly: true },
+  { id: 'ai-assistant', icon: Brain, value: 'ai-assistant', adminOnly: true },
   { id: 'inspections', icon: ClipboardText, value: 'inspections' },
   { id: 'templates', icon: FileText, value: 'templates', adminOnly: true },
   { id: 'providers', icon: Wrench, value: 'providers', adminOnly: true },

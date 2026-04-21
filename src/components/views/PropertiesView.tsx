@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Property, PropertyType, PropertyStatus, Contract, Owner } from '@/types'
+import helpContent from '@/docs/properties.md?raw'
+import formHelpContent from '@/docs/form-property.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -389,7 +392,10 @@ export default function PropertiesView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{t.properties_view.title}</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">{t.properties_view.title}</h2>
+            <HelpButton content={helpContent} title="Ajuda — Propriedades" />
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
@@ -421,7 +427,10 @@ export default function PropertiesView() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-              <DialogTitle>{editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}</DialogTitle>
+              <DialogTitle className="flex items-center gap-1">
+                {editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}
+                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Propriedade" />
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

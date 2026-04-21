@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ClockCounterClockwise, ArrowsClockwise } from '@phosphor-icons/react'
+import helpContent from '@/docs/audit-logs.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { format } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -200,7 +202,10 @@ export default function AuditLogsView() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Log de auditoria</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-3xl font-bold tracking-tight">Log de auditoria</h2>
+            <HelpButton content={helpContent} title="Ajuda — Log de Auditoria" />
+          </div>
           <p className="text-muted-foreground mt-1">
             Consulte ações de login, logout, criação, alteração e exclusão registradas no app.
           </p>

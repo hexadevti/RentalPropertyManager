@@ -1,4 +1,9 @@
 /// <reference types="vite/client" />
+
+declare module '*.md?raw' {
+  const content: string
+  export default content
+}
 declare const GITHUB_RUNTIME_PERMANENT_NAME: string
 declare const BASE_KV_SERVICE_URL: string
 

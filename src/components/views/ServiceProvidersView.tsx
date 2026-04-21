@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { MagnifyingGlass, Plus, Pencil, Trash, Wrench, Envelope, Phone, Briefcase, ArrowsClockwise } from '@phosphor-icons/react'
+import helpContent from '@/docs/service-providers.md?raw'
+import formHelpContent from '@/docs/form-service-provider.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
@@ -116,7 +119,10 @@ export default function ServiceProvidersView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Prestadores de Serviço</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Prestadores de Serviço</h2>
+            <HelpButton content={helpContent} title="Ajuda — Prestadores de Serviço" />
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
@@ -135,7 +141,10 @@ export default function ServiceProvidersView() {
             </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingProvider ? 'Editar Prestador' : 'Novo Prestador'}</DialogTitle>
+              <DialogTitle className="flex items-center gap-1">
+                {editingProvider ? 'Editar Prestador' : 'Novo Prestador'}
+                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Prestador" />
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

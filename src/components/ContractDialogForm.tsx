@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
+import helpContent from '@/docs/form-contract.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalInput } from '@/components/ui/decimal-input'
@@ -184,7 +186,10 @@ export default function ContractDialogForm({
     }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editingContract ? t.contracts_view.form.title_edit : t.contracts_view.form.title_new}</DialogTitle>
+          <DialogTitle className="flex items-center gap-1">
+            {editingContract ? t.contracts_view.form.title_edit : t.contracts_view.form.title_new}
+            <HelpButton content={helpContent} title="Ajuda — Formulário de Contrato" />
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

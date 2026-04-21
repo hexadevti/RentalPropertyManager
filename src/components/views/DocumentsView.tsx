@@ -4,6 +4,9 @@ import { useKV } from '@/lib/useSupabaseKV'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthContext'
 import type { Contract, Document, DocumentCategory, DocumentRelationType, Guest, Owner, Property } from '@/types'
+import helpContent from '@/docs/documents.md?raw'
+import formHelpContent from '@/docs/form-document.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -381,7 +384,10 @@ export default function DocumentsView() {
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{labels.title}</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">{labels.title}</h2>
+            <HelpButton content={helpContent} title="Ajuda — Documentos" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">{labels.subtitle}</p>
         </div>
         <div className="flex gap-2">
@@ -398,7 +404,10 @@ export default function DocumentsView() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{labels.upload}</DialogTitle>
+                <DialogTitle className="flex items-center gap-1">
+                  {labels.upload}
+                  <HelpButton content={formHelpContent} title="Ajuda — Upload de Documento" />
+                </DialogTitle>
                 <DialogDescription>{labels.subtitle}</DialogDescription>
               </DialogHeader>
               <form
