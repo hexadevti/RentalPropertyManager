@@ -1,8 +1,8 @@
 import { createContext, useContext, ReactNode } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import { format, isValid, parse, parseISO } from 'date-fns'
+import { formatDateValue, normalizeDateInputValue, parseDateInputValue, type DateFormatPattern } from '@/lib/dateFormat'
 
-export type DateFormat = 'dd/MM/yyyy' | 'MM/dd/yyyy' | 'yyyy-MM-dd'
+export type DateFormat = DateFormatPattern
 
 export interface DateFormatConfig {
   pattern: DateFormat
@@ -31,36 +31,9 @@ export function DateFormatProvider({ children }: { children: ReactNode }) {
 
   const currentDateFormat = dateFormat || 'dd/MM/yyyy'
   const config = dateFormats[currentDateFormat]
-
-  const parseDateInput = (input: string): Date | null => {
-    const text = input.trim()
-    if (!text) return null
-
-    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-      const parsedIso = parseISO(text)
-      return isValid(parsedIso) ? parsedIso : null
-    }
-
-    const parsed = parse(text, config.pattern, new Date())
-    if (!isValid(parsed)) return null
-
-    // Enforce strict parsing so values like 32/01/2026 are rejected.
-    return format(parsed, config.pattern) === text ? parsed : null
-  }
-
-  const normalizeDateInput = (input: string): string | null => {
-    const parsed = parseDateInput(input)
-    if (!parsed) return null
-    return format(parsed, 'yyyy-MM-dd')
-  }
-
-  const formatDate = (date: Date | string): string => {
-    const parsedDate = typeof date === 'string' ? parseDateInput(date) : date
-    if (!parsedDate || !isValid(parsedDate)) {
-      return ''
-    }
-    return format(parsedDate, config.pattern)
-  }
+  const parseDateInput = (input: string) => parseDateInputValue(input, config.pattern)
+  const normalizeDateInput = (input: string) => normalizeDateInputValue(input, config.pattern)
+  const formatDate = (date: Date | string) => formatDateValue(date, config.pattern)
 
   const value: DateFormatContextType = {
     dateFormat: currentDateFormat,

@@ -1,5 +1,9 @@
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import type { Contract, Property } from '@/types'
+
+function parseContractDate(value: string) {
+  return value.includes('T') ? new Date(value) : parseISO(value)
+}
 
 export function getContractSelectionLabel(
   contract: Contract,
@@ -12,8 +16,8 @@ export function getContractSelectionLabel(
     .join(', ')
 
   const resolvedPropertyNames = propertyNames || fallbackPropertyName
-  const startDate = format(new Date(contract.startDate), 'dd/MM/yyyy')
-  const endDate = format(new Date(contract.endDate), 'dd/MM/yyyy')
+  const startDate = format(parseContractDate(contract.startDate), 'dd/MM/yyyy')
+  const endDate = format(parseContractDate(contract.endDate), 'dd/MM/yyyy')
 
   return `${resolvedPropertyNames} - ${startDate} - ${endDate}`
 }

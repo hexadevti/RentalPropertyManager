@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
 
@@ -21,12 +22,27 @@ type AssistantResponse = {
   error?: string
   details?: unknown
   model?: string
+  usage?: {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+    costUsd: number
+  }
   contextSummary?: Array<{ name: string; countLoaded: number; error?: string }>
+}
+
+type ModelOption = {
+  value: string
+  label: string
+  description: string
 }
 
 // Module-level state — survives component unmount/remount during tab navigation
 let _messages: AssistantMessage[] = []
 let _contextSummary: AssistantResponse['contextSummary'] = []
+let _selectedModel = 'gpt-4o-mini'
+let _lastUsage: AssistantResponse['usage'] | null = null
+let _lastModelUsed = ''
 
 const SUGGESTIONS = [
   'Qual é o saldo do mês atual e quais categorias mais impactaram?',
@@ -34,6 +50,23 @@ const SUGGESTIONS = [
   'Liste tarefas pendentes relacionadas a propriedades.',
   'Existe algum contrato vencendo ou encerrado recentemente?',
 ]
+
+const MODEL_OPTIONS: ModelOption[] = [
+  { value: 'gpt-4o-mini', label: 'gpt-4o-mini', description: 'Mais econÃ´mico para uso do dia a dia' },
+  { value: 'gpt-4o', label: 'gpt-4o', description: 'Mais capacidade de raciocÃ­nio e resposta' },
+  { value: 'gpt-5', label: 'gpt-5', description: 'Modelo mais avanÃ§ado, com custo maior' },
+]
+
+function formatUsdCost(value: number | undefined) {
+  if (value === undefined || Number.isNaN(value)) return '$0.000000'
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 6,
+    maximumFractionDigits: 6,
+  }).format(value)
+}
 
 async function readFunctionError(error: any) {
   if (!error?.context) return error?.message || 'Falha ao consultar o assistente de IA'
@@ -52,9 +85,12 @@ export default function AiAssistantView() {
   const [messages, setMessages] = useState<AssistantMessage[]>(_messages)
   const [question, setQuestion] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [selectedModel, setSelectedModel] = useState(_selectedModel)
   const [lastContextSummary, setLastContextSummary] = useState<AssistantResponse['contextSummary']>(_contextSummary)
+  const [lastUsage, setLastUsage] = useState<AssistantResponse['usage'] | null>(_lastUsage)
+  const [lastModelUsed, setLastModelUsed] = useState(_lastModelUsed)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const chatScrollRef = useRef<HTMLDivElement | null>(null)
 
   // Sync module-level vars so they survive unmount
   const updateMessages = (fn: (prev: AssistantMessage[]) => AssistantMessage[]) => {
@@ -65,9 +101,15 @@ export default function AiAssistantView() {
     })
   }
 
-  // Scroll to bottom whenever messages change or while sending
+  // Scroll only inside the chat container, without moving the whole page.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const container = chatScrollRef.current
+    if (!container) return
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: 'smooth',
+    })
   }, [messages, isSending])
 
   const visibleHistory = useMemo(() => (
@@ -84,7 +126,7 @@ export default function AiAssistantView() {
 
     try {
       const { data, error } = await supabase.functions.invoke<AssistantResponse>('ai-assistant', {
-        body: { question: trimmed, history: visibleHistory },
+        body: { question: trimmed, history: visibleHistory, model: selectedModel },
       })
 
       if (error) throw new Error(await readFunctionError(error))
@@ -94,6 +136,10 @@ export default function AiAssistantView() {
       const summary = data?.contextSummary || []
       setLastContextSummary(summary)
       _contextSummary = summary
+      setLastUsage(data?.usage || null)
+      _lastUsage = data?.usage || null
+      setLastModelUsed(data?.model || selectedModel)
+      _lastModelUsed = data?.model || selectedModel
       updateMessages((prev) => [...prev, { id: `assistant-${Date.now()}`, role: 'assistant', content: answer }])
     } catch (error: any) {
       const msg = error?.message || 'Falha ao consultar o assistente de IA'
@@ -134,8 +180,12 @@ export default function AiAssistantView() {
   const handleClear = () => {
     _messages = []
     _contextSummary = []
+    _lastUsage = null
+    _lastModelUsed = ''
     setMessages([])
     setLastContextSummary([])
+    setLastUsage(null)
+    setLastModelUsed('')
   }
 
   return (
@@ -153,7 +203,27 @@ export default function AiAssistantView() {
             Faça perguntas sobre seus cadastros. O contexto é montado com os dados do tenant atual.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-[220px]">
+            <Select
+              value={selectedModel}
+              onValueChange={(value) => {
+                _selectedModel = value
+                setSelectedModel(value)
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o modelo" />
+              </SelectTrigger>
+              <SelectContent>
+                {MODEL_OPTIONS.map((model) => (
+                  <SelectItem key={model.value} value={model.value}>
+                    {model.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {messages.length > 0 && (
             <Button variant="outline" size="sm" className="gap-2 text-muted-foreground" onClick={handleClear}>
               <Trash size={14} />
@@ -168,16 +238,16 @@ export default function AiAssistantView() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-        <Card className="min-h-[620px]">
+        <Card className="min-h-[806px]">
           <CardHeader>
             <CardTitle>Chat</CardTitle>
             <CardDescription>
               O assistente responde com base em propriedades, contratos, hóspedes, finanças, tarefas, documentos, vistorias e agenda.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex h-[520px] flex-col gap-4">
+          <CardContent className="flex h-[676px] flex-col gap-4">
             {/* Scrollable message area */}
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-muted/20 p-4">
+            <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-muted/20 p-4">
               {messages.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center text-center">
                   <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
@@ -233,8 +303,6 @@ export default function AiAssistantView() {
                       </div>
                     </div>
                   )}
-                  {/* Scroll anchor */}
-                  <div ref={messagesEndRef} />
                 </div>
               )}
             </div>
@@ -251,7 +319,7 @@ export default function AiAssistantView() {
               />
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">
-                  Enter para enviar · Ctrl+Enter para nova linha · Não inclua dados sensíveis.
+                  Enter para enviar · Ctrl+Enter para nova linha · Modelo atual: {selectedModel} · Não inclua dados sensíveis.
                 </p>
                 <Button onClick={() => void askAssistant()} disabled={isSending || !question.trim()} className="gap-2">
                   <PaperPlaneTilt size={16} weight="fill" />
@@ -263,6 +331,46 @@ export default function AiAssistantView() {
         </Card>
 
         <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Modelo e consumo</CardTitle>
+              <CardDescription>
+                O custo estimado considera o modelo usado na resposta mais recente.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                <span className="font-medium">Modelo selecionado</span>
+                <Badge variant="secondary">{selectedModel}</Badge>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                <span className="font-medium">Modelo usado</span>
+                <Badge variant="outline">{lastModelUsed || '-'}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Input tokens</p>
+                  <p className="font-semibold">{lastUsage?.inputTokens ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Output tokens</p>
+                  <p className="font-semibold">{lastUsage?.outputTokens ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Total tokens</p>
+                  <p className="font-semibold">{lastUsage?.totalTokens ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-border px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Custo estimado</p>
+                  <p className="font-semibold">{formatUsdCost(lastUsage?.costUsd)}</p>
+                </div>
+              </div>
+              <div className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+                {MODEL_OPTIONS.find((model) => model.value === selectedModel)?.description}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Perguntas rápidas</CardTitle>

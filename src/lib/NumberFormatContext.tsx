@@ -1,8 +1,7 @@
 import { createContext, ReactNode, useContext } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { useLanguage } from '@/lib/LanguageContext'
-
-export type DecimalSeparator = ',' | '.'
+import { formatDecimalInputValue, parseDecimalValue, resolveDecimalSeparator, type DecimalSeparator } from '@/lib/numberFormat'
 
 interface NumberFormatContextType {
   decimalSeparator: DecimalSeparator
@@ -17,26 +16,9 @@ export function NumberFormatProvider({ children }: { children: ReactNode }) {
   const { language } = useLanguage()
   const [savedDecimalSeparator, setSavedDecimalSeparator] = useKV<DecimalSeparator | null>('app-decimal-separator', null)
 
-  const decimalSeparator: DecimalSeparator = savedDecimalSeparator || (language === 'pt' ? ',' : '.')
-
-  const parseDecimal = (value: string): number => {
-    const normalizedInput = value.trim()
-    if (!normalizedInput) return 0
-
-    const thousandsSeparator = decimalSeparator === ',' ? '.' : ','
-    const normalized = normalizedInput
-      .replace(new RegExp(`\\${thousandsSeparator}`, 'g'), '')
-      .replace(decimalSeparator, '.')
-      .replace(/[^\d.-]/g, '')
-
-    const parsed = Number(normalized)
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-
-  const formatDecimalInput = (value: number | undefined | null): string => {
-    if (value === undefined || value === null || Number.isNaN(value)) return ''
-    return String(value).replace('.', decimalSeparator)
-  }
+  const decimalSeparator = resolveDecimalSeparator(language, savedDecimalSeparator)
+  const parseDecimal = (value: string) => parseDecimalValue(value, decimalSeparator)
+  const formatDecimalInput = (value: number | undefined | null) => formatDecimalInputValue(value, decimalSeparator)
 
   return (
     <NumberFormatContext.Provider

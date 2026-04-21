@@ -19,6 +19,7 @@ import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, 
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
+import { getPropertyAvailabilityStatus } from '@/lib/propertyAvailability'
 import ContractDialogForm from '@/components/ContractDialogForm'
 import PropertyMapView from '@/components/PropertyMapView'
 
@@ -78,12 +79,14 @@ export default function PropertiesView() {
   }
 
   const getPropertyStatus = (propertyId: string): PropertyStatus => {
-    const activeContracts = (contracts || []).filter(contract => 
-      contract.status === 'active' && 
-      contract.propertyIds.includes(propertyId)
-    )
-    
-    return activeContracts.length > 0 ? 'occupied' : 'available'
+    return getPropertyAvailabilityStatus(
+      propertyId,
+      (contracts || []).map((contract) => ({
+        id: contract.id,
+        status: contract.status,
+        property_ids: contract.propertyIds,
+      }))
+    ) as PropertyStatus
   }
 
   const handleSubmit = (e: React.FormEvent) => {

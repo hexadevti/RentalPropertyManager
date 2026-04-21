@@ -1,4 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  buildContractSummary,
+  buildTransactionSummary,
+  estimateCost,
+  extractOutputText,
+  getRows,
+  normalizeRelationIds,
+  summarizeTable,
+} from './helpers.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,96 +41,13 @@ const TABLES = [
   { name: 'inspections', select: 'id, property_id, contract_id, title, type, status, scheduled_date, inspector_name, parent_inspection_id', limit: 120, order: 'scheduled_date' },
 ]
 
+const ALLOWED_MODELS = new Set(['gpt-4o-mini', 'gpt-4o', 'gpt-5'])
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
-}
-
-function extractOutputText(response: any) {
-  if (typeof response?.output_text === 'string') return response.output_text
-
-  const parts: string[] = []
-  for (const output of response?.output || []) {
-    for (const content of output?.content || []) {
-      if (typeof content?.text === 'string') parts.push(content.text)
-    }
-  }
-  return parts.join('\n').trim()
-}
-
-function summarizeTable(table: TableResult) {
-  return {
-    name: table.name,
-    countLoaded: table.rows.length,
-    error: table.error,
-    sample: table.rows.slice(0, 80),
-  }
-}
-
-function getRows(contextTables: TableResult[], tableName: string) {
-  return (contextTables.find((table) => table.name === tableName)?.rows || []) as AnyRow[]
-}
-
-function normalizeRelationIds(value: unknown, key: string) {
-  if (!Array.isArray(value)) return []
-  return value
-    .map((item) => {
-      if (typeof item === 'string') return item
-      if (item && typeof item === 'object') return (item as AnyRow)[key]
-      return null
-    })
-    .filter((id): id is string => typeof id === 'string' && id.length > 0)
-}
-
-function buildContractSummary(contextTables: TableResult[]) {
-  const contracts = getRows(contextTables, 'contracts')
-  const guests = getRows(contextTables, 'guests')
-  const today = new Date()
-  const thirtyDaysAgo = new Date(today); thirtyDaysAgo.setDate(today.getDate() - 30)
-  const thirtyDaysFromNow = new Date(today); thirtyDaysFromNow.setDate(today.getDate() + 30)
-
-  const enrich = (c: AnyRow) => ({
-    id: c.id,
-    status: c.status,
-    rental_type: c.rental_type,
-    start_date: c.start_date,
-    end_date: c.end_date,
-    close_date: c.close_date,
-    monthly_amount: c.monthly_amount,
-    guest_name: guests.find((g) => g.id === c.guest_id)?.name || null,
-  })
-
-  return {
-    expiring_within_30_days: contracts
-      .filter((c) => c.status === 'active' && c.end_date >= today.toISOString().slice(0, 10) && c.end_date <= thirtyDaysFromNow.toISOString().slice(0, 10))
-      .map(enrich),
-    expired_within_30_days: contracts
-      .filter((c) => c.end_date >= thirtyDaysAgo.toISOString().slice(0, 10) && c.end_date < today.toISOString().slice(0, 10))
-      .map(enrich),
-    recently_closed: contracts
-      .filter((c) => c.status === 'cancelled' && c.close_date && c.close_date >= thirtyDaysAgo.toISOString().slice(0, 10))
-      .map(enrich),
-    active_total: contracts.filter((c) => c.status === 'active').length,
-    expired_total: contracts.filter((c) => c.status === 'expired').length,
-    cancelled_total: contracts.filter((c) => c.status === 'cancelled').length,
-  }
-}
-
-// USD cost per 1M tokens for known models (input, output)
-const MODEL_PRICING: Record<string, [number, number]> = {
-  'gpt-4o':            [2.50,  10.00],
-  'gpt-4o-mini':       [0.15,   0.60],
-  'gpt-4-turbo':       [10.00, 30.00],
-  'gpt-4':             [30.00, 60.00],
-  'gpt-3.5-turbo':     [0.50,   1.50],
-  'gpt-5':             [15.00, 60.00],
-}
-
-function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const [inputRate, outputRate] = MODEL_PRICING[model] ?? [15.00, 60.00]
-  return (inputTokens / 1_000_000) * inputRate + (outputTokens / 1_000_000) * outputRate
 }
 
 function buildPropertyAvailability(contextTables: TableResult[]) {
@@ -169,7 +95,6 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const model = Deno.env.get('OPENAI_MODEL') || 'gpt-5'
 
     if (!openAiApiKey) return jsonResponse({ error: 'OPENAI_API_KEY is not configured' }, 500)
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
@@ -183,6 +108,9 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => null)
     const question = String(body?.question || '').trim()
     const history = Array.isArray(body?.history) ? (body.history as ChatMessage[]).slice(-8) : []
+    const requestedModel = String(body?.model || '').trim()
+    const configuredDefaultModel = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini'
+    const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : configuredDefaultModel
 
     if (!question) return jsonResponse({ error: 'Question is required' }, 400)
     if (question.length > 1200) return jsonResponse({ error: 'Question is too long' }, 400)
@@ -265,12 +193,14 @@ Deno.serve(async (req) => {
       generatedAt: new Date().toISOString(),
       today,
       businessRules: {
+        transactions: 'Na tabela transactions, type = income significa receita e type = expense significa despesa. Para totais financeiros, use sempre computed.transactionSummary.',
         propertyAvailability: 'Disponibilidade real de propriedade/quarto deve ser calculada por contratos: se houver contrato ativo vinculado, está ocupado; se não houver contrato ativo vinculado, está disponível. Use sempre computed.propertyAvailability.computed_availability.',
         contractExpiry: 'Use computed.contractSummary para responder perguntas sobre contratos vencendo, vencidos ou encerrados recentemente. Os campos expiring_within_30_days e expired_within_30_days são pré-calculados em relação à data de hoje.',
       },
       computed: {
         propertyAvailability: buildPropertyAvailability(contextTables),
         contractSummary: buildContractSummary(contextTables),
+        transactionSummary: buildTransactionSummary(contextTables),
       },
       tables: contextTables.map(summarizeTable),
     }
@@ -281,6 +211,8 @@ Deno.serve(async (req) => {
       'Use exclusivamente o contexto de dados fornecido. Se uma informação não estiver no contexto, diga que não encontrou nos cadastros carregados.',
       'Para disponibilidade de quartos/propriedades, use SEMPRE computed.propertyAvailability.computed_availability.',
       'Para contratos vencendo ou encerrados, use SEMPRE computed.contractSummary. A data de hoje está em context.today.',
+      'Para finanças, considere SEMPRE que transactions.type = income é receita e transactions.type = expense é despesa.',
+      'Quando a pergunta envolver receitas, despesas, saldo ou categorias financeiras, use SEMPRE computed.transactionSummary como fonte principal.',
       'Quando fizer contas, explique rapidamente os critérios usados.',
       'Não invente IDs, valores, contratos, hóspedes, propriedades ou documentos.',
       'Se a pergunta pedir uma ação que altere dados, explique o caminho no sistema; você não altera registros diretamente.',

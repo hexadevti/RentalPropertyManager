@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input'
-import { onlyPhoneDigits, usePhoneFormat } from '@/lib/PhoneFormatContext'
+import { usePhoneFormat } from '@/lib/PhoneFormatContext'
+import { onlyPhoneDigits } from '@/lib/phoneFormat'
 import type { ComponentProps } from 'react'
 
 type PhoneInputProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & {

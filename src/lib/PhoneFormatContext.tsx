@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useContext } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
+import { formatPhoneByMasks, isValidPhoneByMasks, sanitizeMasks } from '@/lib/phoneFormat'
 
 export const phoneMasks = [
   { value: '(xx) xxxxx-xxxx', label: '(xx) xxxxx-xxxx' },
@@ -19,49 +20,6 @@ interface PhoneFormatContextType {
 
 const PhoneFormatContext = createContext<PhoneFormatContextType | undefined>(undefined)
 
-export function onlyPhoneDigits(value: string) {
-  return value.replace(/\D/g, '')
-}
-
-export function applyPhoneMask(value: string, mask: PhoneMask) {
-  const digits = onlyPhoneDigits(value)
-  let index = 0
-  let formatted = ''
-
-  for (const char of mask) {
-    if (char.toLowerCase() === 'x') {
-      if (index >= digits.length) break
-      formatted += digits[index]
-      index += 1
-      continue
-    }
-
-    if (index < digits.length) formatted += char
-  }
-
-  return formatted
-}
-
-function countMaskDigits(mask: string) {
-  return (mask.match(/x/gi) || []).length
-}
-
-function sanitizeMasks(masks: string[]) {
-  return Array.from(new Set(
-    masks
-      .map((mask) => mask.trim())
-      .filter((mask) => countMaskDigits(mask) > 0)
-  ))
-}
-
-function chooseMaskForValue(value: string, masks: string[]) {
-  const digitsLength = onlyPhoneDigits(value).length
-  const ordered = sanitizeMasks(masks).sort((a, b) => countMaskDigits(a) - countMaskDigits(b))
-  return ordered.find((mask) => countMaskDigits(mask) >= digitsLength)
-    || ordered[ordered.length - 1]
-    || '(xx) xxxxx-xxxx'
-}
-
 export function PhoneFormatProvider({ children }: { children: ReactNode }) {
   const [savedPhoneMasks, setSavedPhoneMasks] = useKV<string[]>('app-phone-masks', phoneMasks.map((mask) => mask.value))
 
@@ -72,12 +30,8 @@ export function PhoneFormatProvider({ children }: { children: ReactNode }) {
       value={{
         validPhoneMasks,
         setValidPhoneMasks: (masks) => setSavedPhoneMasks(sanitizeMasks(masks)),
-        formatPhone: (value) => applyPhoneMask(value, chooseMaskForValue(value, validPhoneMasks) as PhoneMask),
-        isValidPhone: (value) => {
-          const digitsLength = onlyPhoneDigits(value).length
-          if (digitsLength === 0) return true
-          return validPhoneMasks.some((mask) => countMaskDigits(mask) === digitsLength)
-        },
+        formatPhone: (value) => formatPhoneByMasks(value, validPhoneMasks),
+        isValidPhone: (value) => isValidPhoneByMasks(value, validPhoneMasks),
       }}
     >
       {children}
