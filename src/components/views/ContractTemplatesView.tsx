@@ -1,5 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
+import helpContent from '@/docs/contract-templates.md?raw'
+import formHelpContent from '@/docs/form-template.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -369,7 +372,10 @@ export default function ContractTemplatesView() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold">Templates de Contrato</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-bold">Templates de Contrato</h2>
+            <HelpButton content={helpContent} title="Ajuda — Templates de Contrato" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             Gerencie modelos de contratos reutilizáveis
           </p>
@@ -390,8 +396,9 @@ export default function ContractTemplatesView() {
             </DialogTrigger>
             <DialogContent className="w-[min(96vw,1300px)] max-w-none max-h-[96vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="flex items-center gap-1">
                   {editingTemplate ? 'Editar Template' : 'Novo Template'}
+                  <HelpButton content={formHelpContent} title="Ajuda — Formulário de Template" />
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">

@@ -1,5 +1,7 @@
 import { useKV } from '@/lib/useSupabaseKV'
 import { Transaction, Property, Task, ServiceProvider, Guest, Contract, Appointment, Owner } from '@/types'
+import helpContent from '@/docs/reports.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -331,9 +333,12 @@ export default function ReportsView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {t.language === 'pt' ? 'Relatórios e Análises' : 'Reports & Analytics'}
-          </h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              {t.language === 'pt' ? 'Relatórios e Análises' : 'Reports & Analytics'}
+            </h2>
+            <HelpButton content={helpContent} title="Ajuda — Relatórios" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             {t.language === 'pt' ? 'Visão completa do desempenho do seu negócio' : 'Complete overview of your business performance'}
           </p>

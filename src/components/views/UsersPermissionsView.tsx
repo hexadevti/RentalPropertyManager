@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
+import helpContent from '@/docs/users-permissions.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,13 +11,31 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
+import { logAppAudit } from '@/lib/appAudit'
 import type { UserRole, UserStatus } from '@/types'
-import { BuildingOffice, ClockCounterClockwise, Circle, User, PencilSimpleLine, ShieldCheck, UsersThree } from '@phosphor-icons/react'
+import { Brain, BuildingOffice, ChartBar, Circle, CurrencyDollar, PencilSimpleLine, ShieldCheck, User, UsersThree } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 type TenantOption = {
   id: string
   name: string
+}
+
+type AiUsageRow = {
+  user_login: string
+  model: string
+  total_tokens: number
+  estimated_cost_usd: number
+  created_at: string
+}
+
+type TenantUsageSummary = {
+  tenantId: string
+  tenantName: string
+  totalQueries: number
+  totalTokens: number
+  totalCostUsd: number
+  lastQueryAt: string | null
 }
 
 type TenantProfile = {
@@ -28,15 +48,6 @@ type TenantProfile = {
   avatarUrl: string
   createdAt: string
   updatedAt: string
-}
-
-type AuditLogRow = {
-  id: string
-  actor_login: string | null
-  target_login: string | null
-  action: string
-  details: Record<string, any>
-  created_at: string
 }
 
 type UserPresenceRow = {
@@ -76,10 +87,11 @@ export default function UsersPermissionsView() {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all')
-  const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([])
-  const [isLoadingAuditLogs, setIsLoadingAuditLogs] = useState(false)
   const [onlineUsers, setOnlineUsers] = useState<UserPresenceRow[]>([])
   const [isLoadingOnlineUsers, setIsLoadingOnlineUsers] = useState(false)
+  const [aiUsageLogs, setAiUsageLogs] = useState<AiUsageRow[]>([])
+  const [allTenantsUsage, setAllTenantsUsage] = useState<TenantUsageSummary[]>([])
+  const [isLoadingAiUsage, setIsLoadingAiUsage] = useState(false)
 
   const selectedTenant = useMemo(
     () => tenants.find((tenant) => tenant.id === selectedTenantId) || null,
@@ -108,6 +120,38 @@ export default function UsersPermissionsView() {
     })
   }, [profiles, search, roleFilter, statusFilter])
 
+  const loadAllTenantsUsage = useCallback(async (tenantList: TenantOption[]) => {
+    if (!tenantList.length) return
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { data, error } = await supabase
+      .from('ai_usage_logs')
+      .select('tenant_id, total_tokens, estimated_cost_usd, created_at')
+      .gte('created_at', since)
+    if (error || !data) return
+    const map = new Map<string, { queries: number; tokens: number; cost: number; lastAt: string | null }>()
+    for (const row of data as { tenant_id: string; total_tokens: number; estimated_cost_usd: number; created_at: string }[]) {
+      const curr = map.get(row.tenant_id) ?? { queries: 0, tokens: 0, cost: 0, lastAt: null }
+      map.set(row.tenant_id, {
+        queries: curr.queries + 1,
+        tokens: curr.tokens + row.total_tokens,
+        cost: curr.cost + Number(row.estimated_cost_usd),
+        lastAt: curr.lastAt && curr.lastAt > row.created_at ? curr.lastAt : row.created_at,
+      })
+    }
+    setAllTenantsUsage(
+      Array.from(map.entries())
+        .map(([tenantId, stats]) => ({
+          tenantId,
+          tenantName: tenantList.find((t) => t.id === tenantId)?.name ?? tenantId,
+          totalQueries: stats.queries,
+          totalTokens: stats.tokens,
+          totalCostUsd: stats.cost,
+          lastQueryAt: stats.lastAt,
+        }))
+        .sort((a, b) => b.totalCostUsd - a.totalCostUsd)
+    )
+  }, [])
+
   const loadTenants = useCallback(async () => {
     setIsLoadingTenants(true)
     const { data, error } = await supabase
@@ -123,9 +167,10 @@ export default function UsersPermissionsView() {
       if (!selectedTenantId) {
         setSelectedTenantId(currentTenantId || loaded[0]?.id || '')
       }
+      if (isPlatformAdmin) void loadAllTenantsUsage(loaded)
     }
     setIsLoadingTenants(false)
-  }, [currentTenantId, selectedTenantId])
+  }, [currentTenantId, selectedTenantId, isPlatformAdmin, loadAllTenantsUsage])
 
   const loadProfilesByTenant = useCallback(async (tenantId: string) => {
     if (!tenantId) {
@@ -157,25 +202,6 @@ export default function UsersPermissionsView() {
     setIsLoadingProfiles(false)
   }, [])
 
-  const loadAuditLogs = useCallback(async (tenantId?: string) => {
-    const scopedTenantId = tenantId || selectedTenantId
-    if (!scopedTenantId) return
-    setIsLoadingAuditLogs(true)
-    const { data, error } = await supabase
-      .from('tenant_audit_logs')
-      .select('id, actor_login, target_login, action, details, created_at')
-      .eq('tenant_id', scopedTenantId)
-      .order('created_at', { ascending: false })
-      .limit(40)
-    if (error) {
-      console.warn('Failed to load audit logs:', error)
-      setAuditLogs([])
-    } else {
-      setAuditLogs((data || []) as AuditLogRow[])
-    }
-    setIsLoadingAuditLogs(false)
-  }, [selectedTenantId])
-
   const loadOnlineUsers = useCallback(async (tenantId?: string) => {
     const scopedTenantId = tenantId || selectedTenantId
     if (!scopedTenantId) {
@@ -201,6 +227,21 @@ export default function UsersPermissionsView() {
     setIsLoadingOnlineUsers(false)
   }, [selectedTenantId])
 
+  const loadAiUsage = useCallback(async (tenantId: string) => {
+    if (!tenantId) return
+    setIsLoadingAiUsage(true)
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { data, error } = await supabase
+      .from('ai_usage_logs')
+      .select('user_login, model, total_tokens, estimated_cost_usd, created_at')
+      .eq('tenant_id', tenantId)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(500)
+    if (!error) setAiUsageLogs((data || []) as AiUsageRow[])
+    setIsLoadingAiUsage(false)
+  }, [])
+
   useEffect(() => {
     void loadTenants()
   }, [loadTenants])
@@ -208,9 +249,9 @@ export default function UsersPermissionsView() {
   useEffect(() => {
     if (!selectedTenantId) return
     void loadProfilesByTenant(selectedTenantId)
-    void loadAuditLogs(selectedTenantId)
     void loadOnlineUsers(selectedTenantId)
-  }, [selectedTenantId, loadProfilesByTenant, loadAuditLogs, loadOnlineUsers])
+    void loadAiUsage(selectedTenantId)
+  }, [selectedTenantId, loadProfilesByTenant, loadOnlineUsers, loadAiUsage])
 
   useEffect(() => {
     if (!selectedTenantId) return
@@ -229,6 +270,24 @@ export default function UsersPermissionsView() {
       )) || null,
     }))
   }, [onlineUsers, profiles])
+
+  const aiUsageByUser = useMemo(() => {
+    const map = new Map<string, { queries: number; tokens: number; cost: number }>()
+    for (const row of aiUsageLogs) {
+      const key = row.user_login || 'unknown'
+      const curr = map.get(key) ?? { queries: 0, tokens: 0, cost: 0 }
+      map.set(key, { queries: curr.queries + 1, tokens: curr.tokens + row.total_tokens, cost: curr.cost + Number(row.estimated_cost_usd) })
+    }
+    return Array.from(map.entries())
+      .map(([login, s]) => ({ login, ...s }))
+      .sort((a, b) => b.cost - a.cost)
+  }, [aiUsageLogs])
+
+  const aiTotals = useMemo(() => ({
+    queries: aiUsageLogs.length,
+    tokens: aiUsageLogs.reduce((s, r) => s + r.total_tokens, 0),
+    cost: aiUsageLogs.reduce((s, r) => s + Number(r.estimated_cost_usd), 0),
+  }), [aiUsageLogs])
 
   if (!isAdmin) {
     return (
@@ -276,8 +335,15 @@ export default function UsersPermissionsView() {
       setTenants(prev => prev.map((tenant) => (
         tenant.id === selectedTenantId ? { ...tenant, name: trimmed } : tenant
       )))
+      await logAppAudit({
+        entity: 'tenants',
+        action: 'update',
+        recordId: selectedTenantId,
+        tenantId: selectedTenantId,
+        actorAuthUserId: currentUser?.id,
+        actorLogin: currentUser?.login,
+      })
       toast.success('Tenant atualizado com sucesso')
-      await loadAuditLogs(selectedTenantId)
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao atualizar tenant')
     } finally {
@@ -340,9 +406,16 @@ export default function UsersPermissionsView() {
 
       if (updateError) throw updateError
 
+      await logAppAudit({
+        entity: 'user_profiles',
+        action: 'update',
+        recordId: selectedProfile.id,
+        tenantId: selectedTenantId,
+        actorAuthUserId: currentUser?.id,
+        actorLogin: currentUser?.login,
+      })
       toast.success('Perfil atualizado com sucesso')
       await loadProfilesByTenant(selectedTenantId)
-      await loadAuditLogs(selectedTenantId)
       setEditingLogin(null)
     } catch (error: any) {
       toast.error(error?.message || 'Falha ao atualizar perfil')
@@ -358,7 +431,10 @@ export default function UsersPermissionsView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Usuários e Permissões</h2>
+        <div className="flex items-center gap-1">
+          <h2 className="text-3xl font-bold tracking-tight">Usuários e Permissões</h2>
+          <HelpButton content={helpContent} title="Ajuda — Usuários e Permissões" />
+        </div>
         <p className="text-muted-foreground mt-1">
           Gerencie permissões de usuários, tenant atual e edição de perfis.
         </p>
@@ -582,48 +658,6 @@ export default function UsersPermissionsView() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <ClockCounterClockwise size={20} weight="duotone" />
-              Trilha de Auditoria
-            </CardTitle>
-            <CardDescription>
-              Histórico das alterações administrativas de usuários, permissões e tenant.
-            </CardDescription>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => void loadAuditLogs(selectedTenantId)} disabled={isLoadingAuditLogs || !selectedTenantId}>
-            {isLoadingAuditLogs ? 'Atualizando...' : 'Atualizar'}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {auditLogs.map((log) => (
-            <div key={log.id} className="rounded-lg border border-border p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">{log.action}</Badge>
-                <span className="text-xs text-muted-foreground">
-                  {new Date(log.created_at).toLocaleString()}
-                </span>
-              </div>
-              <p className="mt-2 text-sm">
-                <strong>Ator:</strong> {log.actor_login || 'sistema'}
-                {' • '}
-                <strong>Alvo:</strong> {log.target_login || '-'}
-              </p>
-              <pre className="mt-2 overflow-x-auto rounded bg-muted p-2 text-xs text-muted-foreground">
-                {JSON.stringify(log.details || {}, null, 2)}
-              </pre>
-            </div>
-          ))}
-          {!isLoadingAuditLogs && auditLogs.length === 0 && (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Sem eventos de auditoria para este tenant.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       <Dialog open={!!editingLogin} onOpenChange={(open) => !open && setEditingLogin(null)}>
         <DialogContent>
           <DialogHeader>
@@ -717,6 +751,132 @@ export default function UsersPermissionsView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── AI usage – current tenant (last 30 days) ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain size={20} weight="duotone" />
+            Uso do Assistente IA — últimos 30 dias
+          </CardTitle>
+          <CardDescription>
+            Consultas, tokens consumidos e custo estimado para o tenant <strong>{selectedTenant?.name ?? selectedTenantId}</strong>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoadingAiUsage ? (
+            <p className="text-sm text-muted-foreground">Carregando...</p>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-lg border border-border p-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Consultas</p>
+                  <p className="text-2xl font-bold">{aiTotals.queries}</p>
+                </div>
+                <div className="rounded-lg border border-border p-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Tokens totais</p>
+                  <p className="text-2xl font-bold">{aiTotals.tokens.toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-border p-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <CurrencyDollar size={13} />Custo estimado (USD)
+                  </p>
+                  <p className="text-2xl font-bold">${aiTotals.cost.toFixed(6)}</p>
+                </div>
+              </div>
+
+              {aiUsageByUser.length > 0 && (
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                        <th className="px-4 py-2">Usuário</th>
+                        <th className="px-4 py-2 text-right">Consultas</th>
+                        <th className="px-4 py-2 text-right">Tokens</th>
+                        <th className="px-4 py-2 text-right">Custo (USD)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aiUsageByUser.map((row) => (
+                        <tr key={row.login} className="border-t border-border">
+                          <td className="px-4 py-2 font-medium">{row.login}</td>
+                          <td className="px-4 py-2 text-right">{row.queries}</td>
+                          <td className="px-4 py-2 text-right">{row.tokens.toLocaleString()}</td>
+                          <td className="px-4 py-2 text-right">${row.cost.toFixed(6)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {aiUsageLogs.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum uso registrado nos últimos 30 dias.
+                </p>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Cross-tenant usage (platform admin only) ── */}
+      {isPlatformAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ChartBar size={20} weight="duotone" />
+              Gastos por Tenant — últimos 30 dias
+            </CardTitle>
+            <CardDescription>
+              Visão consolidada do uso do assistente de IA em todos os tenants da plataforma.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {allTenantsUsage.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum uso registrado nos últimos 30 dias.
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                      <th className="px-4 py-2">Tenant</th>
+                      <th className="px-4 py-2 text-right">Consultas</th>
+                      <th className="px-4 py-2 text-right">Tokens</th>
+                      <th className="px-4 py-2 text-right">Custo (USD)</th>
+                      <th className="px-4 py-2 text-right">Última consulta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allTenantsUsage.map((row) => (
+                      <tr key={row.tenantId} className="border-t border-border">
+                        <td className="px-4 py-2 font-medium">{row.tenantName}</td>
+                        <td className="px-4 py-2 text-right">{row.totalQueries}</td>
+                        <td className="px-4 py-2 text-right">{row.totalTokens.toLocaleString()}</td>
+                        <td className="px-4 py-2 text-right">${row.totalCostUsd.toFixed(6)}</td>
+                        <td className="px-4 py-2 text-right text-muted-foreground">
+                          {row.lastQueryAt ? new Date(row.lastQueryAt).toLocaleDateString('pt-BR') : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-border bg-muted/30 font-semibold">
+                      <td className="px-4 py-2">Total</td>
+                      <td className="px-4 py-2 text-right">{allTenantsUsage.reduce((s, r) => s + r.totalQueries, 0)}</td>
+                      <td className="px-4 py-2 text-right">{allTenantsUsage.reduce((s, r) => s + r.totalTokens, 0).toLocaleString()}</td>
+                      <td className="px-4 py-2 text-right">${allTenantsUsage.reduce((s, r) => s + r.totalCostUsd, 0).toFixed(6)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <AlertDialog open={isMoveConfirmOpen} onOpenChange={setIsMoveConfirmOpen}>
         <AlertDialogContent>

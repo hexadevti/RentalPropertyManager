@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Task, TaskPriority, TaskStatus, Property } from '@/types'
+import helpContent from '@/docs/tasks.md?raw'
+import formHelpContent from '@/docs/form-task.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -138,7 +141,10 @@ export default function TasksView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Tasks & Appointments</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">Tasks & Appointments</h2>
+            <HelpButton content={helpContent} title="Ajuda — Tarefas" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">Manage maintenance and administrative tasks</p>
         </div>
         <div className="flex gap-2">
@@ -155,7 +161,10 @@ export default function TasksView() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{editingTask ? 'Edit Task' : 'Add Task'}</DialogTitle>
+              <DialogTitle className="flex items-center gap-1">
+                {editingTask ? 'Edit Task' : 'Add Task'}
+                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Tarefa" />
+              </DialogTitle>
               <DialogDescription>{editingTask ? 'Update task details and status' : 'Create a new task or appointment'}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">

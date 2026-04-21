@@ -1,6 +1,9 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import { Transaction, TransactionType, Property, Contract, ServiceProvider, Guest } from '@/types'
+import { Transaction, TransactionType, Property, Contract, ServiceProvider, Guest, Owner } from '@/types'
+import helpContent from '@/docs/finances.md?raw'
+import formHelpContent from '@/docs/form-transaction.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -12,15 +15,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Plus, TrendUp, TrendDown, Trash, CalendarBlank, ArrowsClockwise, PencilSimple } from '@phosphor-icons/react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Plus, TrendUp, TrendDown, Trash, CalendarBlank, ArrowsClockwise, PencilSimple, CaretDown } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 import { ptBR, enUS } from 'date-fns/locale'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { getContractSelectionLabel } from '@/lib/contractLabels'
 
 interface MonthlyData {
+  monthKey: string
   month: string
   year: number
   income: number
@@ -37,9 +42,21 @@ export default function FinancesView() {
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [serviceProviders] = useKV<ServiceProvider[]>('service-providers', [])
   const [guests] = useKV<Guest[]>('guests', [])
+  const [owners] = useKV<Owner[]>('owners', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const restoreScrollYRef = useRef<number | null>(null)
+  const [monthFilter, setMonthFilter] = useState('all')
+  const [startDateFilter, setStartDateFilter] = useState('')
+  const [endDateFilter, setEndDateFilter] = useState('')
+  const [contractFilter, setContractFilter] = useState('all')
+  const [guestFilter, setGuestFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [serviceProviderFilter, setServiceProviderFilter] = useState('all')
+  const [ownerFilter, setOwnerFilter] = useState('all')
+  const [propertyFilter, setPropertyFilter] = useState('all')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   
   const [formData, setFormData] = useState({
     type: 'income' as TransactionType,
@@ -58,12 +75,82 @@ export default function FinancesView() {
     setRefreshKey(prev => prev + 1)
   }, [contracts, serviceProviders, guests])
 
+  const monthOptions = useMemo(() => {
+    return Array.from(new Set((transactions || []).map((transaction) => {
+      const date = parseISO(transaction.date)
+      return format(date, 'yyyy-MM')
+    }))).sort()
+  }, [transactions])
+
+  const categoryOptions = useMemo(() => {
+    return Array.from(new Set((transactions || [])
+      .map((transaction) => transaction.category.trim())
+      .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b))
+  }, [transactions])
+
+  const getTransactionContract = (transaction: Transaction) => (
+    (contracts || []).find((contract) => contract.id === transaction.contractId) || null
+  )
+
+  const getTransactionPropertyIds = (transaction: Transaction) => {
+    const propertyIds = new Set<string>()
+    if (transaction.propertyId) propertyIds.add(transaction.propertyId)
+
+    const contract = getTransactionContract(transaction)
+    for (const propertyId of contract?.propertyIds || []) {
+      propertyIds.add(propertyId)
+    }
+
+    return Array.from(propertyIds)
+  }
+
+  const filteredTransactions = useMemo(() => {
+    return (transactions || []).filter((transaction) => {
+      const transactionDate = parseISO(transaction.date)
+      const contract = getTransactionContract(transaction)
+      const propertyIds = getTransactionPropertyIds(transaction)
+
+      if (monthFilter !== 'all' && format(transactionDate, 'yyyy-MM') !== monthFilter) return false
+      if (startDateFilter && transactionDate < parseISO(startDateFilter)) return false
+      if (endDateFilter && transactionDate > parseISO(endDateFilter)) return false
+      if (contractFilter !== 'all' && transaction.contractId !== contractFilter) return false
+      if (guestFilter !== 'all' && contract?.guestId !== guestFilter) return false
+      if (categoryFilter !== 'all' && transaction.category !== categoryFilter) return false
+      if (serviceProviderFilter !== 'all' && transaction.serviceProviderId !== serviceProviderFilter) return false
+      if (propertyFilter !== 'all' && !propertyIds.includes(propertyFilter)) return false
+
+      if (ownerFilter !== 'all') {
+        const hasOwner = propertyIds.some((propertyId) => {
+          const property = (properties || []).find((item) => item.id === propertyId)
+          return property?.ownerIds?.includes(ownerFilter)
+        })
+        if (!hasOwner) return false
+      }
+
+      return true
+    })
+  }, [
+    transactions,
+    contracts,
+    properties,
+    monthFilter,
+    startDateFilter,
+    endDateFilter,
+    contractFilter,
+    guestFilter,
+    categoryFilter,
+    serviceProviderFilter,
+    ownerFilter,
+    propertyFilter,
+  ])
+
   const monthlyData = useMemo(() => {
-    if (!transactions || transactions.length === 0) return []
+    if (!filteredTransactions || filteredTransactions.length === 0) return []
 
     const monthMap = new Map<string, MonthlyData>()
 
-    transactions.forEach((transaction) => {
+    filteredTransactions.forEach((transaction) => {
       const date = parseISO(transaction.date)
       const monthKey = format(date, 'yyyy-MM')
       const monthLabel = format(date, 'MMMM yyyy', { locale })
@@ -71,6 +158,7 @@ export default function FinancesView() {
 
       if (!monthMap.has(monthKey)) {
         monthMap.set(monthKey, {
+          monthKey,
           month: monthLabel,
           year,
           income: 0,
@@ -93,11 +181,12 @@ export default function FinancesView() {
     })
 
     return Array.from(monthMap.values())
-      .sort((a, b) => b.year - a.year || b.month.localeCompare(a.month))
-  }, [transactions, locale, contracts, serviceProviders, guests, properties, refreshKey])
+      .sort((a, b) => b.monthKey.localeCompare(a.monthKey))
+  }, [filteredTransactions, locale, contracts, serviceProviders, guests, properties, owners, refreshKey])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    restoreScrollYRef.current = window.scrollY
     
     if (editingTransaction) {
       const updatedTransaction: Transaction = {
@@ -120,7 +209,21 @@ export default function FinancesView() {
     resetForm()
   }
 
+  useEffect(() => {
+    if (isDialogOpen || restoreScrollYRef.current === null) return
+    const scrollY = restoreScrollYRef.current
+    restoreScrollYRef.current = null
+    window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: scrollY, behavior: 'auto' })
+      })
+    }, 0)
+  }, [isDialogOpen, transactions])
+
   const resetForm = () => {
+    if (restoreScrollYRef.current === null) {
+      restoreScrollYRef.current = window.scrollY
+    }
     setFormData({
       type: 'income',
       amount: 0,
@@ -136,6 +239,7 @@ export default function FinancesView() {
   }
 
   const handleEdit = (transaction: Transaction) => {
+    restoreScrollYRef.current = window.scrollY
     setEditingTransaction(transaction)
     setFormData({
       type: transaction.type,
@@ -150,13 +254,21 @@ export default function FinancesView() {
     setIsDialogOpen(true)
   }
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      resetForm()
+      return
+    }
+    setIsDialogOpen(true)
+  }
+
   const handleDelete = (id: string) => {
     setTransactions((current) => (current || []).filter(t => t.id !== id))
     toast.success(t.finances_view.deleted_success)
   }
 
-  const totalIncome = (transactions || []).filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0)
-  const totalExpenses = (transactions || []).filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
+  const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0)
+  const totalExpenses = filteredTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
   const balance = totalIncome - totalExpenses
 
   const contractOptions = (contracts || []).filter((contract) => (
@@ -168,11 +280,26 @@ export default function FinancesView() {
     toast.success(t.common.refreshed_success)
   }
 
+  const clearFilters = () => {
+    setMonthFilter('all')
+    setStartDateFilter('')
+    setEndDateFilter('')
+    setContractFilter('all')
+    setGuestFilter('all')
+    setCategoryFilter('all')
+    setServiceProviderFilter('all')
+    setOwnerFilter('all')
+    setPropertyFilter('all')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{t.finances_view.title}</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">{t.finances_view.title}</h2>
+            <HelpButton content={helpContent} title="Ajuda — Finanças" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">{t.finances_view.monthly_cashflow}</p>
         </div>
         <div className="flex gap-2">
@@ -180,16 +307,22 @@ export default function FinancesView() {
             <ArrowsClockwise weight="bold" size={16} />
             {t.common.refresh}
           </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <Plus weight="bold" size={16} />
                 {t.finances_view.add_transaction}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent
+              className="max-w-2xl"
+              onCloseAutoFocus={(event) => event.preventDefault()}
+            >
             <DialogHeader>
-              <DialogTitle>{editingTransaction ? t.finances_view.form.title_edit : t.finances_view.form.title_new}</DialogTitle>
+              <DialogTitle className="flex items-center gap-1">
+                {editingTransaction ? t.finances_view.form.title_edit : t.finances_view.form.title_new}
+                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Transação" />
+              </DialogTitle>
               <DialogDescription>{t.finances_view.form.description}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -333,6 +466,159 @@ export default function FinancesView() {
         </div>
       </div>
 
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="h-auto gap-2 px-0 text-base font-semibold hover:bg-transparent">
+                  <CaretDown
+                    size={16}
+                    className={`transition-transform ${filtersOpen ? 'rotate-0' : '-rotate-90'}`}
+                  />
+                  {language === 'pt' ? 'Filtros' : 'Filters'}
+                </Button>
+              </CollapsibleTrigger>
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                {language === 'pt' ? 'Limpar filtros' : 'Clear filters'}
+              </Button>
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Mês' : 'Month'}</Label>
+            <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todos os meses' : 'All months'}</SelectItem>
+                {monthOptions.map((month) => (
+                  <SelectItem key={month} value={month}>
+                    {format(parseISO(`${month}-01`), 'MMMM yyyy', { locale })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Período inicial' : 'Start date'}</Label>
+            <DateInput value={startDateFilter} onChange={setStartDateFilter} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Período final' : 'End date'}</Label>
+            <DateInput value={endDateFilter} onChange={setEndDateFilter} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Contrato' : 'Contract'}</Label>
+            <Select value={contractFilter} onValueChange={setContractFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todos os contratos' : 'All contracts'}</SelectItem>
+                {(contracts || []).map((contract) => (
+                  <SelectItem key={contract.id} value={contract.id}>
+                    {getContractSelectionLabel(contract, properties || [])}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Hóspede' : 'Guest'}</Label>
+            <Select value={guestFilter} onValueChange={setGuestFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todos os hóspedes' : 'All guests'}</SelectItem>
+                {(guests || []).map((guest) => (
+                  <SelectItem key={guest.id} value={guest.id}>
+                    {guest.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Categoria' : 'Category'}</Label>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todas as categorias' : 'All categories'}</SelectItem>
+                {categoryOptions.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Prestador de serviço' : 'Service provider'}</Label>
+            <Select value={serviceProviderFilter} onValueChange={setServiceProviderFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todos os prestadores' : 'All providers'}</SelectItem>
+                {(serviceProviders || []).map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name} - {provider.service}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Proprietário' : 'Owner'}</Label>
+            <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todos os proprietários' : 'All owners'}</SelectItem>
+                {(owners || []).map((owner) => (
+                  <SelectItem key={owner.id} value={owner.id}>
+                    {owner.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{language === 'pt' ? 'Propriedade' : 'Property'}</Label>
+            <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'pt' ? 'Todas as propriedades' : 'All properties'}</SelectItem>
+                {(properties || []).map((property) => (
+                  <SelectItem key={property.id} value={property.id}>
+                    {property.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-3">
@@ -384,6 +670,23 @@ export default function FinancesView() {
             </Button>
           </CardContent>
         </Card>
+      ) : filteredTransactions.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <CalendarBlank weight="duotone" size={64} className="text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">
+              {language === 'pt' ? 'Nenhuma transação encontrada' : 'No transactions found'}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {language === 'pt'
+                ? 'Ajuste ou limpe os filtros para ver o fluxo de caixa.'
+                : 'Adjust or clear the filters to see the cash flow.'}
+            </p>
+            <Button variant="outline" onClick={clearFilters}>
+              {language === 'pt' ? 'Limpar filtros' : 'Clear filters'}
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <CardHeader>
@@ -391,9 +694,9 @@ export default function FinancesView() {
           </CardHeader>
           <CardContent>
             <Accordion type="single" collapsible className="w-full">
-              {monthlyData.map((monthData, index) => (
-                <AccordionItem key={index} value={`month-${index}`}>
-                  <AccordionTrigger className="hover:no-underline">
+              {monthlyData.map((monthData) => (
+                <AccordionItem key={monthData.monthKey} value={`month-${monthData.monthKey}`}>
+                  <AccordionTrigger className="cursor-pointer hover:no-underline">
                     <div className="flex items-center justify-between w-full pr-4">
                       <div className="flex items-center gap-3">
                         <CalendarBlank weight="duotone" size={24} className="text-primary" />
@@ -428,8 +731,8 @@ export default function FinancesView() {
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-2 pt-2">
-                      {monthData.transactions
-                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      {[...monthData.transactions]
+                        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                         .map((transaction) => {
                           const property = (properties || []).find(p => p.id === transaction.propertyId)
                           const contract = (contracts || []).find(c => c.id === transaction.contractId)

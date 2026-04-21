@@ -112,20 +112,3 @@ create policy user_profiles_delete on public.user_profiles
     or public.is_current_user_platform_admin()
   );
 
--- tenant_audit_logs policies
-
-drop policy if exists tenant_audit_logs_select on public.tenant_audit_logs;
-create policy tenant_audit_logs_select on public.tenant_audit_logs
-  for select to authenticated
-  using (
-    tenant_id = public.get_current_user_tenant_id()
-    or public.is_current_user_platform_admin()
-  );
-
-drop policy if exists tenant_audit_logs_insert on public.tenant_audit_logs;
-create policy tenant_audit_logs_insert on public.tenant_audit_logs
-  for insert to authenticated
-  with check (
-    (tenant_id = public.get_current_user_tenant_id() and public.is_current_user_admin())
-    or public.is_current_user_platform_admin()
-  );

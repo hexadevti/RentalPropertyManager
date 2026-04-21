@@ -2,13 +2,18 @@ import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { MagnifyingGlass, Plus, Pencil, Trash, Wrench, Envelope, Phone, Briefcase, ArrowsClockwise } from '@phosphor-icons/react'
+import helpContent from '@/docs/service-providers.md?raw'
+import formHelpContent from '@/docs/form-service-provider.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
+import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 
 export interface ServiceProvider {
   id: string
@@ -24,6 +29,7 @@ export interface ServiceProvider {
 
 export default function ServiceProvidersView() {
   const { t } = useLanguage()
+  const { formatPhone } = usePhoneFormat()
   const [providers, setProviders] = useKV<ServiceProvider[]>('service-providers', [])
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -113,7 +119,10 @@ export default function ServiceProvidersView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Prestadores de Serviço</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Prestadores de Serviço</h2>
+            <HelpButton content={helpContent} title="Ajuda — Prestadores de Serviço" />
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
@@ -132,7 +141,10 @@ export default function ServiceProvidersView() {
             </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingProvider ? 'Editar Prestador' : 'Novo Prestador'}</DialogTitle>
+              <DialogTitle className="flex items-center gap-1">
+                {editingProvider ? 'Editar Prestador' : 'Novo Prestador'}
+                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Prestador" />
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -160,10 +172,10 @@ export default function ServiceProvidersView() {
 
                 <div>
                   <Label htmlFor="provider-phone">Telefone *</Label>
-                  <Input
+                  <PhoneInput
                     id="provider-phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onValueChange={(value) => setFormData({ ...formData, phone: value })}
                     placeholder="(00) 00000-0000"
                     required
                   />
@@ -270,7 +282,7 @@ export default function ServiceProvidersView() {
                       <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <Phone size={16} weight="duotone" />
-                          {provider.phone}
+                          {formatPhone(provider.phone)}
                         </div>
                         {provider.email && (
                           <div className="flex items-center gap-1.5">

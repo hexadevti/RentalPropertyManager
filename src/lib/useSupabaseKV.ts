@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getSupabaseAuthState, subscribeSupabaseAuthState } from '@/lib/supabaseAuthState'
+import { logAppAudit, type AppAuditAction } from '@/lib/appAudit'
 
 const cache = new Map<string, unknown>()
 const subscribers = new Map<string, Set<(value: unknown) => void>>()
@@ -27,6 +28,8 @@ function isSettingKey(key: string) {
   return key === 'app-language'
     || key === 'app-currency'
     || key === 'app-decimal-separator'
+    || key === 'app-phone-mask'
+    || key === 'app-phone-masks'
     || key.startsWith('pinned-items-')
     || key.startsWith('sidebar-collapsed-')
 }
@@ -142,13 +145,58 @@ async function loadExistingIds(table: string, tenantId: string) {
   return (data || []).map((row) => row.id)
 }
 
+async function loadExistingRows(table: string, tenantId: string) {
+  const { data, error } = await supabase
+    .from(table)
+    .select('*')
+    .eq('tenant_id', tenantId)
+
+  if (error) throw error
+  return data || []
+}
+
+function normalizeAuditValue(value: unknown) {
+  if (value === undefined || value === null) return null
+  return value
+}
+
+function rowChanged(nextRow: Record<string, unknown>, existingRow: Record<string, unknown>) {
+  return Object.entries(nextRow).some(([key, value]) => {
+    return normalizeAuditValue(existingRow[key]) !== normalizeAuditValue(value)
+  })
+}
+
+function auditEntityName(table: string) {
+  return table
+}
+
+async function logCollectionAudit(table: string, action: AppAuditAction, recordIds: string[], tenantId: string) {
+  await Promise.all(recordIds.map((recordId) => (
+    logAppAudit({
+      tenantId,
+      entity: auditEntityName(table),
+      action,
+      recordId,
+    })
+  )))
+}
+
 async function replaceSimpleRows(table: string, rows: any[]) {
   const tenantId = await getTenantId()
   if (!tenantId) return
 
-  const existingIds = await loadExistingIds(table, tenantId)
+  const existingRows = await loadExistingRows(table, tenantId)
+  const existingIds = existingRows.map((row) => row.id)
+  const existingRowsById = new Map(existingRows.map((row) => [row.id, row]))
   const nextIds = rows.map((row) => row.id)
   const removedIds = existingIds.filter((id) => !nextIds.includes(id))
+  const createdIds = rows.filter((row) => !existingRowsById.has(row.id)).map((row) => row.id)
+  const updatedIds = rows
+    .filter((row) => {
+      const existingRow = existingRowsById.get(row.id)
+      return existingRow && rowChanged(row, existingRow)
+    })
+    .map((row) => row.id)
 
   if (removedIds.length > 0) {
     const { error } = await supabase
@@ -158,6 +206,7 @@ async function replaceSimpleRows(table: string, rows: any[]) {
       .in('id', removedIds)
 
     if (error) throw error
+    await logCollectionAudit(table, 'delete', removedIds, tenantId)
   }
 
   if (rows.length > 0) {
@@ -166,6 +215,8 @@ async function replaceSimpleRows(table: string, rows: any[]) {
       .upsert(rows, { onConflict: 'tenant_id,id' })
 
     if (error) throw error
+    await logCollectionAudit(table, 'create', createdIds, tenantId)
+    await logCollectionAudit(table, 'update', updatedIds, tenantId)
   }
 }
 
@@ -449,7 +500,12 @@ async function loadServiceProviders() {
     name: provider.name,
     service: provider.service,
     contact: provider.contact,
+    phone: provider.contact,
     email: provider.email || undefined,
+    document: provider.document || undefined,
+    address: provider.address || undefined,
+    notes: provider.notes || undefined,
+    createdAt: provider.created_at,
   }))
 }
 
@@ -1055,8 +1111,12 @@ async function persistServiceProviders(value: any[]) {
     id: provider.id,
     name: provider.name,
     service: provider.service,
-    contact: provider.contact,
+    contact: provider.phone || provider.contact || '',
     email: provider.email || null,
+    document: provider.document || null,
+    address: provider.address || null,
+    notes: provider.notes || null,
+    created_at: provider.createdAt || new Date().toISOString(),
   })))
 }
 

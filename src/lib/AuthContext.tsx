@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { setSupabaseAuthState } from '@/lib/supabaseAuthState'
+import { logAppAudit } from '@/lib/appAudit'
 import type { UserProfile, UserRole, UserStatus } from '@/types'
 
 interface AuthContextType {
@@ -95,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [tenantProfiles, setTenantProfiles] = useState<UserProfile[]>([])
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const loggedLoginSessionRef = useRef<string | null>(null)
 
   useEffect(() => {
     setSupabaseAuthState({
@@ -105,6 +107,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
     })
   }, [currentUser, currentTenantId, userProfile, isLoading])
+
+  useEffect(() => {
+    if (!currentUser || !currentTenantId || userProfile?.status !== 'approved') return
+    const sessionKey = `${currentTenantId}:${currentUser.id}`
+    if (loggedLoginSessionRef.current === sessionKey) return
+
+    loggedLoginSessionRef.current = sessionKey
+    void logAppAudit({
+      entity: 'auth',
+      action: 'login',
+      tenantId: currentTenantId,
+      actorAuthUserId: currentUser.id,
+      actorLogin: currentUser.login,
+    })
+  }, [currentUser, currentTenantId, userProfile?.status])
 
   const loadTenantProfiles = useCallback(async (tenantId: string) => {
     const { data, error } = await supabase
@@ -449,31 +466,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasRole = (role: UserRole) => userProfile?.role === role
 
-  const logAuditAction = useCallback(async (
-    action: string,
-    targetLogin: string | null,
-    details: Record<string, any> = {}
-  ) => {
-    if (!currentTenantId) return
-    const actorAuthUserId = isUuid(currentUser?.id) ? currentUser?.id : null
-    const { error } = await supabase
-      .from('tenant_audit_logs')
-      .insert({
-        tenant_id: currentTenantId,
-        actor_auth_user_id: actorAuthUserId,
-        actor_login: currentUser?.login || null,
-        target_login: targetLogin,
-        action,
-        details,
-      })
-    if (error) {
-      console.warn('Audit log write failed:', error)
-    }
-  }, [currentTenantId, currentUser])
-
   const updateUserRole = async (login: string, role: UserRole) => {
     if (!currentTenantId) return
-    const currentRole = tenantProfiles.find(p => p.githubLogin === login)?.role || null
     const { error } = await supabase
       .from('user_profiles')
       .update({ role, updated_at: new Date().toISOString() })
@@ -481,12 +475,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('github_login', login)
     if (error) throw error
     setTenantProfiles(prev => prev.map(p => p.githubLogin === login ? { ...p, role } : p))
-    await logAuditAction('user.role.updated', login, { from: currentRole, to: role })
+    await logAppAudit({ entity: 'user_profiles', action: 'update', recordId: login, tenantId: currentTenantId, actorAuthUserId: currentUser?.id, actorLogin: currentUser?.login })
   }
 
   const updateUserStatus = async (login: string, status: UserStatus) => {
     if (!currentTenantId) return
-    const currentStatus = tenantProfiles.find(p => p.githubLogin === login)?.status || null
     const { error } = await supabase
       .from('user_profiles')
       .update({ status, updated_at: new Date().toISOString() })
@@ -494,7 +487,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('github_login', login)
     if (error) throw error
     setTenantProfiles(prev => prev.map(p => p.githubLogin === login ? { ...p, status } : p))
-    await logAuditAction('user.status.updated', login, { from: currentStatus, to: status })
+    await logAppAudit({ entity: 'user_profiles', action: 'update', recordId: login, tenantId: currentTenantId, actorAuthUserId: currentUser?.id, actorLogin: currentUser?.login })
   }
 
   const updateUserProfile = async (
@@ -532,10 +525,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         avatarUrl: updatedProfile.avatarUrl,
       } : prev)
     }
-    await logAuditAction('user.profile.updated', updatedProfile.githubLogin, {
-      previousLogin: login,
-      email: updatedProfile.email,
-    })
+    await logAppAudit({ entity: 'user_profiles', action: 'update', recordId: updatedProfile.githubLogin, tenantId: currentTenantId, actorAuthUserId: currentUser?.id, actorLogin: currentUser?.login })
   }
 
   const renameTenant = async (name: string) => {
@@ -549,9 +539,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', currentTenantId)
 
     if (error) throw error
-    const previousName = tenantName
     setTenantName(trimmed)
-    await logAuditAction('tenant.renamed', null, { from: previousName, to: trimmed })
+    await logAppAudit({ entity: 'tenants', action: 'update', recordId: currentTenantId, tenantId: currentTenantId, actorAuthUserId: currentUser?.id, actorLogin: currentUser?.login })
   }
 
   const setSessionTenant = async (tenantId: string) => {
@@ -603,11 +592,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
     const created = profileFromRow(data)
     setTenantProfiles(prev => [...prev, created])
-    await logAuditAction('user.created', created.githubLogin, {
-      role: created.role,
-      status: created.status,
-      email: created.email,
-    })
+    await logAppAudit({ entity: 'user_profiles', action: 'create', recordId: created.githubLogin, tenantId: currentTenantId, actorAuthUserId: currentUser?.id, actorLogin: currentUser?.login })
   }
 
   const deleteUser = async (login: string) => {
@@ -619,7 +604,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('github_login', login)
     if (error) throw error
     setTenantProfiles(prev => prev.filter(p => p.githubLogin !== login))
-    await logAuditAction('user.deleted', login)
+    await logAppAudit({ entity: 'user_profiles', action: 'delete', recordId: login, tenantId: currentTenantId, actorAuthUserId: currentUser?.id, actorLogin: currentUser?.login })
   }
 
   const getAllProfiles = () => tenantProfiles
@@ -695,6 +680,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
+    const logoutUser = currentUser
+    const logoutTenantId = currentTenantId
+    if (logoutUser && logoutTenantId) {
+      await logAppAudit({
+        entity: 'auth',
+        action: 'logout',
+        tenantId: logoutTenantId,
+        actorAuthUserId: logoutUser.id,
+        actorLogin: logoutUser.login,
+      })
+    }
+    loggedLoginSessionRef.current = null
     setCurrentUser(null)
     setUserProfile(null)
     setCurrentTenantId(null)

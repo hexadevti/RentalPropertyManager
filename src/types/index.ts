@@ -95,7 +95,12 @@ export interface ServiceProvider {
   name: string
   service: string
   contact: string
+  phone?: string
   email?: string
+  document?: string
+  address?: string
+  notes?: string
+  createdAt?: string
 }
 
 export interface Guest {

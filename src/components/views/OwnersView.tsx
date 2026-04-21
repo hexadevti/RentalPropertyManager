@@ -1,20 +1,26 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Owner, Property, GuestDocument } from '@/types'
+import helpContent from '@/docs/owners.md?raw'
+import formHelpContent from '@/docs/form-owner.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Plus, User, Pencil, Trash, House, EnvelopeSimple, Phone, IdentificationCard } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
+import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 
 export default function OwnersView() {
   const { language } = useLanguage()
+  const { formatPhone } = usePhoneFormat()
   const [owners, setOwners] = useKV<Owner[]>('owners', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -135,9 +141,12 @@ export default function OwnersView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {language === 'pt' ? 'Proprietários' : 'Owners'}
-          </h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              {language === 'pt' ? 'Proprietários' : 'Owners'}
+            </h2>
+            <HelpButton content={helpContent} title="Ajuda — Proprietários" />
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             {language === 'pt' ? 'Gerencie os proprietários das propriedades' : 'Manage property owners'}
           </p>
@@ -151,10 +160,11 @@ export default function OwnersView() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                {editingOwner 
+              <DialogTitle className="flex items-center gap-1">
+                {editingOwner
                   ? (language === 'pt' ? 'Editar Proprietário' : 'Edit Owner')
                   : (language === 'pt' ? 'Novo Proprietário' : 'New Owner')}
+                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Proprietário" />
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -182,10 +192,10 @@ export default function OwnersView() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">{language === 'pt' ? 'Telefone' : 'Phone'}</Label>
-                  <Input
+                  <PhoneInput
                     id="phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onValueChange={(value) => setFormData({ ...formData, phone: value })}
                     placeholder={language === 'pt' ? 'Digite o telefone' : 'Enter phone'}
                     required
                   />
@@ -323,7 +333,7 @@ export default function OwnersView() {
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Phone size={16} />
-                      <span>{owner.phone}</span>
+                      <span>{formatPhone(owner.phone)}</span>
                     </div>
                     {(owner.documents || []).length > 0 && (
                       <div className="flex items-start gap-2 text-muted-foreground">

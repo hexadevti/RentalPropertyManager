@@ -12,16 +12,18 @@ import ContractTemplatesView from './components/views/ContractTemplatesView'
 import ServiceProvidersView from './components/views/ServiceProvidersView'
 import AppointmentsView from './components/views/AppointmentsView'
 import OwnersView from './components/views/OwnersView'
-import SettingsView from './components/views/SettingsView'
 import UsersPermissionsView from './components/views/UsersPermissionsView'
 import InspectionsView from './components/views/InspectionsView'
 import BugReportsView from './components/views/BugReportsView'
 import MyBugReportsView from './components/views/MyBugReportsView'
+import AuditLogsView from './components/views/AuditLogsView'
+import AiAssistantView from './components/views/AiAssistantView'
 import { Property, Transaction } from './types'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
 import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
 import { NumberFormatProvider } from '@/lib/NumberFormatContext'
+import { PhoneFormatProvider } from '@/lib/PhoneFormatContext'
 import { DateFormatProvider } from '@/lib/DateFormatContext'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { UserInfo } from '@/components/UserInfo'
@@ -63,7 +65,7 @@ function AppContent() {
   const [transactions] = useKV<Transaction[]>('transactions', [])
   const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState<string>(isGuest ? 'calendar' : 'properties')
-  const [pinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
+  const [pinnedItems, setPinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([])
   const [isChangingTenant, setIsChangingTenant] = useState(false)
 
@@ -77,6 +79,7 @@ function AppContent() {
     guests: t.tabs.guests,
     contracts: t.tabs.contracts,
     documents: t.tabs.documents,
+    'ai-assistant': t.tabs['ai-assistant'],
     inspections: t.tabs.inspections,
     templates: t.tabs.templates,
     providers: t.tabs.providers,
@@ -84,7 +87,7 @@ function AppContent() {
     'bug-reports': t.tabs['bug-reports'],
     'my-bug-reports': t.tabs['my-bug-reports'],
     'users-permissions': t.tabs['users-permissions'],
-    settings: t.tabs.settings,
+    'audit-logs': t.tabs['audit-logs'],
   }
   
   useKVCleanup()
@@ -111,11 +114,20 @@ function AppContent() {
     void loadTenantsForMaster()
   }, [isPlatformAdmin])
   
-  const calculateBalance = () => {
-    return (transactions || []).reduce((acc, t) => {
+  const calculateCurrentMonthBalance = () => {
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth()
+
+    return (transactions || []).filter((transaction) => {
+      const transactionDate = new Date(transaction.date)
+      return transactionDate.getFullYear() === currentYear && transactionDate.getMonth() === currentMonth
+    }).reduce((acc, t) => {
       return t.type === 'income' ? acc + t.amount : acc - t.amount
     }, 0)
   }
+
+  const currentMonthBalance = calculateCurrentMonthBalance()
 
   if (isLoading) {
     return (
@@ -156,6 +168,7 @@ function AppContent() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         pinnedItems={pinnedItems || []}
+        onPinnedItemsChange={setPinnedItems}
       />
 
       <div className="min-h-screen pl-20 flex flex-col">
@@ -209,9 +222,11 @@ function AppContent() {
                   <>
                     <div className="h-12 w-px bg-border" />
                     <div className="text-right">
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.balance}</p>
-                      <p className={`text-2xl font-bold ${calculateBalance() >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        {formatCurrency(calculateBalance())}
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                        {t.balance} {new Date().toLocaleDateString(undefined, { month: 'short' })}
+                      </p>
+                      <p className={`text-2xl font-bold ${currentMonthBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        {formatCurrency(currentMonthBalance)}
                       </p>
                     </div>
                     <div className="h-12 w-px bg-border" />
@@ -236,6 +251,7 @@ function AppContent() {
           {activeTab === 'guests' && isAdmin && <GuestsView />}
           {activeTab === 'contracts' && <ContractsView onNavigate={setActiveTab} />}
           {activeTab === 'documents' && isAdmin && <DocumentsView />}
+          {activeTab === 'ai-assistant' && isAdmin && <AiAssistantView />}
           {activeTab === 'inspections' && isAdmin && <InspectionsView />}
           {activeTab === 'templates' && isAdmin && <ContractTemplatesView />}
           {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}
@@ -243,7 +259,7 @@ function AppContent() {
           {activeTab === 'my-bug-reports' && isAdmin && !isPlatformAdmin && <MyBugReportsView />}
           {activeTab === 'bug-reports' && isPlatformAdmin && <BugReportsView />}
           {activeTab === 'users-permissions' && isAdmin && <UsersPermissionsView />}
-          {activeTab === 'settings' && <SettingsView />}
+          {activeTab === 'audit-logs' && isAdmin && <AuditLogsView />}
         </main>
       </div>
     </div>
@@ -256,9 +272,11 @@ function App() {
       <LanguageProvider>
         <CurrencyProvider>
           <NumberFormatProvider>
-            <DateFormatProvider>
-              <AppContent />
-            </DateFormatProvider>
+            <PhoneFormatProvider>
+              <DateFormatProvider>
+                <AppContent />
+              </DateFormatProvider>
+            </PhoneFormatProvider>
           </NumberFormatProvider>
         </CurrencyProvider>
       </LanguageProvider>

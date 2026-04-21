@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
+import helpContent from '@/docs/form-guest.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { DateInput } from '@/components/ui/date-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -296,9 +299,9 @@ export default function GuestDialogForm({
 
               <div>
                 <Label>{t.guests_view.form.phone}</Label>
-                <Input
+                <PhoneInput
                   value={person.phone}
-                  onChange={(e) => updateRelatedPerson(key, index, { phone: e.target.value })}
+                  onValueChange={(value) => updateRelatedPerson(key, index, { phone: value })}
                   placeholder={t.guests_view.form.phone_placeholder}
                 />
               </div>
@@ -399,7 +402,10 @@ export default function GuestDialogForm({
     }}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}</DialogTitle>
+          <DialogTitle className="flex items-center gap-1">
+            {editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}
+            <HelpButton content={helpContent} title="Ajuda — Formulário de Hóspede" />
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -428,10 +434,10 @@ export default function GuestDialogForm({
 
             <div>
               <Label htmlFor="guest-phone">{t.guests_view.form.phone}</Label>
-              <Input
+              <PhoneInput
                 id="guest-phone"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onValueChange={(value) => setFormData({ ...formData, phone: value })}
                 placeholder={t.guests_view.form.phone_placeholder}
                 required
               />

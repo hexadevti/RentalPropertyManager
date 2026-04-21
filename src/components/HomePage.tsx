@@ -6,7 +6,8 @@ import {
   House, Buildings, Users, CurrencyCircleDollar, CalendarBlank, ChartBar,
   FileText, Wrench, CheckCircle, ArrowRight, Globe, Star, ShieldCheck,
   Rocket, Lightning, Handshake, IdentificationCard, Bell, Lock,
-  CaretDown,
+  CaretDown, ClipboardText, FolderOpen, Bug, ClockCounterClockwise,
+  UserFocus, PushPin,
 } from '@phosphor-icons/react'
 
 interface HomePageProps {
@@ -17,6 +18,7 @@ const content = {
   pt: {
     nav: {
       features: 'Recursos',
+      latest: 'Novidades',
       howItWorks: 'Como funciona',
       pricing: 'Planos',
       login: 'Entrar',
@@ -26,12 +28,12 @@ const content = {
       badge: 'Gestão de Aluguel Simplificada',
       title: 'Gerencie seus imóveis com',
       titleHighlight: 'inteligência e praticidade',
-      subtitle: 'Do cadastro de hóspedes à geração de contratos, controle financeiro e relatórios — tudo em um só lugar. Perfeito para proprietários e administradoras.',
+      subtitle: 'Do cadastro de hóspedes à geração de contratos, vistorias digitais, documentos, auditoria e controle financeiro avançado — tudo em um só lugar.',
       cta: 'Começar gratuitamente',
       demo: 'Ver demonstração',
       stats: [
-        { value: '500+', label: 'Imóveis gerenciados' },
-        { value: '98%', label: 'Satisfação' },
+        { value: '360°', label: 'Gestão integrada' },
+        { value: '24/7', label: 'Dados organizados' },
         { value: '3×', label: 'Mais produtividade' },
       ],
     },
@@ -43,7 +45,7 @@ const content = {
         {
           icon: Buildings,
           title: 'Portfólio de Imóveis',
-          description: 'Cadastre quartos, apartamentos e casas. Controle status, fotos, mobiliário e muito mais.',
+          description: 'Cadastre quartos, apartamentos e casas com ambientes, mobiliário, itens de vistoria e status operacional.',
         },
         {
           icon: Users,
@@ -58,7 +60,7 @@ const content = {
         {
           icon: CurrencyCircleDollar,
           title: 'Controle Financeiro',
-          description: 'Receitas, despesas, categorias e relatórios. Tenha uma visão clara do seu fluxo de caixa.',
+          description: 'Receitas, despesas e filtros por mês, contrato, hóspede, proprietário, propriedade, categoria e prestador.',
         },
         {
           icon: CalendarBlank,
@@ -80,6 +82,52 @@ const content = {
           title: 'Multi-usuário',
           description: 'Convide sua equipe, defina permissões por perfil e colabore com segurança.',
         },
+        {
+          icon: ClipboardText,
+          title: 'Vistoria Digital',
+          description: 'Registre vistorias por ambiente, compare diferenças e gere tarefas a partir de problemas encontrados.',
+        },
+        {
+          icon: FolderOpen,
+          title: 'Central de Documentos',
+          description: 'Envie, visualize, baixe e organize documentos por propriedade, contrato, hóspede, proprietário ou geral.',
+        },
+        {
+          icon: ClockCounterClockwise,
+          title: 'Auditoria e Presença',
+          description: 'Acompanhe login, logout, criações, alterações, exclusões e usuários online em tempo quase real.',
+        },
+        {
+          icon: Bug,
+          title: 'Reporte de Bugs',
+          description: 'Usuários reportam problemas com descrição, tela, registro e print colado do clipboard.',
+        },
+      ],
+    },
+    latest: {
+      title: 'Novas ferramentas para operação profissional',
+      subtitle: 'Funcionalidades pensadas para reduzir retrabalho, aumentar rastreabilidade e dar mais controle ao administrador.',
+      items: [
+        {
+          icon: ClipboardText,
+          title: 'Vistorias vinculadas',
+          description: 'Entrada, periódica, manutenção e saída podem ser acompanhadas em cards relacionados, comparando diferenças entre vistorias.',
+        },
+        {
+          icon: FolderOpen,
+          title: 'Documentos com storage',
+          description: 'Upload, download, preview, colar do clipboard e drag and drop com vínculos e filtros por entidade.',
+        },
+        {
+          icon: UserFocus,
+          title: 'Usuários online',
+          description: 'Veja quem está acessando, tela atual, atividade, horário, IP, browser e hostname dentro do tenant.',
+        },
+        {
+          icon: PushPin,
+          title: 'Menu personalizável',
+          description: 'Fixe itens no sidebar, reorganize por drag and drop e mantenha a preferência salva por usuário.',
+        },
       ],
     },
     howItWorks: {
@@ -94,12 +142,12 @@ const content = {
         {
           number: '02',
           title: 'Cadastre seus imóveis',
-          description: 'Adicione propriedades, proprietários e hóspedes. Importe dados existentes facilmente.',
+          description: 'Adicione propriedades, proprietários, hóspedes, ambientes, mobília e itens de vistoria.',
         },
         {
           number: '03',
           title: 'Gerencie tudo em um lugar',
-          description: 'Contratos, finanças, tarefas e agenda — centralizados para você economizar tempo.',
+          description: 'Contratos, finanças, tarefas, documentos, vistorias, auditoria e agenda centralizados para economizar tempo.',
         },
       ],
     },
@@ -120,6 +168,7 @@ const content = {
             '1 usuário',
             'Contratos e hóspedes',
             'Controle financeiro básico',
+            'Documentos gerais',
             'Suporte por e-mail',
           ],
           cta: 'Começar grátis',
@@ -136,6 +185,8 @@ const content = {
             'Templates de contratos personalizados',
             'Relatórios avançados',
             'Calendário de reservas',
+            'Vistoria digital',
+            'Documentos vinculados',
             'Gestão de prestadores',
             'Suporte prioritário',
           ],
@@ -152,6 +203,7 @@ const content = {
             'Usuários ilimitados',
             'Múltiplos tenants',
             'API de integração',
+            'Auditoria e monitoramento',
             'Onboarding dedicado',
             'SLA garantido',
             'Gerente de conta exclusivo',
@@ -190,6 +242,7 @@ const content = {
   en: {
     nav: {
       features: 'Features',
+      latest: 'What’s new',
       howItWorks: 'How it works',
       pricing: 'Pricing',
       login: 'Sign in',
@@ -199,12 +252,12 @@ const content = {
       badge: 'Simplified Rental Management',
       title: 'Manage your properties with',
       titleHighlight: 'intelligence and ease',
-      subtitle: 'From guest registration to contract generation, financial control, and reports — all in one place. Perfect for property owners and managers.',
+      subtitle: 'From guest registration to contracts, digital inspections, documents, audit logs, and advanced financial control — all in one place.',
       cta: 'Get started for free',
       demo: 'See demo',
       stats: [
-        { value: '500+', label: 'Properties managed' },
-        { value: '98%', label: 'Satisfaction rate' },
+        { value: '360°', label: 'Integrated management' },
+        { value: '24/7', label: 'Organized data' },
         { value: '3×', label: 'More productive' },
       ],
     },
@@ -216,7 +269,7 @@ const content = {
         {
           icon: Buildings,
           title: 'Property Portfolio',
-          description: 'Register rooms, apartments, and houses. Track status, photos, furniture and more.',
+          description: 'Register rooms, apartments, and houses with environments, furniture, inspection items and operational status.',
         },
         {
           icon: Users,
@@ -231,7 +284,7 @@ const content = {
         {
           icon: CurrencyCircleDollar,
           title: 'Financial Control',
-          description: 'Income, expenses, categories and reports. Get a clear view of your cash flow.',
+          description: 'Income, expenses and filters by month, contract, guest, owner, property, category and service provider.',
         },
         {
           icon: CalendarBlank,
@@ -253,6 +306,52 @@ const content = {
           title: 'Multi-user',
           description: 'Invite your team, set permissions by role and collaborate securely.',
         },
+        {
+          icon: ClipboardText,
+          title: 'Digital Inspections',
+          description: 'Record inspections by environment, compare differences and create tasks from issues found.',
+        },
+        {
+          icon: FolderOpen,
+          title: 'Document Center',
+          description: 'Upload, preview, download and organize documents by property, contract, guest, owner or general use.',
+        },
+        {
+          icon: ClockCounterClockwise,
+          title: 'Audit & Presence',
+          description: 'Track login, logout, create, update, delete and online users in near real time.',
+        },
+        {
+          icon: Bug,
+          title: 'Bug Reporting',
+          description: 'Users can report issues with screen, record, description and screenshots pasted from clipboard.',
+        },
+      ],
+    },
+    latest: {
+      title: 'New tools for professional operations',
+      subtitle: 'Features designed to reduce rework, increase traceability and give admins more control.',
+      items: [
+        {
+          icon: ClipboardText,
+          title: 'Linked inspections',
+          description: 'Check-in, periodic, maintenance and check-out inspections can be tracked in related cards with differences between inspections.',
+        },
+        {
+          icon: FolderOpen,
+          title: 'Storage-backed documents',
+          description: 'Upload, download, preview, clipboard paste and drag and drop with entity links and filters.',
+        },
+        {
+          icon: UserFocus,
+          title: 'Online users',
+          description: 'See who is online, current screen, activity, time, IP, browser and hostname inside the tenant.',
+        },
+        {
+          icon: PushPin,
+          title: 'Personalized menu',
+          description: 'Pin sidebar items, reorder them with drag and drop and keep preferences saved per user.',
+        },
       ],
     },
     howItWorks: {
@@ -267,12 +366,12 @@ const content = {
         {
           number: '02',
           title: 'Add your properties',
-          description: 'Add properties, owners and guests. Easily import existing data.',
+          description: 'Add properties, owners, guests, environments, furniture and inspection items.',
         },
         {
           number: '03',
           title: 'Manage everything in one place',
-          description: 'Contracts, finances, tasks and schedule — all centralized to save you time.',
+          description: 'Contracts, finances, tasks, documents, inspections, audit logs and schedule — all centralized to save time.',
         },
       ],
     },
@@ -293,6 +392,7 @@ const content = {
             '1 user',
             'Contracts and guests',
             'Basic financial control',
+            'General documents',
             'Email support',
           ],
           cta: 'Start free',
@@ -309,6 +409,8 @@ const content = {
             'Custom contract templates',
             'Advanced reports',
             'Booking calendar',
+            'Digital inspections',
+            'Linked documents',
             'Service provider management',
             'Priority support',
           ],
@@ -325,6 +427,7 @@ const content = {
             'Unlimited users',
             'Multiple tenants',
             'API integration',
+            'Audit and monitoring',
             'Dedicated onboarding',
             'SLA guarantee',
             'Dedicated account manager',
@@ -382,6 +485,7 @@ export function HomePage({ onLoginClick }: HomePageProps) {
 
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
             <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors">{t.nav.features}</button>
+            <button onClick={() => scrollTo('latest')} className="hover:text-foreground transition-colors">{t.nav.latest}</button>
             <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors">{t.nav.howItWorks}</button>
             <button onClick={() => scrollTo('pricing')} className="hover:text-foreground transition-colors">{t.nav.pricing}</button>
           </nav>
@@ -475,6 +579,43 @@ export function HomePage({ onLoginClick }: HomePageProps) {
                 </div>
               )
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* LATEST FEATURES */}
+      <section id="latest" className="py-24 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-10 items-start">
+            <div className="lg:sticky lg:top-24">
+              <Badge variant="outline" className="mb-5 gap-1.5">
+                <Lightning size={12} weight="fill" />
+                {lang === 'pt' ? 'Novidades do sistema' : 'Product updates'}
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t.latest.title}</h2>
+              <p className="text-muted-foreground text-lg leading-relaxed">{t.latest.subtitle}</p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-5">
+              {t.latest.items.map((item) => {
+                const Icon = item.icon
+                return (
+                  <div
+                    key={item.title}
+                    className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg"
+                  >
+                    <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
+                    <div className="relative">
+                      <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md">
+                        <Icon size={24} weight="duotone" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </section>

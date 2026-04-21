@@ -12,6 +12,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  test: {
+    environment: 'node',
+    globals: true,
+    include: ['src/**/*.test.ts', 'supabase/**/*.test.ts'],
+  },
   resolve: {
     alias: {
       '@': resolve(projectRoot, 'src')

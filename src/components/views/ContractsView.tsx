@@ -19,6 +19,8 @@ import { useDateFormat } from '@/lib/DateFormatContext'
 import { format } from 'date-fns'
 import GuestDialogForm from '../GuestDialogForm'
 import { generateContractPDF, downloadPDF, openPDFInNewTab } from '@/lib/contractPDF'
+import helpContent from '@/docs/contracts.md?raw'
+import { HelpButton } from '@/components/HelpButton'
 
 interface ContractsViewProps {
   onNavigate?: (tab: string) => void
@@ -289,7 +291,10 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.contracts_view.title}</h2>
+          <div className="flex items-center gap-1">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.contracts_view.title}</h2>
+            <HelpButton content={helpContent} title="Ajuda — Contratos" />
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
