@@ -1,6 +1,6 @@
 ﻿export const translations = {
   pt: {
-    appName: 'RPM',
+    appName: 'RPM - Rental Property Manager',
     appSubtitle: 'Sistema de Gestão de Propriedades',
     balance: 'Saldo',
     properties: 'Propriedades',
@@ -931,7 +931,7 @@
         master_footer_label: 'Footer',
         save_master: 'Salvar master template',
         load_default_email: 'Carregar padrão visual',
-        load_default_email_confirm: 'Isso vai substituir o header e footer atuais pelo modelo padrão do RentFlow. Deseja continuar?',
+        load_default_email_confirm: 'Isso vai substituir o header e footer atuais pelo modelo padrão do RPM - Rental Property Manager. Deseja continuar?',
       },
       variable_help: {
         title: 'Variáveis disponíveis no template',
@@ -1439,7 +1439,7 @@
   },
   
   en: {
-    appName: 'RPM',
+    appName: 'RPM - Rental Property Manager',
     appSubtitle: 'Property Management System',
     balance: 'Balance',
     properties: 'Properties',
@@ -2371,7 +2371,7 @@
         master_footer_label: 'Footer',
         save_master: 'Save master template',
         load_default_email: 'Load visual defaults',
-        load_default_email_confirm: 'This will replace the current header and footer with the RentFlow default template. Continue?',
+        load_default_email_confirm: 'This will replace the current header and footer with the RPM - Rental Property Manager default template. Continue?',
       },
       variable_help: {
         title: 'Available template variables',

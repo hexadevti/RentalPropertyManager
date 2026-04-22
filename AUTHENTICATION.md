@@ -1,8 +1,8 @@
-# RentFlow - Sistema de Autenticação
+# Rental Property Manager - Sistema de Autenticação
 
 ## Visão Geral
 
-O RentFlow inclui um sistema completo de autenticação baseado no GitHub, com controle de acesso por perfis (roles) e sistema de aprovação de usuários.
+O Rental Property Manager inclui um sistema completo de autenticação baseado no GitHub, com controle de acesso por perfis (roles) e sistema de aprovação de usuários.
 
 ## Status de Usuário
 

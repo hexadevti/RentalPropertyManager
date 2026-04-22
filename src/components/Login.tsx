@@ -121,7 +121,7 @@ export function Login({ onBack }: LoginProps = {}) {
           <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
             <SignIn size={30} weight="duotone" className="text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Entrar no RPM</CardTitle>
+          <CardTitle className="text-2xl font-bold">Entrar no RPM - Rental Property Manager</CardTitle>
           <CardDescription>Acesse sua conta para continuar</CardDescription>
         </CardHeader>
 

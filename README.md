@@ -1,4 +1,4 @@
-# 🏠 RentFlow - Sistema de Gestão de Propriedades
+# 🏠 Rental Property Manager - Sistema de Gestão de Propriedades
 
 Sistema completo de gestão de aluguéis de curta e longa temporada, desenvolvido para proprietários e administradores de imóveis.
 
@@ -15,7 +15,7 @@ Sistema completo de gestão de aluguéis de curta e longa temporada, desenvolvid
 
 ## 🎯 Visão Geral
 
-RentFlow é uma aplicação web moderna e completa para gestão de propriedades para aluguel. O sistema permite controlar todas as operações relacionadas à administração de imóveis, desde o cadastro de propriedades até a gestão financeira, contratos, agendamentos e relatórios detalhados.
+Rental Property Manager é uma aplicação web moderna e completa para gestão de propriedades para aluguel. O sistema permite controlar todas as operações relacionadas à administração de imóveis, desde o cadastro de propriedades até a gestão financeira, contratos, agendamentos e relatórios detalhados.
 
 ### Principais Características
 
@@ -556,4 +556,4 @@ Para questões, sugestões ou reportar problemas, utilize os recursos disponíve
 
 ---
 
-**RentFlow** - Simplifique a gestão das suas propriedades 🏠✨
+**Rental Property Manager** - Simplifique a gestão das suas propriedades 🏠✨
