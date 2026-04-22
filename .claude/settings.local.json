@@ -4,7 +4,10 @@
       "Bash(npm install *)",
       "Bash(npx tsc *)",
       "Bash(python -)",
-      "Bash(grep -v \"//\")"
+      "Bash(grep -v \"//\")",
+      "Bash(node -e \"const icons = require\\('c:/Users/lucia/repos/RentalPropertyManager/node_modules/@phosphor-icons/react'\\); const names = Object.keys\\(icons\\).filter\\(k => k.toLowerCase\\(\\).includes\\('arrow'\\) && k.toLowerCase\\(\\).includes\\('up'\\) && k.toLowerCase\\(\\).includes\\('right'\\)\\); console.log\\(names.join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"const icons = require\\('c:/Users/lucia/repos/RentalPropertyManager/node_modules/@phosphor-icons/react'\\); const names = Object.keys\\(icons\\).filter\\(k => /Export|NewTab|External|Launch|Share|Window/.test\\(k\\)\\); console.log\\(names.join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"const icons = require\\('c:/Users/lucia/repos/RentalPropertyManager/node_modules/@phosphor-icons/react'\\); console.log\\(Object.keys\\(icons\\).filter\\(k => !k.startsWith\\('_'\\)\\).slice\\(0,5\\)\\); console.log\\('total:', Object.keys\\(icons\\).length\\)\")"
     ]
   }
 }

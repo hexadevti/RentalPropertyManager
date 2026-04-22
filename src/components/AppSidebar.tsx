@@ -25,7 +25,8 @@ import {
   Bell,
   ArrowUp,
   ArrowDown,
-  Brain
+  Brain,
+  ArrowSquareUpRightIcon
 } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -135,6 +136,12 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsC
     })
   }
 
+  const openInNewTab = (tabValue: string) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', tabValue)
+    window.open(url.href, '_blank')
+  }
+
   const renderMenuItem = (item: MenuItem, isPinned: boolean) => {
     const Icon = item.icon
     const label = t.tabs[item.value as keyof typeof t.tabs] || item.value
@@ -147,6 +154,7 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsC
         <ContextMenuTrigger asChild>
           <button
             onClick={() => onTabChange(item.value)}
+            onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); openInNewTab(item.value) } }}
             draggable={isPinned}
             onDragStart={(event) => {
               if (!isPinned) return
@@ -210,6 +218,11 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsC
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ContextMenuItem onSelect={() => openInNewTab(item.value)}>
+            <ArrowSquareUpRightIcon size={16} />
+            {t.sidebar.open_in_new_tab}
+          </ContextMenuItem>
+          <ContextMenuSeparator />
           {isPinned ? (
             <>
               <ContextMenuItem onSelect={() => unpinItem(item.id)}>

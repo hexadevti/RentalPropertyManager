@@ -400,7 +400,6 @@ export default function InspectionsView() {
       dueDate: new Date().toISOString().slice(0, 10),
       priority: difference.currentCondition === 'damaged' ? 'high' : 'medium',
       status: 'pending',
-      assignee: '',
       propertyId: inspection.propertyId,
       createdAt: new Date().toISOString(),
     }

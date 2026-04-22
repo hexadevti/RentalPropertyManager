@@ -711,10 +711,10 @@ export default function CalendarView() {
                 </div>
               )}
 
-              {selectedTask.assignee && (
+              {selectedTask.assigneeName && (
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">{t.tasks_view.assignee}</p>
-                  <p>{selectedTask.assignee}</p>
+                  <p>{selectedTask.assigneeName}</p>
                 </div>
               )}
 
