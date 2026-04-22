@@ -423,9 +423,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getOAuthRedirectTo = useCallback(() => {
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    return isLocalhost
-      ? `${window.location.origin}/`
-      : (import.meta.env.VITE_AUTH_REDIRECT_URL || `${window.location.origin}/`)
+    const baseUrl = isLocalhost
+      ? window.location.origin
+      : (import.meta.env.VITE_AUTH_REDIRECT_URL || window.location.origin)
+
+    const redirectUrl = new URL(baseUrl)
+    redirectUrl.pathname = '/auth/callback'
+    redirectUrl.search = ''
+    redirectUrl.hash = ''
+    return redirectUrl.toString()
   }, [])
 
   const signInWithOAuthProvider = useCallback(async (provider: OAuthProvider) => {
