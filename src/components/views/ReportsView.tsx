@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Calendar as CalendarComponent } from '@/components/ui/calendar'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 import { TrendUp, TrendDown, House, Calendar, ArrowsClockwise, User, Files, Wrench, CalendarCheck, CalendarBlank, Users } from '@phosphor-icons/react'
 import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, isAfter, parseISO, subMonths, format, subDays, startOfYear, subYears, eachMonthOfInterval, eachDayOfInterval } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
@@ -15,6 +14,7 @@ import { useLanguage } from '@/lib/LanguageContext'
 import { toast } from 'sonner'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { useState } from 'react'
+import type { DateRange } from 'react-day-picker'
 
 type DateRangePreset = '7d' | '30d' | '3m' | '6m' | '1y' | 'ytd' | 'custom'
 
@@ -209,10 +209,18 @@ export default function ReportsView() {
   const handleRefresh = () => { toast.success(t.common.refreshed_success) }
 
   const rangeLabel = `${format(dateRange.start, dateRangeFmt)} ${rv.to} ${format(dateRange.end, dateRangeFmt)}`
+  const customDateRangeValue: DateRange | undefined = customStartDate || customEndDate
+    ? { from: customStartDate, to: customEndDate }
+    : undefined
+
+  const handleCustomDateRangeChange = (range: DateRange | undefined) => {
+    setCustomStartDate(range?.from)
+    setCustomEndDate(range?.to)
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{rv.title}</h2>
@@ -220,9 +228,9 @@ export default function ReportsView() {
           </div>
           <p className="text-sm text-muted-foreground mt-1">{rv.subtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap xl:w-auto xl:justify-end">
           <Select value={dateRangePreset} onValueChange={(value) => setDateRangePreset(value as DateRangePreset)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -237,29 +245,13 @@ export default function ReportsView() {
           </Select>
 
           {dateRangePreset === 'custom' && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <CalendarBlank weight="bold" size={16} />
-                  {customStartDate && customEndDate
-                    ? `${format(customStartDate, dateRangeFmt)} - ${format(customEndDate, dateRangeFmt)}`
-                    : rv.select_period}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-4" align="end">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">{rv.start_date}</label>
-                    <CalendarComponent mode="single" selected={customStartDate} onSelect={setCustomStartDate} disabled={(date) => date > new Date()} />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">{rv.end_date}</label>
-                    <CalendarComponent mode="single" selected={customEndDate} onSelect={setCustomEndDate}
-                      disabled={(date) => date > new Date() || (customStartDate ? date < customStartDate : false)} />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <DateRangePicker
+              value={customDateRangeValue}
+              onChange={handleCustomDateRangeChange}
+              placeholder={rv.select_period}
+              className="w-full justify-start sm:w-auto"
+              disabled={(date) => date > new Date()}
+            />
           )}
 
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
@@ -453,7 +445,7 @@ export default function ReportsView() {
             <CardTitle>{rv.monthly_summary}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-success/5 rounded-lg border border-success/20">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-success/20 bg-success/5 p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-success/10">
                   <TrendUp weight="duotone" size={20} className="text-success" />
@@ -464,7 +456,7 @@ export default function ReportsView() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between p-4 bg-destructive/5 rounded-lg border border-destructive/20">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-destructive/10">
                   <TrendDown weight="duotone" size={20} className="text-destructive" />
@@ -475,7 +467,7 @@ export default function ReportsView() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground mb-1">{rv.net_profit}</p>
                 <p className={`text-2xl font-bold ${(monthlyIncome - monthlyExpenses) >= 0 ? 'text-success' : 'text-destructive'}`}>
@@ -581,7 +573,7 @@ export default function ReportsView() {
           ) : (
             <div className="space-y-4">
               {propertyStats.map(stat => (
-                <div key={stat.property.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                <div key={stat.property.id} className="flex flex-col gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
                       <h4 className="font-semibold">{stat.property.name}</h4>
@@ -622,7 +614,7 @@ export default function ReportsView() {
             ) : (
               <div className="space-y-3">
                 {providerUtilization.slice(0, 5).map(item => (
-                  <div key={item.provider.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div key={item.provider.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <p className="font-semibold">{item.provider.name}</p>
                       <p className="text-sm text-muted-foreground">{item.provider.service}</p>
@@ -657,7 +649,7 @@ export default function ReportsView() {
                   const guest = (guests || []).find(g => g.id === contract.guestId)
                   const daysUntilExpiry = differenceInDays(parseISO(contract.endDate), now)
                   return (
-                    <div key={contract.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div key={contract.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex-1">
                         <p className="font-semibold">{guest?.name || 'N/A'}</p>
                         <p className="text-sm text-muted-foreground">{contract.propertyIds.length} {t.contracts_view.properties_count}</p>
@@ -694,7 +686,7 @@ export default function ReportsView() {
                   const guest = (guests || []).find(g => g.id === appointment.guestId)
                   const daysUntil = differenceInDays(parseISO(appointment.date), now)
                   return (
-                    <div key={appointment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div key={appointment.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex-1">
                         <p className="font-semibold">{appointment.title}</p>
                         <p className="text-sm text-muted-foreground">
@@ -726,7 +718,7 @@ export default function ReportsView() {
             ) : (
               <div className="space-y-3">
                 {guestActivity.slice(0, 5).map(item => (
-                  <div key={item.guest.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div key={item.guest.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex-1">
                       <p className="font-semibold">{item.guest.name}</p>
                       <p className="text-sm text-muted-foreground">{item.guest.email}</p>

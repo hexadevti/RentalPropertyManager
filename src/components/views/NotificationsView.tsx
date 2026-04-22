@@ -2121,7 +2121,7 @@ export default function NotificationsView() {
           </DialogHeader>
 
           <form onSubmit={handleSaveTemplate} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_220px_220px_220px]">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_220px_220px]">
               <div className="space-y-2">
                 <Label htmlFor="template-name">{t.notifications_view.template.name_label}</Label>
                 <Input
@@ -2207,7 +2207,7 @@ export default function NotificationsView() {
 
             <Tabs value={templateEditorTab} onValueChange={(value) => setTemplateEditorTab(value as 'template' | 'preview')}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="grid gap-3 md:grid-cols-[180px_minmax(0,360px)_minmax(0,360px)]">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[180px_minmax(0,360px)_minmax(0,360px)]">
                     <div className="space-y-1">
                       <Label htmlFor="preview-event-type">{t.notifications_view.template.preview_event_type_label}</Label>
                       <Select value={selectedPreviewEventType} onValueChange={(value) => setSelectedPreviewEventType(value as NotificationEventType)}>
@@ -2253,7 +2253,7 @@ export default function NotificationsView() {
 
                   <Button
                     type="button"
-                    className="shrink-0"
+                    className="w-full shrink-0 lg:w-auto"
                     onClick={() => openVariableHelpFor('template')}
                   >
                     {t.notifications_view.actions.open_variable_help}
@@ -2355,7 +2355,7 @@ export default function NotificationsView() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyXPathToken()}>
                   {t.notifications_view.variable_help.copy_xpath}
                 </Button>

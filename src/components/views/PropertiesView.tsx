@@ -380,14 +380,14 @@ export default function PropertiesView() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{t.properties_view.title}</h2>
             <HelpButton content={helpContent} title="Ajuda — Propriedades" />
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
             {t.common.refresh}
@@ -415,7 +415,7 @@ export default function PropertiesView() {
                 {t.properties_view.add_property}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
               <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
                 {editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}
@@ -423,7 +423,7 @@ export default function PropertiesView() {
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">{t.properties_view.form.name}</Label>
                   <Input
@@ -460,7 +460,7 @@ export default function PropertiesView() {
                 </div>
               </div>
               
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="capacity">{t.properties_view.form.capacity}</Label>
                   <Input
@@ -540,7 +540,7 @@ export default function PropertiesView() {
 
               <div className="space-y-2">
                 <Label>{t.properties_view.form.furniture}</Label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Input
                     value={furnitureInput}
                     onChange={(e) => setFurnitureInput(e.target.value)}

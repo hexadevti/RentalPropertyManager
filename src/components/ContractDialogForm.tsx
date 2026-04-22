@@ -184,7 +184,7 @@ export default function ContractDialogForm({
       onOpenChange(isOpen)
       if (!isOpen) resetForm()
     }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1">
             {editingContract ? t.contracts_view.form.title_edit : t.contracts_view.form.title_new}
@@ -192,11 +192,11 @@ export default function ContractDialogForm({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="col-span-2">
-              <div className="flex items-center justify-between mb-2">
+                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <Label htmlFor="contract-guest">{t.contracts_view.form.guest}</Label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button 
                     type="button" 
                     variant="ghost" 

@@ -489,31 +489,33 @@ export default function UsersPermissionsView() {
               {t.users_permissions_view.only_master_session_and_move}
             </p>
           )}
-          {isPlatformAdmin && (
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                if (!selectedTenantId) return
-                try {
-                  await setSessionTenant(selectedTenantId)
-                  toast.success(t.users_permissions_view.session_tenant_updated)
-                } catch (error: any) {
-                  toast.error(error?.message || t.users_permissions_view.session_tenant_update_error)
-                }
-              }}
-              disabled={!selectedTenantId}
-            >
-              {t.users_permissions_view.use_selected_tenant}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {isPlatformAdmin && (
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  if (!selectedTenantId) return
+                  try {
+                    await setSessionTenant(selectedTenantId)
+                    toast.success(t.users_permissions_view.session_tenant_updated)
+                  } catch (error: any) {
+                    toast.error(error?.message || t.users_permissions_view.session_tenant_update_error)
+                  }
+                }}
+                disabled={!selectedTenantId}
+              >
+                {t.users_permissions_view.use_selected_tenant}
+              </Button>
+            )}
+            <Button onClick={handleSaveTenant} disabled={isSavingTenant || !tenantDraft.trim()}>
+              {isSavingTenant ? t.users_permissions_view.saving : t.users_permissions_view.save_tenant}
             </Button>
-          )}
-          <Button onClick={handleSaveTenant} disabled={isSavingTenant || !tenantDraft.trim()}>
-            {isSavingTenant ? t.users_permissions_view.saving : t.users_permissions_view.save_tenant}
-          </Button>
+          </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <UsersThree size={20} weight="duotone" />
@@ -548,7 +550,7 @@ export default function UsersPermissionsView() {
                   <p className="text-sm text-muted-foreground truncate">{presence.user_email || profile?.email || '-'}</p>
                 </div>
               </div>
-              <div className="grid gap-2 text-sm lg:min-w-[680px] lg:grid-cols-3">
+              <div className="grid gap-2 text-sm lg:min-w-0 lg:grid-cols-3">
                 <div>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.screen}</p>
                   <p className="font-medium">{presence.current_tab_label}</p>
@@ -661,7 +663,7 @@ export default function UsersPermissionsView() {
       </Card>
 
       <Dialog open={!!editingLogin} onOpenChange={(open) => !open && setEditingLogin(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t.users_permissions_view.edit_profile_title}</DialogTitle>
             <DialogDescription>
@@ -789,7 +791,7 @@ export default function UsersPermissionsView() {
 
               {aiUsageByUser.length > 0 && (
                 <div className="overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[520px] text-sm">
                     <thead>
                       <tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
                         <th className="px-4 py-2">{t.users_permissions_view.user}</th>
@@ -841,7 +843,7 @@ export default function UsersPermissionsView() {
               </p>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full text-sm">
+                <table className="w-full min-w-[620px] text-sm">
                   <thead>
                     <tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
                       <th className="px-4 py-2">{t.users_permissions_view.tenant}</th>

@@ -234,17 +234,17 @@ function AppContent() {
         onPinnedItemsChange={setPinnedItems}
       />
 
-      <div className="min-h-screen pl-20 flex flex-col">
+      <div className="flex min-h-screen flex-col pb-24 md:pl-20 md:pb-0">
         <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
+          <div className="container mx-auto px-4 py-4 sm:px-6">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">
                   {tabTitleMap[activeTab] || t.appName}
                 </h1>
               </div>
-              <div className="flex items-center gap-8">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-4 xl:items-end">
+                <div className="flex flex-wrap items-center gap-2">
                   <BugReportDialog
                     activeTab={activeTab}
                     activeTabLabel={tabTitleMap[activeTab] || t.appName}
@@ -252,8 +252,9 @@ function AppContent() {
                   />
                   <ContactUsDialog />
                 </div>
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-end">
                 {isPlatformAdmin && (
-                  <div className="min-w-[260px]">
+                  <div className="w-full min-w-0 xl:min-w-[260px]">
                     <p className="mb-1 text-xs text-muted-foreground font-medium uppercase tracking-wider">Tenant da Sessao</p>
                     <Select
                       value={currentTenantId || ''}
@@ -286,8 +287,8 @@ function AppContent() {
                 <UserInfo />
                 {isAdmin && (
                   <>
-                    <div className="h-12 w-px bg-border" />
-                    <div className="text-right">
+                    <div className="hidden h-12 w-px bg-border xl:block" />
+                    <div className="text-left xl:text-right">
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
                         {t.balance} {new Date().toLocaleDateString(undefined, { month: 'short' })}
                       </p>
@@ -295,19 +296,20 @@ function AppContent() {
                         {formatCurrency(currentMonthBalance)}
                       </p>
                     </div>
-                    <div className="h-12 w-px bg-border" />
-                    <div className="text-right">
+                    <div className="hidden h-12 w-px bg-border xl:block" />
+                    <div className="text-left xl:text-right">
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.properties}</p>
                       <p className="text-2xl font-bold text-foreground">{(properties || []).length}</p>
                     </div>
                   </>
                 )}
+                </div>
               </div>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 container mx-auto px-6 py-6">
+        <main className="container mx-auto flex-1 px-4 py-6 sm:px-6">
           {activeTab === 'properties' && isAdmin && <PropertiesView />}
           {activeTab === 'owners' && isAdmin && <OwnersView />}
           {activeTab === 'finances' && isAdmin && <FinancesView />}

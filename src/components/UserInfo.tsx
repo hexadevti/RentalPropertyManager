@@ -41,7 +41,7 @@ export function UserInfo() {
           <AvatarImage src={currentUser.avatarUrl} alt={login} />
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
-        <div className="flex flex-col items-start">
+        <div className="hidden min-w-0 flex-col items-start sm:flex">
           <span className="text-sm font-semibold text-foreground">{login}</span>
           <Badge variant={roleColor as any} className="w-fit text-xs">{roleLabel}</Badge>
         </div>
