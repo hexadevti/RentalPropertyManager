@@ -321,3 +321,22 @@ export interface BugReportAttachment {
   mimeType?: string
   createdAt: string
 }
+
+export type ContactMessageStatus = 'open' | 'in-review' | 'answered' | 'archived'
+
+export interface ContactMessage {
+  id: string
+  tenantId?: string
+  senderAuthUserId?: string
+  senderLogin: string
+  senderEmail?: string
+  subject: string
+  description: string
+  currentUrl?: string
+  status: ContactMessageStatus
+  adminNotes?: string
+  emailSentAt?: string
+  deliveryError?: string
+  createdAt: string
+  updatedAt: string
+}

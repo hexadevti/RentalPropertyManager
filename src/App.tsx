@@ -17,6 +17,7 @@ import UsersPermissionsView from './components/views/UsersPermissionsView'
 import InspectionsView from './components/views/InspectionsView'
 import BugReportsView from './components/views/BugReportsView'
 import MyBugReportsView from './components/views/MyBugReportsView'
+import ContactMessagesView from './components/views/ContactMessagesView'
 import AuditLogsView from './components/views/AuditLogsView'
 import AiAssistantView from './components/views/AiAssistantView'
 import { Property, Transaction } from './types'
@@ -38,6 +39,7 @@ import { usePropertyMigration } from '@/hooks/use-property-migration'
 import { useUserPresence } from '@/hooks/use-user-presence'
 import { AppSidebar } from '@/components/AppSidebar'
 import { BugReportDialog } from '@/components/BugReportDialog'
+import { ContactUsDialog } from '@/components/ContactUsDialog'
 import { useTheme } from 'next-themes'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase'
@@ -142,6 +144,7 @@ function AppContent() {
     appointments: t.tabs.appointments,
     'bug-reports': t.tabs['bug-reports'],
     'my-bug-reports': t.tabs['my-bug-reports'],
+    'contact-messages': t.tabs['contact-messages'],
     'users-permissions': t.tabs['users-permissions'],
     'audit-logs': t.tabs['audit-logs'],
   }
@@ -241,11 +244,14 @@ function AppContent() {
                 </h1>
               </div>
               <div className="flex items-center gap-8">
-                <BugReportDialog
-                  activeTab={activeTab}
-                  activeTabLabel={tabTitleMap[activeTab] || t.appName}
-                  tabTitleMap={tabTitleMap}
-                />
+                <div className="flex items-center gap-2">
+                  <BugReportDialog
+                    activeTab={activeTab}
+                    activeTabLabel={tabTitleMap[activeTab] || t.appName}
+                    tabTitleMap={tabTitleMap}
+                  />
+                  <ContactUsDialog />
+                </div>
                 {isPlatformAdmin && (
                   <div className="min-w-[260px]">
                     <p className="mb-1 text-xs text-muted-foreground font-medium uppercase tracking-wider">Tenant da Sessao</p>
@@ -318,6 +324,7 @@ function AppContent() {
           {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}
           {activeTab === 'appointments' && <AppointmentsView />}
           {activeTab === 'my-bug-reports' && isAdmin && !isPlatformAdmin && <MyBugReportsView />}
+          {activeTab === 'contact-messages' && isPlatformAdmin && <ContactMessagesView />}
           {activeTab === 'bug-reports' && isPlatformAdmin && <BugReportsView />}
           {activeTab === 'users-permissions' && isAdmin && <UsersPermissionsView />}
           {activeTab === 'audit-logs' && isAdmin && <AuditLogsView />}
