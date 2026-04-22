@@ -68,7 +68,10 @@ function AppContent() {
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
   const [showLogin, setShowLogin] = useState(false)
-  const [activeTab, setActiveTab] = useState<string>(isGuest ? 'calendar' : 'properties')
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('tab') || (isGuest ? 'calendar' : 'properties')
+  })
   const [pinnedItems, setPinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([])
   const [isChangingTenant, setIsChangingTenant] = useState(false)

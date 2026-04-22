@@ -1,30 +1,30 @@
-# Formulário de Tarefa
+# Formulario de Tarefa
 
 ## Campos principais
 
-- **Título** — descrição breve e objetiva da tarefa (ex: *Trocar torneira do banheiro*)
-- **Descrição** — detalhes do que precisa ser feito, materiais necessários, contato do fornecedor etc.
-- **Data de vencimento** — prazo para conclusão; tarefas vencidas são destacadas na lista
-- **Responsável** — nome da pessoa que executará a tarefa
+- **Titulo** - descricao breve e objetiva da tarefa (ex: *Trocar torneira do banheiro*)
+- **Descricao** - detalhes do que precisa ser feito, materiais necessarios, contato do fornecedor etc.
+- **Data de vencimento** - prazo para conclusao; tarefas vencidas sao destacadas na lista
+- **Responsavel** - selecione uma pessoa da lista de proprietarios, hospedes ou prestadores. O sistema grava o nome exibido e tambem o identificador interno da pessoa vinculada.
 
 ## Prioridade
 
-| Nível | Quando usar |
+| Nivel | Quando usar |
 |---|---|
-| **Alta** | Urgente — impacta a locação ou a segurança do imóvel |
-| **Média** | Importante mas sem urgência imediata |
+| **Alta** | Urgente - impacta a locacao ou a seguranca do imovel |
+| **Media** | Importante mas sem urgencia imediata |
 | **Baixa** | Melhorias e ajustes de rotina |
 
 ## Status
 
 | Status | Significado |
 |---|---|
-| **Pendente** | Ainda não iniciada |
-| **Em andamento** | Execução em curso |
-| **Concluída** | Finalizada |
+| **Pendente** | Ainda nao iniciada |
+| **Em andamento** | Execucao em curso |
+| **Concluida** | Finalizada |
 
 ## Propriedade vinculada
 
-Vincule a tarefa a um imóvel para que ela apareça nos relatórios daquela propriedade e no calendário.
+Vincule a tarefa a um imovel para que ela apareca nos relatorios daquela propriedade e no calendario.
 
-> Tarefas criadas automaticamente a partir de vistorias já vêm pré-preenchidas com a propriedade e a descrição do problema identificado.
+> Tarefas criadas automaticamente a partir de vistorias ja vem pre-preenchidas com a propriedade e a descricao do problema identificado.

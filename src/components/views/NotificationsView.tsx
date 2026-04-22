@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import HtmlEditorWithPreview from '@/components/HtmlEditorWithPreview'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
@@ -14,41 +14,68 @@ import { useKV } from '@/lib/useSupabaseKV'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useAuth } from '@/lib/AuthContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
+import {
+  buildDefaultNotificationConditions,
+  DEFAULT_NOTIFICATION_DAYS_BEFORE,
+  filterTemplatesForEventType,
+  getNotificationEventTypeForTrigger,
+  NOTIFICATION_EVENT_TYPES,
+  NOTIFICATION_EVENT_TYPE_TRIGGERS,
+  NOTIFICATION_TIMED_TRIGGERS,
+} from '@/lib/notifications/catalog'
+import {
+  collectNotificationPreviewRows,
+  getNotificationValueByPath,
+  isHtmlTemplateContent,
+  normalizeNotificationEditorContent,
+  renderNotificationTemplateContent,
+} from '@/lib/notifications/template'
+import { DEFAULT_EMAIL_FOOTER, DEFAULT_EMAIL_HEADER } from '@/lib/notifications/email-master-defaults'
 import { supabase } from '@/lib/supabase'
 import RichTextEditor, { plainTextToHTML, type RichTextEditorHandle } from '@/components/RichTextEditor'
 import { toast } from 'sonner'
 import {
   ArrowsClockwise,
   Bell,
-  Bug,
-  CalendarCheck,
-  CheckSquare,
   Copy,
   EnvelopeSimple,
-  Files,
   MagnifyingGlass,
   Pencil,
   Plus,
   Trash,
-  WhatsappLogo,
   XCircle,
 } from '@phosphor-icons/react'
 import type {
+  Appointment,
+  BugReport,
+  Contract,
+  Guest,
+  Inspection,
   NotificationChannel,
+  NotificationEventType,
   NotificationRule,
   NotificationTemplate,
+  NotificationTemplateContentType,
   NotificationTrigger,
+  Owner,
   Property,
+  ServiceProvider,
   Task,
+  TaskAssigneeType,
   UserRole,
 } from '@/types'
 
 type RecipientOption = {
   id: string
+  authUserId: string | null
   githubLogin: string
   email: string
   role: UserRole
   status: string
+  avatarUrl: string
+  createdAt: string
+  updatedAt: string
+  tenantId: string
 }
 
 type PreviewRow = {
@@ -75,6 +102,7 @@ type DeliveryRow = {
 
 type DeliveryStatusFilter = 'all' | 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled'
 type DeliveryChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp'
+type VariableEditorTarget = 'template' | 'master-header' | 'master-footer'
 
 type MasterTemplateConfig = {
   channel: NotificationChannel
@@ -82,168 +110,49 @@ type MasterTemplateConfig = {
   footerContent: string
 }
 
-type TaskConditionForm = {
+type NotificationConditionForm = {
   trigger: NotificationTrigger
   enabled: boolean
+  daysBefore?: number
   emailTemplateId?: string
   smsTemplateId?: string
   whatsappTemplateId?: string
 }
 
-type TaskNotificationForm = {
+type NotificationRuleForm = {
   id: string
   groupId: string
   name: string
-  eventType: 'tasks'
+  eventType: NotificationEventType
   channels: NotificationChannel[]
   recipientRoles: UserRole[]
   recipientUserIds: string[]
-  conditions: TaskConditionForm[]
+  sendToTaskAssignee: boolean
+  conditions: NotificationConditionForm[]
   createdAt: string
   updatedAt: string
 }
 
-type TaskNotificationGroup = {
+type NotificationRuleGroup = {
   groupId: string
+  eventType: NotificationEventType
   name: string
   channels: NotificationChannel[]
   recipientRoles: UserRole[]
   recipientUserIds: string[]
-  conditions: TaskConditionForm[]
+  sendToTaskAssignee: boolean
+  conditions: NotificationConditionForm[]
   createdAt: string
   updatedAt: string
 }
 
 const CHANNELS: NotificationChannel[] = ['email', 'sms', 'whatsapp']
-const TRIGGERS: NotificationTrigger[] = [
-  'task-created',
-  'task-due-tomorrow',
-  'task-due-today',
-  'task-overdue-open',
-  'task-resolved',
-]
-const REMINDER_TRIGGERS = new Set<NotificationTrigger>([
-  'task-due-tomorrow',
-  'task-due-today',
-  'task-overdue-open',
-])
 const USER_ROLES: UserRole[] = ['admin', 'guest']
-const NO_PREVIEW_TASK_VALUE = '__none__'
+const NO_PREVIEW_ITEM_VALUE = '__none__'
 const NO_TEMPLATE_VALUE = '__none__'
 
 function normalizeRuleNameKey(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, ' ')
-}
-
-function buildDefaultTaskConditions(): TaskConditionForm[] {
-  return TRIGGERS.map((trigger, index) => ({
-    trigger,
-    enabled: index === 0,
-    emailTemplateId: undefined,
-    smsTemplateId: undefined,
-    whatsappTemplateId: undefined,
-  }))
-}
-
-function isHTML(content: string) {
-  return /<[a-z][\s\S]*>/i.test(content)
-}
-
-function normalizeEditorContent(content: string) {
-  return isHTML(content) ? content : plainTextToHTML(content)
-}
-
-function stringifyPreviewValue(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
-}
-
-function collectPreviewRows(
-  value: unknown,
-  basePath: string,
-  rows: PreviewRow[],
-  depth = 0,
-  maxDepth = 5
-) {
-  if (rows.length >= 300) return
-
-  if (value === null || value === undefined || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    rows.push({ path: basePath, value: stringifyPreviewValue(value) })
-    return
-  }
-
-  if (depth >= maxDepth) {
-    rows.push({ path: basePath, value: stringifyPreviewValue(value) })
-    return
-  }
-
-  if (Array.isArray(value)) {
-    if (value.length === 0) {
-      rows.push({ path: basePath, value: '[]' })
-      return
-    }
-
-    value.forEach((item, index) => {
-      const nextPath = basePath ? `${basePath}{${index + 1}}` : `{${index + 1}}`
-      collectPreviewRows(item, nextPath, rows, depth + 1, maxDepth)
-    })
-    return
-  }
-
-  const record = value as Record<string, unknown>
-  const keys = Object.keys(record)
-  if (keys.length === 0) {
-    rows.push({ path: basePath, value: '{}' })
-    return
-  }
-
-  keys.forEach((key) => {
-    const nextPath = basePath ? `${basePath}.${key}` : key
-    collectPreviewRows(record[key], nextPath, rows, depth + 1, maxDepth)
-  })
-}
-
-function getValueByPath(source: unknown, path: string): string | null {
-  if (!path) return null
-
-  const result = path.split('.').reduce<unknown>((current, segment) => {
-    if (!segment) return current
-    if (current === null || current === undefined) return null
-
-    const arrayMatch = segment.match(/^(.*)\{(\d+)\}$/)
-    if (arrayMatch) {
-      const [, key, position] = arrayMatch
-      const keyedValue = key ? (current as Record<string, unknown>)[key] : current
-      if (!Array.isArray(keyedValue)) return null
-      return keyedValue[Number(position) - 1]
-    }
-
-    if (typeof current !== 'object') return null
-    return (current as Record<string, unknown>)[segment]
-  }, source)
-
-  if (result === null || result === undefined) return null
-  return stringifyPreviewValue(result)
-}
-
-function renderNotificationTemplate(
-  content: string,
-  notificationContext: Record<string, unknown>
-) {
-  return content.replace(/{{\s*([^{}]+?)\s*}}/g, (_match, tokenPath: string) => {
-    const trimmedToken = tokenPath.trim()
-    const normalizedPath = trimmedToken.startsWith('notification.')
-      ? trimmedToken.slice('notification.'.length)
-      : trimmedToken
-
-    return getValueByPath(notificationContext, normalizedPath) ?? ''
-  })
 }
 
 function DeliveryStatusBadge({ status, t }: { status: string; t: { status_pending: string; status_processing: string; status_sent: string; status_failed: string; status_cancelled: string } }) {
@@ -269,13 +178,20 @@ function DeliveryStatusBadge({ status, t }: { status: string; t: { status_pendin
 }
 
 export default function NotificationsView() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { currentTenantId } = useAuth()
   const { formatDate, formatDateTime } = useDateFormat()
   const [rules, setRules] = useKV<NotificationRule[]>('notification-rules', [])
   const [templates, setTemplates] = useKV<NotificationTemplate[]>('notification-templates', [])
+  const [appointments] = useKV<Appointment[]>('appointments', [])
+  const [contracts] = useKV<Contract[]>('contracts', [])
   const [tasks] = useKV<Task[]>('tasks', [])
+  const [inspections] = useKV<Inspection[]>('inspections', [])
+  const [owners] = useKV<Owner[]>('owners', [])
+  const [guests] = useKV<Guest[]>('guests', [])
+  const [serviceProviders] = useKV<ServiceProvider[]>('service-providers', [])
   const [properties] = useKV<Property[]>('properties', [])
+  const [previewBugReports, setPreviewBugReports] = useState<BugReport[]>([])
   const [recipientOptions, setRecipientOptions] = useState<RecipientOption[]>([])
   const [activeTab, setActiveTab] = useState<'rules' | 'templates' | 'queue'>('rules')
 
@@ -288,17 +204,27 @@ export default function NotificationsView() {
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false)
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
   const [variableDialogOpen, setVariableDialogOpen] = useState(false)
-  const [editingRule, setEditingRule] = useState<TaskNotificationGroup | null>(null)
+  const [editingRule, setEditingRule] = useState<NotificationRuleGroup | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null)
   const [templateSearch, setTemplateSearch] = useState('')
-  const [selectedPreviewEventType, setSelectedPreviewEventType] = useState<'tasks'>('tasks')
-  const [selectedPreviewTaskId, setSelectedPreviewTaskId] = useState(NO_PREVIEW_TASK_VALUE)
+  const [selectedPreviewEventType, setSelectedPreviewEventType] = useState<NotificationEventType>('tasks')
+  const [selectedPreviewItemIds, setSelectedPreviewItemIds] = useState<Record<NotificationEventType, string>>({
+    appointments: NO_PREVIEW_ITEM_VALUE,
+    contracts: NO_PREVIEW_ITEM_VALUE,
+    tasks: NO_PREVIEW_ITEM_VALUE,
+    inspections: NO_PREVIEW_ITEM_VALUE,
+    bugs: NO_PREVIEW_ITEM_VALUE,
+    'user-access': NO_PREVIEW_ITEM_VALUE,
+  })
   const [templateEditorTab, setTemplateEditorTab] = useState<'template' | 'preview'>('template')
   const [xpathInput, setXpathInput] = useState('')
   const [xpathFilter, setXpathFilter] = useState('')
+  const [variableEditorTarget, setVariableEditorTarget] = useState<VariableEditorTarget>('template')
   const xpathFilterInputRef = useRef<HTMLInputElement | null>(null)
   const editorRef = useRef<RichTextEditorHandle | null>(null)
-  const [ruleForm, setRuleForm] = useState<TaskNotificationForm>({
+  const masterHeaderEditorRef = useRef<RichTextEditorHandle | null>(null)
+  const masterFooterEditorRef = useRef<RichTextEditorHandle | null>(null)
+  const [ruleForm, setRuleForm] = useState<NotificationRuleForm>({
     id: '',
     groupId: '',
     name: '',
@@ -306,7 +232,8 @@ export default function NotificationsView() {
     channels: ['email'],
     recipientRoles: ['admin'],
     recipientUserIds: [],
-    conditions: buildDefaultTaskConditions(),
+    sendToTaskAssignee: false,
+    conditions: buildDefaultNotificationConditions('tasks'),
     createdAt: '',
     updatedAt: '',
   })
@@ -314,6 +241,9 @@ export default function NotificationsView() {
     id: '',
     name: '',
     channel: 'email',
+    eventType: 'general',
+    contentType: 'html',
+    description: '',
     subject: '',
     content: '',
     createdAt: '',
@@ -335,7 +265,7 @@ export default function NotificationsView() {
 
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('auth_user_id, github_login, email, role, status')
+      .select('tenant_id, auth_user_id, github_login, email, role, status, avatar_url, created_at, updated_at')
       .eq('tenant_id', currentTenantId)
       .order('created_at', { ascending: true })
 
@@ -347,16 +277,62 @@ export default function NotificationsView() {
 
     setRecipientOptions((data || []).map((row: any) => ({
       id: row.auth_user_id || `login:${row.github_login}`,
+      authUserId: row.auth_user_id || null,
       githubLogin: row.github_login,
       email: row.email || '',
       role: row.role,
       status: row.status,
+      avatarUrl: row.avatar_url || '',
+      createdAt: row.created_at || '',
+      updatedAt: row.updated_at || '',
+      tenantId: row.tenant_id,
     })))
   }, [currentTenantId, t.notifications_view.messages.recipients_load_error])
 
   useEffect(() => {
     void loadRecipients()
   }, [loadRecipients])
+
+  const loadPreviewBugReports = useCallback(async () => {
+    if (!currentTenantId) {
+      setPreviewBugReports([])
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('bug_reports')
+      .select('id, tenant_id, reporter_auth_user_id, reporter_login, reporter_email, screen, screen_label, record_id, record_label, description, status, resolution_notes, created_at, updated_at')
+      .eq('tenant_id', currentTenantId)
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    if (error) {
+      console.warn('Failed to load preview bug reports:', error)
+      setPreviewBugReports([])
+      return
+    }
+
+    setPreviewBugReports((data || []).map((row: any) => ({
+      id: row.id,
+      tenantId: row.tenant_id || undefined,
+      reporterAuthUserId: row.reporter_auth_user_id || undefined,
+      reporterLogin: row.reporter_login,
+      reporterEmail: row.reporter_email || undefined,
+      screen: row.screen,
+      screenLabel: row.screen_label,
+      recordId: row.record_id || undefined,
+      recordLabel: row.record_label || undefined,
+      description: row.description,
+      status: row.status,
+      resolutionNotes: row.resolution_notes || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })))
+  }, [currentTenantId])
+
+  useEffect(() => {
+    void loadPreviewBugReports()
+  }, [loadPreviewBugReports])
 
   const loadMasterTemplate = useCallback(async (channel: NotificationChannel) => {
     if (!currentTenantId) {
@@ -387,6 +363,16 @@ export default function NotificationsView() {
   useEffect(() => {
     void loadMasterTemplate(masterTemplateChannel)
   }, [loadMasterTemplate, masterTemplateChannel])
+
+  const handleLoadDefaultEmailTemplate = () => {
+    if (!window.confirm(t.notifications_view.template.load_default_email_confirm)) return
+    const lang = language === 'en' ? 'en' : 'pt'
+    setMasterTemplateForm((current) => ({
+      ...current,
+      headerContent: DEFAULT_EMAIL_HEADER[lang],
+      footerContent: DEFAULT_EMAIL_FOOTER[lang],
+    }))
+  }
 
   const handleSaveMasterTemplate = async () => {
     if (!currentTenantId) return
@@ -426,7 +412,8 @@ export default function NotificationsView() {
       channels: ['email'],
       recipientRoles: ['admin'],
       recipientUserIds: [],
-      conditions: buildDefaultTaskConditions(),
+      sendToTaskAssignee: false,
+      conditions: buildDefaultNotificationConditions('tasks'),
       createdAt: '',
       updatedAt: '',
     })
@@ -438,11 +425,21 @@ export default function NotificationsView() {
     setXpathInput('')
     setXpathFilter('')
     setSelectedPreviewEventType('tasks')
-    setSelectedPreviewTaskId(NO_PREVIEW_TASK_VALUE)
+    setSelectedPreviewItemIds({
+      appointments: NO_PREVIEW_ITEM_VALUE,
+      contracts: NO_PREVIEW_ITEM_VALUE,
+      tasks: NO_PREVIEW_ITEM_VALUE,
+      inspections: NO_PREVIEW_ITEM_VALUE,
+      bugs: NO_PREVIEW_ITEM_VALUE,
+      'user-access': NO_PREVIEW_ITEM_VALUE,
+    })
     setTemplateForm({
       id: '',
       name: '',
       channel: 'email',
+      eventType: 'general',
+      contentType: 'html',
+      description: '',
       subject: '',
       content: '',
       createdAt: '',
@@ -451,22 +448,24 @@ export default function NotificationsView() {
   }
 
   const templateOptionsByChannel = useMemo(() => ({
-    email: (templates || []).filter((template) => template.channel === 'email'),
-    sms: (templates || []).filter((template) => template.channel === 'sms'),
-    whatsapp: (templates || []).filter((template) => template.channel === 'whatsapp'),
-  }), [templates])
+    email: filterTemplatesForEventType(templates || [], ruleForm.eventType, 'email'),
+    sms: filterTemplatesForEventType(templates || [], ruleForm.eventType, 'sms'),
+    whatsapp: filterTemplatesForEventType(templates || [], ruleForm.eventType, 'whatsapp'),
+  }), [ruleForm.eventType, templates])
 
-  const taskNotificationGroups = useMemo<TaskNotificationGroup[]>(() => {
-    const grouped = new Map<string, TaskNotificationGroup>()
+  const notificationGroups = useMemo<NotificationRuleGroup[]>(() => {
+    const grouped = new Map<string, NotificationRuleGroup>()
 
     for (const rule of (rules || [])) {
-      if (!TRIGGERS.includes(rule.trigger)) continue
+      const eventType = rule.eventType || getNotificationEventTypeForTrigger(rule.trigger)
+      if (!eventType) continue
 
-      const groupId = normalizeRuleNameKey(rule.name)
+      const groupId = `${eventType}:${normalizeRuleNameKey(rule.name)}`
       const existing = grouped.get(groupId)
-      const conditionFromRule: TaskConditionForm = {
+      const conditionFromRule: NotificationConditionForm = {
         trigger: rule.trigger,
         enabled: rule.isActive,
+        daysBefore: rule.daysBefore,
         emailTemplateId: rule.emailTemplateId,
         smsTemplateId: rule.smsTemplateId,
         whatsappTemplateId: rule.whatsappTemplateId,
@@ -475,10 +474,12 @@ export default function NotificationsView() {
       if (!existing) {
         grouped.set(groupId, {
           groupId,
+          eventType,
           name: rule.name,
           channels: [...rule.channels],
           recipientRoles: [...rule.recipientRoles],
           recipientUserIds: [...rule.recipientUserIds],
+          sendToTaskAssignee: rule.sendToTaskAssignee ?? false,
           conditions: [conditionFromRule],
           createdAt: rule.createdAt,
           updatedAt: rule.updatedAt,
@@ -489,6 +490,7 @@ export default function NotificationsView() {
       existing.channels = Array.from(new Set([...existing.channels, ...rule.channels]))
       existing.recipientRoles = Array.from(new Set([...existing.recipientRoles, ...rule.recipientRoles]))
       existing.recipientUserIds = Array.from(new Set([...existing.recipientUserIds, ...rule.recipientUserIds]))
+      existing.sendToTaskAssignee = existing.sendToTaskAssignee || (rule.sendToTaskAssignee ?? false)
       existing.conditions.push(conditionFromRule)
       existing.updatedAt = existing.updatedAt > rule.updatedAt ? existing.updatedAt : rule.updatedAt
     }
@@ -498,9 +500,10 @@ export default function NotificationsView() {
         const byTrigger = new Map(group.conditions.map((condition) => [condition.trigger, condition]))
         return {
           ...group,
-          conditions: TRIGGERS.map((trigger) => byTrigger.get(trigger) || {
+          conditions: NOTIFICATION_EVENT_TYPE_TRIGGERS[group.eventType].map((trigger) => byTrigger.get(trigger) || {
             trigger,
             enabled: false,
+            daysBefore: DEFAULT_NOTIFICATION_DAYS_BEFORE[trigger],
             emailTemplateId: undefined,
             smsTemplateId: undefined,
             whatsappTemplateId: undefined,
@@ -516,9 +519,28 @@ export default function NotificationsView() {
     return (templates || []).filter((template) => (
       template.name.toLowerCase().includes(query)
       || template.channel.toLowerCase().includes(query)
+      || (template.description || '').toLowerCase().includes(query)
+      || (template.eventType || 'general').toLowerCase().includes(query)
+      || (template.contentType || 'html').toLowerCase().includes(query)
       || (template.subject || '').toLowerCase().includes(query)
     ))
   }, [templateSearch, templates])
+
+  const previewAppointmentOptions = useMemo(
+    () => (appointments || []).map((appointment) => ({
+      id: appointment.id,
+      label: `${appointment.title} - ${appointment.date}${appointment.time ? ` ${appointment.time}` : ''}`,
+    })),
+    [appointments]
+  )
+
+  const previewContractOptions = useMemo(
+    () => (contracts || []).map((contract) => ({
+      id: contract.id,
+      label: `${contract.id} - ${contract.status} - ${contract.endDate}`,
+    })),
+    [contracts]
+  )
 
   const previewTaskOptions = useMemo(
     () => (tasks || []).map((task) => {
@@ -532,35 +554,314 @@ export default function NotificationsView() {
     [formatDate, properties, tasks]
   )
 
+  const previewInspectionOptions = useMemo(
+    () => (inspections || []).map((inspection) => ({
+      id: inspection.id,
+      label: `${inspection.title} - ${formatDate(inspection.scheduledDate)}`,
+    })),
+    [formatDate, inspections]
+  )
+
+  const previewBugOptions = useMemo(
+    () => previewBugReports.map((report) => ({
+      id: report.id,
+      label: `${report.screenLabel} - ${report.status}`,
+    })),
+    [previewBugReports]
+  )
+
+  const previewUserOptions = useMemo(
+    () => recipientOptions.map((recipient) => ({
+      id: recipient.id,
+      label: `${recipient.githubLogin} - ${t.roles[recipient.role]} - ${recipient.status === 'pending' ? t.userManagement.pending : recipient.status === 'approved' ? t.userManagement.approved : t.userManagement.rejected}`,
+    })),
+    [recipientOptions, t.roles, t.userManagement.approved, t.userManagement.pending, t.userManagement.rejected]
+  )
+
+  const selectedPreviewValue = selectedPreviewItemIds[selectedPreviewEventType] || NO_PREVIEW_ITEM_VALUE
+
+  const selectedPreviewAppointment = useMemo(() => {
+    if (selectedPreviewItemIds.appointments === NO_PREVIEW_ITEM_VALUE) return null
+    return (appointments || []).find((appointment) => appointment.id === selectedPreviewItemIds.appointments) || null
+  }, [appointments, selectedPreviewItemIds.appointments])
+
+  const selectedPreviewContract = useMemo(() => {
+    if (selectedPreviewItemIds.contracts === NO_PREVIEW_ITEM_VALUE) return null
+    return (contracts || []).find((contract) => contract.id === selectedPreviewItemIds.contracts) || null
+  }, [contracts, selectedPreviewItemIds.contracts])
+
   const selectedPreviewTask = useMemo(() => {
-    if (selectedPreviewTaskId === NO_PREVIEW_TASK_VALUE) return null
-    return (tasks || []).find((task) => task.id === selectedPreviewTaskId) || null
-  }, [selectedPreviewTaskId, tasks])
+    if (selectedPreviewItemIds.tasks === NO_PREVIEW_ITEM_VALUE) return null
+    return (tasks || []).find((task) => task.id === selectedPreviewItemIds.tasks) || null
+  }, [selectedPreviewItemIds.tasks, tasks])
+
+  const selectedPreviewTaskAssignee = useMemo(() => {
+    if (!selectedPreviewTask?.assigneeType || !selectedPreviewTask.assigneeId) {
+      return selectedPreviewTask?.assigneeName
+        ? {
+            id: null,
+            type: null,
+            name: selectedPreviewTask.assigneeName,
+            email: null,
+            phone: null,
+          }
+        : null
+    }
+
+    const assigneeType = selectedPreviewTask.assigneeType as TaskAssigneeType
+    if (assigneeType === 'owner') {
+      const owner = (owners || []).find((item) => item.id === selectedPreviewTask.assigneeId)
+      return owner
+        ? {
+            id: owner.id,
+            type: assigneeType,
+            name: owner.name,
+            email: owner.email || null,
+            phone: owner.phone || null,
+          }
+        : {
+            id: selectedPreviewTask.assigneeId,
+            type: assigneeType,
+            name: selectedPreviewTask.assigneeName || '',
+            email: null,
+            phone: null,
+          }
+    }
+
+    if (assigneeType === 'guest') {
+      const guest = (guests || []).find((item) => item.id === selectedPreviewTask.assigneeId)
+      return guest
+        ? {
+            id: guest.id,
+            type: assigneeType,
+            name: guest.name,
+            email: guest.email || null,
+            phone: guest.phone || null,
+          }
+        : {
+            id: selectedPreviewTask.assigneeId,
+            type: assigneeType,
+            name: selectedPreviewTask.assigneeName || '',
+            email: null,
+            phone: null,
+          }
+    }
+
+    const serviceProvider = (serviceProviders || []).find((item) => item.id === selectedPreviewTask.assigneeId)
+    return serviceProvider
+      ? {
+          id: serviceProvider.id,
+          type: assigneeType,
+          name: serviceProvider.name,
+          email: serviceProvider.email || null,
+          phone: serviceProvider.phone || serviceProvider.contact || null,
+        }
+      : {
+          id: selectedPreviewTask.assigneeId,
+          type: assigneeType,
+          name: selectedPreviewTask.assigneeName || '',
+          email: null,
+          phone: null,
+        }
+  }, [guests, owners, selectedPreviewTask, serviceProviders])
 
   const selectedPreviewTaskProperty = useMemo(() => {
     if (!selectedPreviewTask?.propertyId) return null
     return (properties || []).find((property) => property.id === selectedPreviewTask.propertyId) || null
   }, [properties, selectedPreviewTask])
 
+  const selectedPreviewInspection = useMemo(() => {
+    if (selectedPreviewItemIds.inspections === NO_PREVIEW_ITEM_VALUE) return null
+    return (inspections || []).find((inspection) => inspection.id === selectedPreviewItemIds.inspections) || null
+  }, [inspections, selectedPreviewItemIds.inspections])
+
+  const selectedPreviewInspectionProperty = useMemo(() => {
+    if (!selectedPreviewInspection?.propertyId) return null
+    return (properties || []).find((property) => property.id === selectedPreviewInspection.propertyId) || null
+  }, [properties, selectedPreviewInspection])
+
+  const selectedPreviewBug = useMemo(() => {
+    if (selectedPreviewItemIds.bugs === NO_PREVIEW_ITEM_VALUE) return null
+    return previewBugReports.find((report) => report.id === selectedPreviewItemIds.bugs) || null
+  }, [previewBugReports, selectedPreviewItemIds.bugs])
+
+  const selectedPreviewUser = useMemo(() => {
+    if (selectedPreviewItemIds['user-access'] === NO_PREVIEW_ITEM_VALUE) return null
+    return recipientOptions.find((recipient) => recipient.id === selectedPreviewItemIds['user-access']) || null
+  }, [recipientOptions, selectedPreviewItemIds])
+
+  const previewOptionsByEventType = useMemo<Record<NotificationEventType, Array<{ id: string; label: string }>>>(() => ({
+    appointments: previewAppointmentOptions,
+    contracts: previewContractOptions,
+    tasks: previewTaskOptions,
+    inspections: previewInspectionOptions,
+    bugs: previewBugOptions,
+    'user-access': previewUserOptions,
+  }), [previewAppointmentOptions, previewBugOptions, previewContractOptions, previewInspectionOptions, previewTaskOptions, previewUserOptions])
+
   const notificationPreviewContext = useMemo(() => {
-    const firstEnabledCondition = ruleForm.conditions.find((condition) => condition.enabled) || ruleForm.conditions[0]
+    const fallbackTrigger = NOTIFICATION_EVENT_TYPE_TRIGGERS[selectedPreviewEventType][0]
+    const firstEnabledCondition = ruleForm.eventType === selectedPreviewEventType
+      ? (ruleForm.conditions.find((condition) => condition.enabled) || ruleForm.conditions[0])
+      : undefined
+    const previewTrigger = firstEnabledCondition?.trigger || fallbackTrigger
+
+    const previewUserPayload = selectedPreviewUser
+      ? {
+          id: selectedPreviewUser.id,
+          authUserId: selectedPreviewUser.authUserId,
+          githubLogin: selectedPreviewUser.githubLogin,
+          email: selectedPreviewUser.email,
+          role: selectedPreviewUser.role,
+          status: selectedPreviewUser.status,
+          avatarUrl: selectedPreviewUser.avatarUrl,
+          tenantId: selectedPreviewUser.tenantId,
+          createdAt: selectedPreviewUser.createdAt,
+          updatedAt: selectedPreviewUser.updatedAt,
+        }
+      : null
+
+    const previewAppointmentPayload = selectedPreviewAppointment
+      ? {
+          id: selectedPreviewAppointment.id,
+          title: selectedPreviewAppointment.title,
+          description: selectedPreviewAppointment.description,
+          date: selectedPreviewAppointment.date,
+          time: selectedPreviewAppointment.time,
+          status: selectedPreviewAppointment.status,
+          serviceProviderId: selectedPreviewAppointment.serviceProviderId,
+          contractId: selectedPreviewAppointment.contractId,
+          guestId: selectedPreviewAppointment.guestId,
+          propertyId: selectedPreviewAppointment.propertyId,
+          notes: selectedPreviewAppointment.notes,
+          completionNotes: selectedPreviewAppointment.completionNotes,
+          completedAt: selectedPreviewAppointment.completedAt,
+          createdAt: selectedPreviewAppointment.createdAt,
+        }
+      : null
+
+    const previewContractPayload = selectedPreviewContract
+      ? {
+          id: selectedPreviewContract.id,
+          guestId: selectedPreviewContract.guestId,
+          propertyIds: selectedPreviewContract.propertyIds,
+          rentalType: selectedPreviewContract.rentalType,
+          startDate: selectedPreviewContract.startDate,
+          endDate: selectedPreviewContract.endDate,
+          closeDate: selectedPreviewContract.closeDate,
+          paymentDueDay: selectedPreviewContract.paymentDueDay,
+          monthlyAmount: selectedPreviewContract.monthlyAmount,
+          specialPaymentCondition: selectedPreviewContract.specialPaymentCondition,
+          status: selectedPreviewContract.status,
+          notes: selectedPreviewContract.notes,
+          templateId: selectedPreviewContract.templateId,
+          createdAt: selectedPreviewContract.createdAt,
+        }
+      : null
+
+    const previewInspectionPayload = selectedPreviewInspection
+      ? {
+          id: selectedPreviewInspection.id,
+          propertyId: selectedPreviewInspection.propertyId,
+          contractId: selectedPreviewInspection.contractId,
+          parentInspectionId: selectedPreviewInspection.parentInspectionId,
+          title: selectedPreviewInspection.title,
+          type: selectedPreviewInspection.type,
+          status: selectedPreviewInspection.status,
+          inspectorName: selectedPreviewInspection.inspectorName,
+          scheduledDate: selectedPreviewInspection.scheduledDate,
+          completedDate: selectedPreviewInspection.completedDate,
+          summary: selectedPreviewInspection.summary,
+          createdAt: selectedPreviewInspection.createdAt,
+          updatedAt: selectedPreviewInspection.updatedAt,
+        }
+      : null
+
+    const previewBugPayload = selectedPreviewBug
+      ? {
+          id: selectedPreviewBug.id,
+          tenantId: selectedPreviewBug.tenantId,
+          reporterAuthUserId: selectedPreviewBug.reporterAuthUserId,
+          reporterLogin: selectedPreviewBug.reporterLogin,
+          reporterEmail: selectedPreviewBug.reporterEmail,
+          screen: selectedPreviewBug.screen,
+          screenLabel: selectedPreviewBug.screenLabel,
+          recordId: selectedPreviewBug.recordId,
+          recordLabel: selectedPreviewBug.recordLabel,
+          description: selectedPreviewBug.description,
+          status: selectedPreviewBug.status,
+          resolutionNotes: selectedPreviewBug.resolutionNotes,
+          createdAt: selectedPreviewBug.createdAt,
+          updatedAt: selectedPreviewBug.updatedAt,
+        }
+      : null
+
     return {
       notification: {
         ruleName: ruleForm.name || t.notifications_view.preview.default_rule_name,
-        trigger: t.notifications_view.triggers[firstEnabledCondition?.trigger || 'task-created'],
+        trigger: t.notifications_view.triggers[previewTrigger],
         eventType: selectedPreviewEventType,
         channel: t.notifications_view.channels[templateForm.channel],
         subject: templateForm.subject || t.notifications_view.preview.default_subject,
-        recipientCount: ruleForm.recipientUserIds.length + ruleForm.recipientRoles.length,
-        task: selectedPreviewTask,
-        property: selectedPreviewTaskProperty,
+        recipientCount: ruleForm.recipientUserIds.length + ruleForm.recipientRoles.length + (ruleForm.sendToTaskAssignee ? 1 : 0),
+        appointment: previewAppointmentPayload,
+        contract: previewContractPayload,
+        task: selectedPreviewTask
+          ? {
+              ...selectedPreviewTask,
+              assignee: selectedPreviewTaskAssignee,
+            }
+          : null,
+        property: selectedPreviewEventType === 'inspections' ? selectedPreviewInspectionProperty : selectedPreviewTaskProperty,
+        inspection: previewInspectionPayload,
+        bug: previewBugPayload,
+        user: previewUserPayload,
+        group: previewUserPayload
+          ? {
+              role: previewUserPayload.role,
+              label: t.roles[previewUserPayload.role],
+            }
+          : null,
+        access: previewUserPayload
+          ? {
+              status: previewUserPayload.status,
+              isApproved: previewUserPayload.status === 'approved',
+              isPending: previewUserPayload.status === 'pending',
+              isRejected: previewUserPayload.status === 'rejected',
+            }
+          : null,
+        changes: previewUserPayload
+          ? {
+              previousRole: previewUserPayload.role === 'admin' ? 'guest' : 'admin',
+              currentRole: previewUserPayload.role,
+              previousStatus: previewUserPayload.status === 'approved' ? 'pending' : 'approved',
+              currentStatus: previewUserPayload.status,
+            }
+          : null,
+        appointmentId: previewAppointmentPayload?.id || null,
+        title: previewAppointmentPayload?.title || previewInspectionPayload?.title || previewContractPayload?.id || null,
+        date: previewAppointmentPayload?.date || null,
+        time: previewAppointmentPayload?.time || null,
+        status: previewAppointmentPayload?.status || previewContractPayload?.status || previewInspectionPayload?.status || previewBugPayload?.status || null,
+        contractId: previewAppointmentPayload?.contractId || previewInspectionPayload?.contractId || previewContractPayload?.id || null,
+        guestId: previewAppointmentPayload?.guestId || previewContractPayload?.guestId || null,
+        paymentDueDay: previewContractPayload?.paymentDueDay || null,
+        monthlyAmount: previewContractPayload?.monthlyAmount || null,
+        startDate: previewContractPayload?.startDate || null,
+        endDate: previewContractPayload?.endDate || null,
+        inspectionId: previewInspectionPayload?.id || null,
+        screen: previewBugPayload?.screen || null,
+        screenLabel: previewBugPayload?.screenLabel || null,
+        recordId: previewBugPayload?.recordId || null,
+        recordLabel: previewBugPayload?.recordLabel || null,
+        reporterLogin: previewBugPayload?.reporterLogin || null,
       },
     }
-  }, [ruleForm.conditions, ruleForm.name, ruleForm.recipientRoles.length, ruleForm.recipientUserIds.length, selectedPreviewEventType, selectedPreviewTask, selectedPreviewTaskProperty, t.notifications_view.channels, t.notifications_view.preview.default_rule_name, t.notifications_view.preview.default_subject, t.notifications_view.triggers, templateForm.channel, templateForm.subject])
+  }, [ruleForm.conditions, ruleForm.eventType, ruleForm.name, ruleForm.recipientRoles.length, ruleForm.recipientUserIds.length, ruleForm.sendToTaskAssignee, selectedPreviewAppointment, selectedPreviewBug, selectedPreviewContract, selectedPreviewEventType, selectedPreviewInspection, selectedPreviewInspectionProperty, selectedPreviewTask, selectedPreviewTaskAssignee, selectedPreviewTaskProperty, selectedPreviewUser, t.notifications_view.channels, t.notifications_view.preview.default_rule_name, t.notifications_view.preview.default_subject, t.notifications_view.triggers, t.roles, templateForm.channel, templateForm.subject])
 
   const xpathPreviewRows = useMemo(() => {
     const rows: PreviewRow[] = []
-    collectPreviewRows(notificationPreviewContext.notification, '', rows)
+    collectNotificationPreviewRows(notificationPreviewContext.notification, '', rows)
     return rows
   }, [notificationPreviewContext])
 
@@ -576,19 +877,56 @@ export default function NotificationsView() {
     const normalizedPath = trimmedXPath.startsWith('notification.')
       ? trimmedXPath.slice('notification.'.length)
       : trimmedXPath
-    return getValueByPath(notificationPreviewContext.notification, normalizedPath) || t.notifications_view.variable_help.value_preview_placeholder
+    return getNotificationValueByPath(notificationPreviewContext.notification, normalizedPath) || t.notifications_view.variable_help.value_preview_placeholder
   }, [notificationPreviewContext, t.notifications_view.variable_help.value_preview_placeholder, xpathInput])
 
   const previewHtml = useMemo(() => {
     const content = templateForm.content || ''
     if (!content) return ''
-    return renderNotificationTemplate(content, notificationPreviewContext.notification)
+    return renderNotificationTemplateContent(content, notificationPreviewContext.notification)
   }, [notificationPreviewContext, templateForm.content])
 
   const resolveRecipientLabel = useCallback((recipientId: string) => {
     const option = recipientOptions.find((recipient) => recipient.id === recipientId)
     return option?.githubLogin || recipientId
   }, [recipientOptions])
+
+  const resolveEventTypeLabel = useCallback((eventType: NotificationEventType) => {
+    switch (eventType) {
+      case 'appointments':
+        return t.notifications_view.rule.event_type_appointments
+      case 'contracts':
+        return t.notifications_view.rule.event_type_contracts
+      case 'tasks':
+        return t.notifications_view.rule.event_type_tasks
+      case 'inspections':
+        return t.notifications_view.rule.event_type_inspections
+      case 'bugs':
+        return t.notifications_view.rule.event_type_bugs
+      case 'user-access':
+        return t.notifications_view.rule.event_type_user_access
+    }
+  }, [t.notifications_view.rule.event_type_appointments, t.notifications_view.rule.event_type_bugs, t.notifications_view.rule.event_type_contracts, t.notifications_view.rule.event_type_inspections, t.notifications_view.rule.event_type_tasks, t.notifications_view.rule.event_type_user_access])
+
+  const resolveTemplateEventTypeLabel = useCallback((eventType?: NotificationTemplate['eventType']) => {
+    if (!eventType || eventType === 'general') return t.notifications_view.template.event_type_general
+    return resolveEventTypeLabel(eventType)
+  }, [resolveEventTypeLabel, t.notifications_view.template.event_type_general])
+
+  const resolveTemplateContentTypeLabel = useCallback((contentType?: NotificationTemplateContentType) => {
+    return contentType === 'html'
+      ? t.notifications_view.template.content_type_html
+      : t.notifications_view.template.content_type_text
+  }, [t.notifications_view.template.content_type_html, t.notifications_view.template.content_type_text])
+
+  const handleRuleEventTypeChange = (eventType: NotificationEventType) => {
+    setRuleForm((current) => ({
+      ...current,
+      eventType,
+      sendToTaskAssignee: eventType === 'tasks' ? current.sendToTaskAssignee : false,
+      conditions: buildDefaultNotificationConditions(eventType),
+    }))
+  }
 
   const toggleChannel = (channel: NotificationChannel, checked: boolean) => {
     setRuleForm((current) => {
@@ -616,6 +954,22 @@ export default function NotificationsView() {
       ...current,
       conditions: current.conditions.map((condition) => (
         condition.trigger === trigger ? { ...condition, enabled: checked } : condition
+      )),
+    }))
+  }
+
+  const setConditionDaysBefore = (trigger: NotificationTrigger, rawValue: string) => {
+    const parsedValue = Number(rawValue)
+    const nextDaysBefore = Number.isFinite(parsedValue) && parsedValue >= 0
+      ? Math.floor(parsedValue)
+      : 0
+
+    setRuleForm((current) => ({
+      ...current,
+      conditions: current.conditions.map((condition) => (
+        condition.trigger === trigger
+          ? { ...condition, daysBefore: nextDaysBefore }
+          : condition
       )),
     }))
   }
@@ -657,16 +1011,17 @@ export default function NotificationsView() {
     }))
   }
 
-  const openEditRule = (ruleGroup: TaskNotificationGroup) => {
+  const openEditRule = (ruleGroup: NotificationRuleGroup) => {
     setEditingRule(ruleGroup)
     setRuleForm({
       id: ruleGroup.groupId,
       groupId: ruleGroup.groupId,
       name: ruleGroup.name,
-      eventType: 'tasks',
+      eventType: ruleGroup.eventType,
       channels: [...ruleGroup.channels],
       recipientRoles: [...ruleGroup.recipientRoles],
       recipientUserIds: [...ruleGroup.recipientUserIds],
+      sendToTaskAssignee: ruleGroup.sendToTaskAssignee,
       conditions: ruleGroup.conditions.map((condition) => ({ ...condition })),
       createdAt: ruleGroup.createdAt,
       updatedAt: ruleGroup.updatedAt,
@@ -679,7 +1034,10 @@ export default function NotificationsView() {
     setTemplateForm({
       ...template,
       subject: template.subject || '',
-      content: normalizeEditorContent(template.content),
+      description: template.description || '',
+      content: template.contentType === 'html'
+        ? normalizeNotificationEditorContent(template.content, plainTextToHTML)
+        : template.content,
     })
     setTemplateDialogOpen(true)
   }
@@ -692,7 +1050,7 @@ export default function NotificationsView() {
       return
     }
 
-    if (!ruleForm.recipientRoles.length && !ruleForm.recipientUserIds.length) {
+    if (!ruleForm.recipientRoles.length && !ruleForm.recipientUserIds.length && !ruleForm.sendToTaskAssignee) {
       toast.error(t.notifications_view.messages.recipients_required)
       return
     }
@@ -719,14 +1077,15 @@ export default function NotificationsView() {
     }
 
     const now = new Date().toISOString()
-    const groupId = normalizeRuleNameKey(ruleForm.name)
-    const previousGroupId = editingRule ? normalizeRuleNameKey(editingRule.name) : null
+    const normalizedNameKey = normalizeRuleNameKey(ruleForm.name)
+    const groupId = `${ruleForm.eventType}:${normalizedNameKey}`
+    const previousGroupId = editingRule?.groupId || null
     const baseCreatedAt = editingRule?.createdAt || now
 
     const nextRules: NotificationRule[] = enabledConditions.map((condition) => ({
-      id: `${groupId}:${condition.trigger}`,
+      id: `${ruleForm.eventType}:${normalizedNameKey}:${condition.trigger}`,
       groupId,
-      eventType: 'tasks',
+      eventType: ruleForm.eventType,
       name: ruleForm.name,
       trigger: condition.trigger,
       channels: [...ruleForm.channels],
@@ -735,8 +1094,9 @@ export default function NotificationsView() {
       whatsappTemplateId: ruleForm.channels.includes('whatsapp') ? condition.whatsappTemplateId : undefined,
       recipientRoles: [...ruleForm.recipientRoles],
       recipientUserIds: [...ruleForm.recipientUserIds],
-      daysBefore: REMINDER_TRIGGERS.has(condition.trigger)
-        ? (condition.trigger === 'task-due-tomorrow' ? 1 : 0)
+      sendToTaskAssignee: ruleForm.eventType === 'tasks' ? ruleForm.sendToTaskAssignee : false,
+      daysBefore: NOTIFICATION_TIMED_TRIGGERS.has(condition.trigger)
+        ? (typeof condition.daysBefore === 'number' ? condition.daysBefore : DEFAULT_NOTIFICATION_DAYS_BEFORE[condition.trigger] || 0)
         : undefined,
       isActive: condition.enabled,
       createdAt: baseCreatedAt,
@@ -745,7 +1105,8 @@ export default function NotificationsView() {
 
     const currentRules = rules || []
     const withoutCurrentGroup = currentRules.filter((item) => {
-      const itemGroupId = normalizeRuleNameKey(item.name)
+      const itemEventType = item.eventType || getNotificationEventTypeForTrigger(item.trigger)
+      const itemGroupId = `${itemEventType}:${normalizeRuleNameKey(item.name)}`
       if (itemGroupId === groupId) return false
       if (previousGroupId && itemGroupId === previousGroupId) return false
       return true
@@ -753,7 +1114,8 @@ export default function NotificationsView() {
 
     if (currentTenantId) {
       const previousGroupRules = currentRules.filter((item) => {
-        const itemGroupId = normalizeRuleNameKey(item.name)
+        const itemEventType = item.eventType || getNotificationEventTypeForTrigger(item.trigger)
+        const itemGroupId = `${itemEventType}:${normalizeRuleNameKey(item.name)}`
         if (itemGroupId === groupId) return true
         if (previousGroupId && itemGroupId === previousGroupId) return true
         return false
@@ -782,12 +1144,14 @@ export default function NotificationsView() {
         id: rule.id,
         name: rule.name,
         trigger: rule.trigger,
+        event_type: rule.eventType,
         channels: rule.channels || [],
         email_template_id: rule.emailTemplateId || null,
         sms_template_id: rule.smsTemplateId || null,
         whatsapp_template_id: rule.whatsappTemplateId || null,
         recipient_roles: rule.recipientRoles || [],
         recipient_user_ids: rule.recipientUserIds || [],
+        send_to_task_assignee: rule.sendToTaskAssignee ?? false,
         days_before: typeof rule.daysBefore === 'number' ? rule.daysBefore : null,
         is_active: rule.isActive ?? true,
         created_at: rule.createdAt,
@@ -811,9 +1175,35 @@ export default function NotificationsView() {
     resetRuleForm()
   }
 
-  const handleDeleteRule = (groupId: string) => {
+  const handleDeleteRule = async (groupId: string) => {
     if (!window.confirm('Tem certeza que deseja excluir este registro?')) return
-    setRules((currentRules) => (currentRules || []).filter((item) => normalizeRuleNameKey(item.name) !== groupId))
+
+    if (currentTenantId) {
+      const idsToDelete = (rules || [])
+        .filter((item) => {
+          const itemEventType = item.eventType || getNotificationEventTypeForTrigger(item.trigger)
+          return `${itemEventType}:${normalizeRuleNameKey(item.name)}` === groupId
+        })
+        .map((item) => item.id)
+
+      if (idsToDelete.length > 0) {
+        const { error } = await supabase
+          .from('notification_rules')
+          .delete()
+          .eq('tenant_id', currentTenantId)
+          .in('id', idsToDelete)
+
+        if (error) {
+          toast.error(error.message)
+          return
+        }
+      }
+    }
+
+    setRules((currentRules) => (currentRules || []).filter((item) => {
+      const itemEventType = item.eventType || getNotificationEventTypeForTrigger(item.trigger)
+      return `${itemEventType}:${normalizeRuleNameKey(item.name)}` !== groupId
+    }))
     toast.success(t.notifications_view.messages.rule_deleted)
   }
 
@@ -824,6 +1214,11 @@ export default function NotificationsView() {
     const nextTemplate: NotificationTemplate = {
       ...templateForm,
       id: editingTemplate?.id || Date.now().toString(),
+      eventType: templateForm.eventType || 'general',
+      contentType: templateForm.contentType || 'html',
+      content: templateForm.contentType === 'html'
+        ? normalizeNotificationEditorContent(templateForm.content, plainTextToHTML)
+        : templateForm.content,
       subject: templateForm.channel === 'email' ? templateForm.subject || '' : undefined,
       createdAt: editingTemplate?.createdAt || now,
       updatedAt: now,
@@ -869,24 +1264,53 @@ export default function NotificationsView() {
     toast.success(t.notifications_view.messages.template_duplicated)
   }
 
-  const restoreEditorFocus = () => {
+  const getEditorHandle = (target: VariableEditorTarget) => {
+    if (target === 'template') return editorRef.current
+    if (target === 'master-header') return masterHeaderEditorRef.current
+    return masterFooterEditorRef.current
+  }
+
+  const restoreEditorFocus = (target: VariableEditorTarget) => {
     setTimeout(() => {
-      editorRef.current?.focusAtLastSelection()
+      getEditorHandle(target)?.focusAtLastSelection()
     }, 80)
+  }
+
+  const openVariableHelpFor = (target: VariableEditorTarget) => {
+    setVariableEditorTarget(target)
+    getEditorHandle(target)?.captureCurrentSelection()
+    setVariableDialogOpen(true)
   }
 
   const handleInsertToken = (token: string) => {
     setVariableDialogOpen(false)
-    if (editorRef.current) {
-      editorRef.current.insertTokenAtCursor(token)
+    if (variableEditorTarget === 'template') {
+      if (templateForm.contentType === 'html' && editorRef.current) {
+        editorRef.current.insertTokenAtCursor(token)
+      } else {
+        setTemplateForm((current) => ({
+          ...current,
+          content: current.contentType === 'html'
+            ? `${current.content || '<p></p>'}<p>${token}</p>`
+            : `${current.content}${current.content ? '\n' : ''}${token}`,
+        }))
+      }
+    } else if (getEditorHandle(variableEditorTarget)) {
+      getEditorHandle(variableEditorTarget)?.insertTokenAtCursor(token)
     } else {
-      setTemplateForm((current) => ({
+      const field = variableEditorTarget === 'master-header' ? 'headerContent' : 'footerContent'
+      const currentValue = variableEditorTarget === 'master-header'
+        ? masterTemplateForm.headerContent
+        : masterTemplateForm.footerContent
+      const nextValue = `${currentValue || '<p></p>'}<p>${token}</p>`
+      setMasterTemplateForm((current) => ({
         ...current,
-        content: `${current.content || '<p></p>'}<p>${token}</p>`,
+        [field]: nextValue,
       }))
     }
+
     toast.success(`${t.notifications_view.messages.token_inserted}: ${token}`)
-    restoreEditorFocus()
+    restoreEditorFocus(variableEditorTarget)
   }
 
   const handleCopyXPathToken = async () => {
@@ -905,10 +1329,21 @@ export default function NotificationsView() {
     }
   }
 
+  const masterHeaderPreviewHtml = useMemo(() => {
+    if (!masterTemplateForm.headerContent) return ''
+    return renderNotificationTemplateContent(masterTemplateForm.headerContent, notificationPreviewContext.notification)
+  }, [masterTemplateForm.headerContent, notificationPreviewContext])
+
+  const masterFooterPreviewHtml = useMemo(() => {
+    if (!masterTemplateForm.footerContent) return ''
+    return renderNotificationTemplateContent(masterTemplateForm.footerContent, notificationPreviewContext.notification)
+  }, [masterTemplateForm.footerContent, notificationPreviewContext])
+
   const handleToggleRuleStatus = (groupId: string, trigger: NotificationTrigger, checked: boolean) => {
     const now = new Date().toISOString()
     setRules((currentRules) => (currentRules || []).map((rule) => {
-      return normalizeRuleNameKey(rule.name) === groupId && rule.trigger === trigger
+      const ruleEventType = rule.eventType || getNotificationEventTypeForTrigger(rule.trigger)
+      return `${ruleEventType}:${normalizeRuleNameKey(rule.name)}` === groupId && rule.trigger === trigger
         ? { ...rule, isActive: checked, updatedAt: now }
         : rule
     }))
@@ -1007,7 +1442,7 @@ export default function NotificationsView() {
               <Bell size={24} className="text-primary" />
               <div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.notifications_view.stats.rules}</p>
-                <p className="text-2xl font-bold">{taskNotificationGroups.length}</p>
+                <p className="text-2xl font-bold">{notificationGroups.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -1050,7 +1485,7 @@ export default function NotificationsView() {
         </div>
 
         <TabsContent value="rules" className="mt-6 space-y-4">
-          {taskNotificationGroups.length === 0 && (
+          {notificationGroups.length === 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>{t.notifications_view.empty.rules_title}</CardTitle>
@@ -1060,12 +1495,12 @@ export default function NotificationsView() {
           )}
 
           <div className="grid gap-4 xl:grid-cols-2">
-            {taskNotificationGroups.map((ruleGroup) => (
+            {notificationGroups.map((ruleGroup) => (
               <Card key={ruleGroup.groupId}>
                 <CardHeader className="gap-3">
                   <div>
                     <CardTitle className="text-lg">{ruleGroup.name}</CardTitle>
-                    <CardDescription>{t.notifications_view.rule.event_type_tasks}</CardDescription>
+                    <CardDescription>{resolveEventTypeLabel(ruleGroup.eventType)}</CardDescription>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1088,6 +1523,14 @@ export default function NotificationsView() {
                         ? ruleGroup.recipientUserIds.map(resolveRecipientLabel).join(', ')
                         : t.notifications_view.rule.none}
                     </p>
+                    {ruleGroup.eventType === 'tasks' && (
+                      <p>
+                        <span className="font-medium">{t.notifications_view.rule.task_assignee_label}:</span>{' '}
+                        {ruleGroup.sendToTaskAssignee
+                          ? t.notifications_view.rule.task_assignee_enabled
+                          : t.notifications_view.rule.task_assignee_disabled}
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-2 rounded-md border p-3">
@@ -1095,9 +1538,9 @@ export default function NotificationsView() {
                     <div className="space-y-3">
                       {ruleGroup.conditions.map((condition) => {
                         const templateSummary = [
-                          condition.emailTemplateId ? `Email: ${(templates || []).find((template) => template.id === condition.emailTemplateId)?.name || t.notifications_view.rule.none}` : '',
-                          condition.smsTemplateId ? `SMS: ${(templates || []).find((template) => template.id === condition.smsTemplateId)?.name || t.notifications_view.rule.none}` : '',
-                          condition.whatsappTemplateId ? `WhatsApp: ${(templates || []).find((template) => template.id === condition.whatsappTemplateId)?.name || t.notifications_view.rule.none}` : '',
+                          condition.emailTemplateId ? `${t.notifications_view.channels.email}: ${(templates || []).find((template) => template.id === condition.emailTemplateId)?.name || t.notifications_view.rule.none}` : '',
+                          condition.smsTemplateId ? `${t.notifications_view.channels.sms}: ${(templates || []).find((template) => template.id === condition.smsTemplateId)?.name || t.notifications_view.rule.none}` : '',
+                          condition.whatsappTemplateId ? `${t.notifications_view.channels.whatsapp}: ${(templates || []).find((template) => template.id === condition.whatsappTemplateId)?.name || t.notifications_view.rule.none}` : '',
                         ].filter(Boolean).join(' | ')
 
                         return (
@@ -1114,6 +1557,11 @@ export default function NotificationsView() {
                                 </span>
                               </div>
                             </div>
+                            {typeof condition.daysBefore === 'number' && NOTIFICATION_TIMED_TRIGGERS.has(condition.trigger) && (
+                              <p className="mt-2 text-xs text-muted-foreground">
+                                {t.notifications_view.rule.days_before_badge.replace('{days}', String(condition.daysBefore))}
+                              </p>
+                            )}
                             <p className="mt-2 text-xs text-muted-foreground">
                               <span className="font-medium">{t.notifications_view.rule.templates_label}:</span>{' '}
                               {templateSummary || t.notifications_view.rule.none}
@@ -1147,39 +1595,92 @@ export default function NotificationsView() {
               <CardDescription>{t.notifications_view.template.master_description}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="max-w-xs space-y-1">
-                <Label>{t.notifications_view.template.master_channel_label}</Label>
-                <Select
-                  value={masterTemplateChannel}
-                  onValueChange={(value) => setMasterTemplateChannel(value as NotificationChannel)}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="email">{t.notifications_view.channels.email}</SelectItem>
-                    <SelectItem value="sms">{t.notifications_view.channels.sms}</SelectItem>
-                    <SelectItem value="whatsapp">{t.notifications_view.channels.whatsapp}</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex items-end gap-3">
+                <div className="max-w-xs flex-1 space-y-1">
+                  <Label>{t.notifications_view.template.master_channel_label}</Label>
+                  <Select
+                    value={masterTemplateChannel}
+                    onValueChange={(value) => setMasterTemplateChannel(value as NotificationChannel)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="email">{t.notifications_view.channels.email}</SelectItem>
+                      <SelectItem value="sms">{t.notifications_view.channels.sms}</SelectItem>
+                      <SelectItem value="whatsapp">{t.notifications_view.channels.whatsapp}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {masterTemplateChannel === 'email' && (
+                  <Button type="button" variant="outline" onClick={handleLoadDefaultEmailTemplate}>
+                    {t.notifications_view.template.load_default_email}
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>{t.notifications_view.template.master_header_label}</Label>
-                <HtmlEditorWithPreview
-                  value={masterTemplateForm.headerContent}
-                  onChange={(value) => setMasterTemplateForm((current) => ({ ...current, channel: masterTemplateChannel, headerContent: value }))}
-                  placeholder="<p>Header...</p>"
-                  rows={5}
-                />
+                <div className="space-y-3">
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" size="sm" onClick={() => openVariableHelpFor('master-header')}>
+                      {t.notifications_view.actions.open_variable_help}
+                    </Button>
+                  </div>
+                  <RichTextEditor
+                    ref={masterHeaderEditorRef}
+                    content={masterTemplateForm.headerContent || '<p></p>'}
+                    onChange={(html) => setMasterTemplateForm((current) => ({ ...current, channel: masterTemplateChannel, headerContent: html }))}
+                    tokenPreviewResolver={(token) => {
+                      const normalizedPath = token.startsWith('notification.')
+                        ? token.slice('notification.'.length)
+                        : token
+                      return getNotificationValueByPath(notificationPreviewContext.notification, normalizedPath)
+                    }}
+                  />
+                  <div className="rounded-md border bg-white p-4 text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
+                    {!masterTemplateForm.headerContent && (
+                      <p className="text-muted-foreground">{t.notifications_view.template.preview_empty}</p>
+                    )}
+                    {masterTemplateForm.headerContent && !masterHeaderPreviewHtml && (
+                      <p className="text-muted-foreground">{t.notifications_view.template.preview_unavailable}</p>
+                    )}
+                    {masterTemplateForm.headerContent && masterHeaderPreviewHtml && (
+                      <div dangerouslySetInnerHTML={{ __html: masterHeaderPreviewHtml }} />
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label>{t.notifications_view.template.master_footer_label}</Label>
-                <HtmlEditorWithPreview
-                  value={masterTemplateForm.footerContent}
-                  onChange={(value) => setMasterTemplateForm((current) => ({ ...current, channel: masterTemplateChannel, footerContent: value }))}
-                  placeholder="<p>Footer...</p>"
-                  rows={5}
-                />
+                <div className="space-y-3">
+                  <div className="flex justify-end">
+                    <Button type="button" variant="outline" size="sm" onClick={() => openVariableHelpFor('master-footer')}>
+                      {t.notifications_view.actions.open_variable_help}
+                    </Button>
+                  </div>
+                  <RichTextEditor
+                    ref={masterFooterEditorRef}
+                    content={masterTemplateForm.footerContent || '<p></p>'}
+                    onChange={(html) => setMasterTemplateForm((current) => ({ ...current, channel: masterTemplateChannel, footerContent: html }))}
+                    tokenPreviewResolver={(token) => {
+                      const normalizedPath = token.startsWith('notification.')
+                        ? token.slice('notification.'.length)
+                        : token
+                      return getNotificationValueByPath(notificationPreviewContext.notification, normalizedPath)
+                    }}
+                  />
+                  <div className="rounded-md border bg-white p-4 text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
+                    {!masterTemplateForm.footerContent && (
+                      <p className="text-muted-foreground">{t.notifications_view.template.preview_empty}</p>
+                    )}
+                    {masterTemplateForm.footerContent && !masterFooterPreviewHtml && (
+                      <p className="text-muted-foreground">{t.notifications_view.template.preview_unavailable}</p>
+                    )}
+                    {masterTemplateForm.footerContent && masterFooterPreviewHtml && (
+                      <div dangerouslySetInnerHTML={{ __html: masterFooterPreviewHtml }} />
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end">
@@ -1216,9 +1717,13 @@ export default function NotificationsView() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <CardTitle className="text-lg">{template.name}</CardTitle>
-                      <CardDescription>{template.subject || t.notifications_view.template.no_subject}</CardDescription>
+                      <CardDescription>{template.description || template.subject || t.notifications_view.template.no_subject}</CardDescription>
                     </div>
-                    <Badge variant="secondary">{t.notifications_view.channels[template.channel]}</Badge>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Badge variant="secondary">{t.notifications_view.channels[template.channel]}</Badge>
+                      <Badge variant="outline">{resolveTemplateEventTypeLabel(template.eventType)}</Badge>
+                      <Badge variant="outline">{resolveTemplateContentTypeLabel(template.contentType)}</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1337,9 +1842,7 @@ export default function NotificationsView() {
                 <tbody>
                   {deliveries.map((delivery) => {
                     const trigger = (delivery.payload?.trigger as string) || '-'
-                    const triggerLabel = TRIGGERS.includes(trigger as NotificationTrigger)
-                      ? t.notifications_view.triggers[trigger as NotificationTrigger]
-                      : trigger
+                    const triggerLabel = (t.notifications_view.triggers as Record<string, string>)[trigger] || trigger
                     return (
                       <tr key={delivery.id} className="border-b last:border-0 hover:bg-muted/20">
                         <td className="px-4 py-3">
@@ -1411,9 +1914,16 @@ export default function NotificationsView() {
               </div>
               <div className="space-y-2">
                 <Label>{t.notifications_view.rule.event_type_label}</Label>
-                <div className="flex h-10 items-center rounded-md border bg-muted/30 px-3 text-sm font-medium">
-                  {t.notifications_view.rule.event_type_tasks}
-                </div>
+                <Select value={ruleForm.eventType} onValueChange={(value) => handleRuleEventTypeChange(value as NotificationEventType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {NOTIFICATION_EVENT_TYPES.map((eventType) => (
+                      <SelectItem key={eventType} value={eventType}>{resolveEventTypeLabel(eventType)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -1453,6 +1963,19 @@ export default function NotificationsView() {
                             </span>
                           </div>
                         </div>
+
+                        {condition.enabled && NOTIFICATION_TIMED_TRIGGERS.has(condition.trigger) && (
+                          <div className="space-y-1">
+                            <Label>{t.notifications_view.rule.days_before_label}</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={typeof condition.daysBefore === 'number' ? String(condition.daysBefore) : String(DEFAULT_NOTIFICATION_DAYS_BEFORE[condition.trigger] || 0)}
+                              onChange={(event) => setConditionDaysBefore(condition.trigger, event.target.value)}
+                            />
+                          </div>
+                        )}
 
                         {condition.enabled && ruleForm.channels.includes('email') && (
                           <div className="space-y-1">
@@ -1525,6 +2048,21 @@ export default function NotificationsView() {
                   <CardDescription>{t.notifications_view.rule.recipients_description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {ruleForm.eventType === 'tasks' && (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+                      <Checkbox
+                        checked={ruleForm.sendToTaskAssignee}
+                        onCheckedChange={(checked) => setRuleForm((current) => ({
+                          ...current,
+                          sendToTaskAssignee: checked === true,
+                        }))}
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium">{t.notifications_view.rule.task_assignee_label}</p>
+                        <p className="text-xs text-muted-foreground">{t.notifications_view.rule.task_assignee_description}</p>
+                      </div>
+                    </label>
+                  )}
                   <div className="space-y-3">
                     <p className="text-sm font-medium">{t.notifications_view.rule.recipient_groups_label}</p>
                     {USER_ROLES.map((role) => (
@@ -1583,7 +2121,7 @@ export default function NotificationsView() {
           </DialogHeader>
 
           <form onSubmit={handleSaveTemplate} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_220px]">
+            <div className="grid gap-4 md:grid-cols-[1fr_220px_220px_220px]">
               <div className="space-y-2">
                 <Label htmlFor="template-name">{t.notifications_view.template.name_label}</Label>
                 <Input
@@ -1610,6 +2148,49 @@ export default function NotificationsView() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="template-event-type">{t.notifications_view.template.event_type_label}</Label>
+                <Select
+                  value={templateForm.eventType}
+                  onValueChange={(value) => setTemplateForm((current) => ({ ...current, eventType: value as NotificationTemplate['eventType'] }))}
+                >
+                  <SelectTrigger id="template-event-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">{t.notifications_view.template.event_type_general}</SelectItem>
+                    {NOTIFICATION_EVENT_TYPES.map((eventType) => (
+                      <SelectItem key={eventType} value={eventType}>{resolveEventTypeLabel(eventType)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="template-content-type">{t.notifications_view.template.content_type_label}</Label>
+                <Select
+                  value={templateForm.contentType}
+                  onValueChange={(value) => setTemplateForm((current) => ({ ...current, contentType: value as NotificationTemplateContentType }))}
+                >
+                  <SelectTrigger id="template-content-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="html">{t.notifications_view.template.content_type_html}</SelectItem>
+                    <SelectItem value="text">{t.notifications_view.template.content_type_text}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="template-description">{t.notifications_view.template.description_label}</Label>
+              <Textarea
+                id="template-description"
+                value={templateForm.description || ''}
+                onChange={(event) => setTemplateForm((current) => ({ ...current, description: event.target.value }))}
+                placeholder={t.notifications_view.template.description_placeholder}
+                rows={2}
+              />
             </div>
 
             {templateForm.channel === 'email' && (
@@ -1624,41 +2205,38 @@ export default function NotificationsView() {
               </div>
             )}
 
-            <Dialog open={variableDialogOpen} onOpenChange={(open) => {
-              setVariableDialogOpen(open)
-              if (open) {
-                editorRef.current?.captureCurrentSelection()
-                setTimeout(() => {
-                  xpathFilterInputRef.current?.focus()
-                }, 50)
-              } else {
-                setXpathInput('')
-                restoreEditorFocus()
-              }
-            }}>
-              <Tabs value={templateEditorTab} onValueChange={(value) => setTemplateEditorTab(value as 'template' | 'preview')}>
+            <Tabs value={templateEditorTab} onValueChange={(value) => setTemplateEditorTab(value as 'template' | 'preview')}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div className="grid gap-3 md:grid-cols-[180px_minmax(0,360px)_minmax(0,360px)]">
                     <div className="space-y-1">
                       <Label htmlFor="preview-event-type">{t.notifications_view.template.preview_event_type_label}</Label>
-                      <Select value={selectedPreviewEventType} onValueChange={(value) => setSelectedPreviewEventType(value as 'tasks')}>
+                      <Select value={selectedPreviewEventType} onValueChange={(value) => setSelectedPreviewEventType(value as NotificationEventType)}>
                         <SelectTrigger id="preview-event-type">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="tasks">{t.notifications_view.template.preview_event_type_tasks}</SelectItem>
+                          {NOTIFICATION_EVENT_TYPES.map((eventType) => (
+                            <SelectItem key={eventType} value={eventType}>{resolveEventTypeLabel(eventType)}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="preview-item">{t.notifications_view.template.preview_item_label}</Label>
-                      <Select value={selectedPreviewTaskId} onValueChange={setSelectedPreviewTaskId}>
+                      <Select
+                        value={selectedPreviewValue}
+                        onValueChange={(value) => setSelectedPreviewItemIds((current) => ({ ...current, [selectedPreviewEventType]: value }))}
+                      >
                         <SelectTrigger id="preview-item">
                           <SelectValue placeholder={t.notifications_view.template.preview_item_placeholder} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={NO_PREVIEW_TASK_VALUE}>{t.notifications_view.template.preview_item_none}</SelectItem>
-                          {previewTaskOptions.map((option) => (
+                          <SelectItem value={NO_PREVIEW_ITEM_VALUE}>
+                            {selectedPreviewEventType === 'user-access'
+                              ? t.notifications_view.template.preview_user_none
+                              : t.notifications_view.template.preview_item_none}
+                          </SelectItem>
+                          {(previewOptionsByEventType[selectedPreviewEventType] || []).map((option) => (
                             <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
                           ))}
                         </SelectContent>
@@ -1676,8 +2254,7 @@ export default function NotificationsView() {
                   <Button
                     type="button"
                     className="shrink-0"
-                    onMouseDown={() => editorRef.current?.captureCurrentSelection()}
-                    onClick={() => setVariableDialogOpen(true)}
+                    onClick={() => openVariableHelpFor('template')}
                   >
                     {t.notifications_view.actions.open_variable_help}
                   </Button>
@@ -1685,17 +2262,26 @@ export default function NotificationsView() {
 
                 <TabsContent value="template" className="mt-3">
                   <div className="h-[50vh]">
-                    <RichTextEditor
-                      ref={editorRef}
-                      content={templateForm.content}
-                      onChange={(html) => setTemplateForm((current) => ({ ...current, content: html }))}
-                      tokenPreviewResolver={(token) => {
-                        const normalizedPath = token.startsWith('notification.')
-                          ? token.slice('notification.'.length)
-                          : token
-                        return getValueByPath(notificationPreviewContext.notification, normalizedPath)
-                      }}
-                    />
+                    {templateForm.contentType === 'html' ? (
+                      <RichTextEditor
+                        ref={editorRef}
+                        content={templateForm.content}
+                        onChange={(html) => setTemplateForm((current) => ({ ...current, content: html }))}
+                        tokenPreviewResolver={(token) => {
+                          const normalizedPath = token.startsWith('notification.')
+                            ? token.slice('notification.'.length)
+                            : token
+                          return getNotificationValueByPath(notificationPreviewContext.notification, normalizedPath)
+                        }}
+                      />
+                    ) : (
+                      <Textarea
+                        value={templateForm.content}
+                        onChange={(event) => setTemplateForm((current) => ({ ...current, content: event.target.value }))}
+                        className="h-full min-h-[50vh] resize-none font-mono text-sm"
+                        placeholder="{{trigger}}"
+                      />
+                    )}
                   </div>
                 </TabsContent>
                 <TabsContent value="preview" className="mt-3">
@@ -1707,100 +2293,13 @@ export default function NotificationsView() {
                       <p className="text-muted-foreground">{t.notifications_view.template.preview_unavailable}</p>
                     )}
                     {templateForm.content && previewHtml && (
-                      isHTML(previewHtml)
+                      isHtmlTemplateContent(previewHtml)
                         ? <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
                         : <pre className="whitespace-pre-wrap font-mono text-xs">{previewHtml}</pre>
                     )}
                   </div>
                 </TabsContent>
               </Tabs>
-
-              <DialogContent
-                className="max-h-[85vh] overflow-y-hidden p-0 sm:max-w-3xl"
-                onCloseAutoFocus={(event) => event.preventDefault()}
-              >
-                <DialogHeader className="border-b bg-background px-6 pb-3 pt-6 pr-12">
-                  <DialogTitle>{t.notifications_view.variable_help.title}</DialogTitle>
-                </DialogHeader>
-                <div className="max-h-[calc(85vh-76px)] space-y-3 overflow-y-auto px-6 pb-6">
-                  <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
-                    {t.notifications_view.variable_help.description}
-                  </div>
-
-                  <div className="grid gap-3 rounded-md border p-3">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>{t.notifications_view.variable_help.xpath_label}</Label>
-                        <Input
-                          value={xpathInput}
-                          onChange={(event) => setXpathInput(event.target.value)}
-                          placeholder={t.notifications_view.variable_help.xpath_placeholder}
-                        />
-                        <p className="text-xs text-muted-foreground">{t.notifications_view.variable_help.token_hint}</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>{t.notifications_view.variable_help.value_preview_label}</Label>
-                        <div className="max-h-32 overflow-auto rounded border bg-muted/40 px-3 py-2">
-                          <p className="whitespace-pre-wrap break-all font-mono text-xs">{xpathPreview || t.notifications_view.variable_help.value_preview_placeholder}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyXPathToken()}>
-                        {t.notifications_view.variable_help.copy_xpath}
-                      </Button>
-                      <Button type="button" size="sm" onClick={() => handleInsertToken(`{{${xpathInput.trim()}}}`)}>
-                        {t.notifications_view.variable_help.insert_template}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border p-3">
-                    <p className="mb-2 text-sm font-medium">{t.notifications_view.variable_help.paths_title}</p>
-                    <div className="relative mb-3">
-                      <MagnifyingGlass size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        ref={xpathFilterInputRef}
-                        value={xpathFilter}
-                        onChange={(event) => setXpathFilter(event.target.value)}
-                        placeholder={t.notifications_view.variable_help.paths_filter_placeholder}
-                        className="pl-9"
-                      />
-                    </div>
-
-                    {xpathPreviewRows.length === 0 && (
-                      <p className="text-sm text-muted-foreground">{t.notifications_view.variable_help.no_paths_available}</p>
-                    )}
-                    {xpathPreviewRows.length > 0 && filteredXPathPreviewRows.length === 0 && (
-                      <p className="text-sm text-muted-foreground">{t.notifications_view.variable_help.no_paths_found}</p>
-                    )}
-
-                    {filteredXPathPreviewRows.length > 0 && (
-                      <div className="max-h-64 space-y-2 overflow-auto">
-                        {filteredXPathPreviewRows.map((row) => (
-                          <button
-                            key={row.path}
-                            type="button"
-                            className="block w-full rounded border bg-muted/20 px-2 py-1 text-left transition-colors hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-primary"
-                            title={t.notifications_view.variable_help.use_xpath_title}
-                            onClick={() => setXpathInput(row.path)}
-                            onDoubleClick={() => {
-                              setXpathInput(row.path)
-                              handleInsertToken(`{{${row.path}}}`)
-                            }}
-                          >
-                            <p className="break-all font-mono text-xs font-semibold">{row.path}</p>
-                            <p className="whitespace-pre-wrap break-all font-mono text-xs text-muted-foreground">{row.value || t.notifications_view.variable_help.empty_value}</p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
 
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setTemplateDialogOpen(false)}>
@@ -1809,6 +2308,105 @@ export default function NotificationsView() {
               <Button type="submit">{editingTemplate ? t.common.update : t.common.create}</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={variableDialogOpen} onOpenChange={(open) => {
+        setVariableDialogOpen(open)
+        if (open) {
+          getEditorHandle(variableEditorTarget)?.captureCurrentSelection()
+          setTimeout(() => {
+            xpathFilterInputRef.current?.focus()
+          }, 50)
+        } else {
+          setXpathInput('')
+          restoreEditorFocus(variableEditorTarget)
+        }
+      }}>
+        <DialogContent
+          className="max-h-[85vh] overflow-y-hidden p-0 sm:max-w-3xl"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
+          <DialogHeader className="border-b bg-background px-6 pb-3 pt-6 pr-12">
+            <DialogTitle>{t.notifications_view.variable_help.title}</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[calc(85vh-76px)] space-y-3 overflow-y-auto px-6 pb-6">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
+              {t.notifications_view.variable_help.description}
+            </div>
+
+            <div className="grid gap-3 rounded-md border p-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>{t.notifications_view.variable_help.xpath_label}</Label>
+                  <Input
+                    value={xpathInput}
+                    onChange={(event) => setXpathInput(event.target.value)}
+                    placeholder={t.notifications_view.variable_help.xpath_placeholder}
+                  />
+                  <p className="text-xs text-muted-foreground">{t.notifications_view.variable_help.token_hint}</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{t.notifications_view.variable_help.value_preview_label}</Label>
+                  <div className="max-h-32 overflow-auto rounded border bg-muted/40 px-3 py-2">
+                    <p className="whitespace-pre-wrap break-all font-mono text-xs">{xpathPreview || t.notifications_view.variable_help.value_preview_placeholder}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => void handleCopyXPathToken()}>
+                  {t.notifications_view.variable_help.copy_xpath}
+                </Button>
+                <Button type="button" size="sm" onClick={() => handleInsertToken(`{{${xpathInput.trim()}}}`)}>
+                  {t.notifications_view.variable_help.insert_template}
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-md border p-3">
+              <p className="mb-2 text-sm font-medium">{t.notifications_view.variable_help.paths_title}</p>
+              <div className="relative mb-3">
+                <MagnifyingGlass size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={xpathFilterInputRef}
+                  value={xpathFilter}
+                  onChange={(event) => setXpathFilter(event.target.value)}
+                  placeholder={t.notifications_view.variable_help.paths_filter_placeholder}
+                  className="pl-9"
+                />
+              </div>
+
+              {xpathPreviewRows.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t.notifications_view.variable_help.no_paths_available}</p>
+              )}
+              {xpathPreviewRows.length > 0 && filteredXPathPreviewRows.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t.notifications_view.variable_help.no_paths_found}</p>
+              )}
+
+              {filteredXPathPreviewRows.length > 0 && (
+                <div className="max-h-64 space-y-2 overflow-auto">
+                  {filteredXPathPreviewRows.map((row) => (
+                    <button
+                      key={row.path}
+                      type="button"
+                      className="block w-full rounded border bg-muted/20 px-2 py-1 text-left transition-colors hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-primary"
+                      title={t.notifications_view.variable_help.use_xpath_title}
+                      onClick={() => setXpathInput(row.path)}
+                      onDoubleClick={() => {
+                        setXpathInput(row.path)
+                        handleInsertToken(`{{${row.path}}}`)
+                      }}
+                    >
+                      <p className="break-all font-mono text-xs font-semibold">{row.path}</p>
+                      <p className="whitespace-pre-wrap break-all font-mono text-xs text-muted-foreground">{row.value || t.notifications_view.variable_help.empty_value}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

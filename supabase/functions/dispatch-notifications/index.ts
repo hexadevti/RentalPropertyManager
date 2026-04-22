@@ -10,6 +10,7 @@ type DeliveryRow = {
   id: string
   tenant_id: string
   channel: 'email' | 'sms' | 'whatsapp'
+  content_type: 'html' | 'text'
   recipient_destination: string
   recipient_login: string | null
   subject: string | null
@@ -34,11 +35,21 @@ type DispatchResult = {
 }
 
 function getByPath(obj: unknown, path: string): string {
-  const parts = path.trim().split('.')
   let cursor: unknown = obj
-  for (const part of parts) {
-    if (cursor === null || cursor === undefined || typeof cursor !== 'object') return ''
-    cursor = (cursor as Record<string, unknown>)[part]
+  for (const segment of path.trim().split('.')) {
+    if (!segment || cursor === null || cursor === undefined) return ''
+
+    const arrayMatch = segment.match(/^(.*)\{(\d+)\}$/)
+    if (arrayMatch) {
+      const [, key, position] = arrayMatch
+      const keyedValue = key ? (cursor as Record<string, unknown>)[key] : cursor
+      if (!Array.isArray(keyedValue)) return ''
+      cursor = keyedValue[Number(position) - 1]
+      continue
+    }
+
+    if (typeof cursor !== 'object') return ''
+    cursor = (cursor as Record<string, unknown>)[segment]
   }
   if (cursor === null || cursor === undefined) return ''
   if (typeof cursor === 'object') return JSON.stringify(cursor)
@@ -56,6 +67,36 @@ function renderTemplate(template: string, context: Record<string, unknown>): str
     }
     return ''
   })
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function textToHtml(value: string): string {
+  const escaped = escapeHtml(value)
+  return `<div style="white-space:pre-wrap;">${escaped.replaceAll('\n', '<br />')}</div>`
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+    .replace(/<li>/gi, '- ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -92,6 +133,7 @@ function toForcedEmailDelivery(delivery: DeliveryRow, forcedEmail: string): Deli
   return {
     ...delivery,
     channel: 'email',
+    content_type: 'html',
     recipient_destination: forcedEmail,
     subject: delivery.subject || `Notification (${delivery.channel})`,
     message_body: `${delivery.message_body}${metadata}`,
@@ -108,7 +150,9 @@ function applyMasterTemplate(delivery: DeliveryRow, masterTemplate: MasterTempla
 
   return {
     ...delivery,
-    message_body: `${header}${delivery.message_body}${footer}`,
+    message_body: delivery.content_type === 'html'
+      ? `${header}${delivery.message_body}${footer}`
+      : `${stripHtml(header)}\n${delivery.message_body}\n${stripHtml(footer)}`.trim(),
   }
 }
 
@@ -128,7 +172,7 @@ async function sendEmail(delivery: DeliveryRow): Promise<DispatchResult> {
     from: resendFrom,
     to: [delivery.recipient_destination],
     subject: delivery.subject || 'Notification',
-    html: delivery.message_body,
+    html: 'rendered_message_html' in delivery ? delivery.rendered_message_html : delivery.message_body,
   }
 
   const response = await fetch('https://api.resend.com/emails', {
@@ -187,7 +231,8 @@ async function sendViaWebhook(delivery: DeliveryRow, webhookUrlEnv: string, toke
       channel: delivery.channel,
       to: delivery.recipient_destination,
       subject: delivery.subject,
-      message: delivery.message_body,
+      message: 'rendered_message_text' in delivery ? delivery.rendered_message_text : stripHtml(delivery.message_body),
+      html: 'rendered_message_html' in delivery ? delivery.rendered_message_html : textToHtml(stripHtml(delivery.message_body)),
       payload: delivery.payload,
     }),
   })
@@ -224,12 +269,31 @@ function applyTemplateVars(delivery: DeliveryRow): DeliveryRow {
   }
 }
 
-function prepareDeliveryForDispatch(delivery: DeliveryRow, masterTemplate: MasterTemplateRow | null): DeliveryRow {
-  const withMaster = applyMasterTemplate(delivery, masterTemplate)
-  return applyTemplateVars(withMaster)
+type PreparedDelivery = DeliveryRow & {
+  rendered_subject: string | null
+  rendered_message_html: string
+  rendered_message_text: string
 }
 
-async function dispatchByChannel(delivery: DeliveryRow): Promise<DispatchResult> {
+function prepareDeliveryForDispatch(delivery: DeliveryRow, masterTemplate: MasterTemplateRow | null): PreparedDelivery {
+  const withMaster = applyMasterTemplate(delivery, masterTemplate)
+  const rendered = applyTemplateVars(withMaster)
+  const renderedText = rendered.content_type === 'html'
+    ? stripHtml(rendered.message_body)
+    : rendered.message_body
+  const renderedHtml = rendered.content_type === 'html'
+    ? rendered.message_body
+    : textToHtml(rendered.message_body)
+
+  return {
+    ...rendered,
+    rendered_subject: rendered.subject || null,
+    rendered_message_html: renderedHtml,
+    rendered_message_text: renderedText,
+  }
+}
+
+async function dispatchByChannel(delivery: PreparedDelivery): Promise<DispatchResult> {
   const forcedEmail = getForcedEmailDestination()
   if (forcedEmail) {
     return sendEmail(toForcedEmailDelivery(delivery, forcedEmail))
@@ -284,7 +348,7 @@ Deno.serve(async (req) => {
 
     let query = adminClient
       .from('notification_deliveries')
-      .select('id, tenant_id, channel, recipient_destination, recipient_login, subject, message_body, payload, attempts, max_attempts')
+      .select('id, tenant_id, channel, content_type, recipient_destination, recipient_login, subject, message_body, payload, attempts, max_attempts')
       .eq('status', 'pending')
       .lte('next_attempt_at', new Date().toISOString())
       .order('next_attempt_at', { ascending: true })
@@ -373,8 +437,10 @@ Deno.serve(async (req) => {
           .from('notification_deliveries')
           .update({
             status: 'sent',
-            subject: preparedDelivery.subject,
-            message_body: preparedDelivery.message_body,
+            subject: preparedDelivery.rendered_subject,
+            message_body: preparedDelivery.channel === 'email'
+              ? preparedDelivery.rendered_message_html
+              : preparedDelivery.rendered_message_text,
             provider: result.provider,
             provider_message_id: result.providerMessageId || null,
             sent_at: new Date().toISOString(),
@@ -395,8 +461,10 @@ Deno.serve(async (req) => {
           .from('notification_deliveries')
           .update({
             status: 'failed',
-            subject: preparedDelivery.subject,
-            message_body: preparedDelivery.message_body,
+            subject: preparedDelivery.rendered_subject,
+            message_body: preparedDelivery.channel === 'email'
+              ? preparedDelivery.rendered_message_html
+              : preparedDelivery.rendered_message_text,
             provider: result.provider,
             last_error: result.error || 'Delivery failed',
           })
@@ -410,8 +478,10 @@ Deno.serve(async (req) => {
         .from('notification_deliveries')
         .update({
           status: 'pending',
-          subject: preparedDelivery.subject,
-          message_body: preparedDelivery.message_body,
+          subject: preparedDelivery.rendered_subject,
+          message_body: preparedDelivery.channel === 'email'
+            ? preparedDelivery.rendered_message_html
+            : preparedDelivery.rendered_message_text,
           provider: result.provider,
           last_error: result.error || 'Delivery failed',
           next_attempt_at: nextAttemptAt,

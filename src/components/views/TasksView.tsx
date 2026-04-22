@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import { Task, TaskPriority, TaskStatus, Property } from '@/types'
+import { Guest, Owner, Property, ServiceProvider, Task, TaskAssigneeType, TaskPriority, TaskStatus } from '@/types'
 import helpContent from '@/docs/tasks.md?raw'
 import formHelpContent from '@/docs/form-task.md?raw'
 import { HelpButton } from '@/components/HelpButton'
@@ -23,6 +23,9 @@ export default function TasksView() {
   const { t } = useLanguage()
   const tv = t.tasks_view
   const [tasks, setTasks] = useKV<Task[]>('tasks', [])
+  const [owners] = useKV<Owner[]>('owners', [])
+  const [guests] = useKV<Guest[]>('guests', [])
+  const [serviceProviders] = useKV<ServiceProvider[]>('service-providers', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
@@ -33,25 +36,58 @@ export default function TasksView() {
     dueDate: '',
     priority: 'medium' as TaskPriority,
     status: 'pending' as TaskStatus,
-    assignee: '',
+    assigneeType: '' as TaskAssigneeType | '',
+    assigneeId: '',
     propertyId: ''
   })
+
+  const personOptionsForType = (type: TaskAssigneeType | ''): { id: string; name: string }[] => {
+    if (type === 'owner') return (owners || []).map(o => ({ id: o.id, name: o.name }))
+    if (type === 'guest') return (guests || []).map(g => ({ id: g.id, name: g.name }))
+    if (type === 'service-provider') return (serviceProviders || []).map(sp => ({ id: sp.id, name: sp.name }))
+    return []
+  }
+
+  const resolveAssigneeName = (type: TaskAssigneeType | '', id: string): string | undefined => {
+    if (!type || !id) return undefined
+    return personOptionsForType(type).find(p => p.id === id)?.name
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
+    const assigneeName = resolveAssigneeName(formData.assigneeType, formData.assigneeId)
+    const assigneeType = formData.assigneeType || undefined
+    const assigneeId = formData.assigneeId || undefined
+
     if (editingTask) {
       const updatedTask: Task = {
-        ...formData,
         id: editingTask.id,
+        title: formData.title,
+        description: formData.description,
+        dueDate: formData.dueDate,
+        priority: formData.priority,
+        status: formData.status,
+        assigneeName,
+        assigneeType,
+        assigneeId,
+        propertyId: formData.propertyId || undefined,
         createdAt: editingTask.createdAt,
       }
       setTasks((current) => (current || []).map((task) => task.id === editingTask.id ? updatedTask : task))
       toast.success(tv.form.updated_success)
     } else {
       const newTask: Task = {
-        ...formData,
         id: Date.now().toString(),
+        title: formData.title,
+        description: formData.description,
+        dueDate: formData.dueDate,
+        priority: formData.priority,
+        status: formData.status,
+        assigneeName,
+        assigneeType,
+        assigneeId,
+        propertyId: formData.propertyId || undefined,
         createdAt: new Date().toISOString()
       }
       setTasks((current) => [...(current || []), newTask])
@@ -61,31 +97,26 @@ export default function TasksView() {
     resetForm()
   }
 
+  const emptyForm = () => ({
+    title: '',
+    description: '',
+    dueDate: '',
+    priority: 'medium' as TaskPriority,
+    status: 'pending' as TaskStatus,
+    assigneeType: '' as TaskAssigneeType | '',
+    assigneeId: '',
+    propertyId: ''
+  })
+
   const resetForm = () => {
-    setFormData({
-      title: '',
-      description: '',
-      dueDate: '',
-      priority: 'medium',
-      status: 'pending',
-      assignee: '',
-      propertyId: ''
-    })
+    setFormData(emptyForm())
     setEditingTask(null)
     setIsDialogOpen(false)
   }
 
   const handleOpenCreate = () => {
     setEditingTask(null)
-    setFormData({
-      title: '',
-      description: '',
-      dueDate: '',
-      priority: 'medium',
-      status: 'pending',
-      assignee: '',
-      propertyId: ''
-    })
+    setFormData(emptyForm())
     setIsDialogOpen(true)
   }
 
@@ -97,7 +128,8 @@ export default function TasksView() {
       dueDate: task.dueDate,
       priority: task.priority,
       status: task.status,
-      assignee: task.assignee || '',
+      assigneeType: task.assigneeType || '',
+      assigneeId: task.assigneeId || '',
       propertyId: task.propertyId || ''
     })
     setIsDialogOpen(true)
@@ -219,30 +251,63 @@ export default function TasksView() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="assignee">{tv.form.assignee} {tv.form.optional}</Label>
-                  <Input
-                    id="assignee"
-                    value={formData.assignee}
-                    onChange={(e) => setFormData({ ...formData, assignee: e.target.value })}
-                    placeholder={tv.form.assignee_placeholder}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="propertyId">{tv.form.property} {tv.form.optional}</Label>
-                  <Select value={formData.propertyId || 'none'} onValueChange={(value) => setFormData({ ...formData, propertyId: value === 'none' ? '' : value })}>
-                    <SelectTrigger id="propertyId">
-                      <SelectValue placeholder={tv.form.select_property} />
+                  <Label htmlFor="assigneeType">{tv.form.assignee_type} {tv.form.optional}</Label>
+                  <Select
+                    value={formData.assigneeType || 'none'}
+                    onValueChange={(value) => setFormData({
+                      ...formData,
+                      assigneeType: value === 'none' ? '' : value as TaskAssigneeType,
+                      assigneeId: ''
+                    })}
+                  >
+                    <SelectTrigger id="assigneeType">
+                      <SelectValue placeholder={tv.form.select_assignee_type} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">{tv.no_property}</SelectItem>
-                      {(properties || []).map((property) => (
-                        <SelectItem key={property.id} value={property.id}>
-                          {property.name}
+                      <SelectItem value="none">{tv.no_assignee}</SelectItem>
+                      <SelectItem value="owner">{tv.assignee_types.owner}</SelectItem>
+                      <SelectItem value="guest">{tv.assignee_types.guest}</SelectItem>
+                      <SelectItem value="service-provider">{tv.assignee_types.service_provider}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="assigneeId">{tv.form.assignee}</Label>
+                  <Select
+                    value={formData.assigneeId || 'none'}
+                    disabled={!formData.assigneeType}
+                    onValueChange={(value) => setFormData({ ...formData, assigneeId: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger id="assigneeId">
+                      <SelectValue placeholder={tv.form.select_person} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{tv.form.assignee_placeholder}</SelectItem>
+                      {personOptionsForType(formData.assigneeType).map((person) => (
+                        <SelectItem key={person.id} value={person.id}>
+                          {person.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="propertyId">{tv.form.property} {tv.form.optional}</Label>
+                <Select value={formData.propertyId || 'none'} onValueChange={(value) => setFormData({ ...formData, propertyId: value === 'none' ? '' : value })}>
+                  <SelectTrigger id="propertyId">
+                    <SelectValue placeholder={tv.form.select_property} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{tv.no_property}</SelectItem>
+                    {(properties || []).map((property) => (
+                      <SelectItem key={property.id} value={property.id}>
+                        {property.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -310,7 +375,9 @@ export default function TasksView() {
                     <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{tv.due_date}: {format(new Date(task.dueDate), 'MMM dd, yyyy')}</span>
-                      {task.assignee && <span>• {tv.assignee}: {task.assignee}</span>}
+                      {task.assigneeName && (
+                        <span>• {tv.assignee}: {task.assigneeName}{task.assigneeType ? ` (${tv.assignee_types[task.assigneeType === 'service-provider' ? 'service_provider' : task.assigneeType]})` : ''}</span>
+                      )}
                       {property && <span>• {property.name}</span>}
                     </div>
                   </div>

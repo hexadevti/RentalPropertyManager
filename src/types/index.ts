@@ -4,6 +4,7 @@ export type PropertyStatus = 'available' | 'occupied' | 'maintenance'
 export type TransactionType = 'income' | 'expense'
 export type TaskPriority = 'low' | 'medium' | 'high'
 export type TaskStatus = 'pending' | 'in-progress' | 'completed'
+export type TaskAssigneeType = 'owner' | 'guest' | 'service-provider'
 export type RentalType = 'short-term' | 'monthly'
 export type ContractStatus = 'active' | 'expired' | 'cancelled'
 export type InspectionType = 'check-in' | 'check-out' | 'maintenance' | 'periodic'
@@ -85,7 +86,9 @@ export interface Task {
   dueDate: string
   priority: TaskPriority
   status: TaskStatus
-  assignee?: string
+  assigneeName?: string
+  assigneeType?: TaskAssigneeType
+  assigneeId?: string
   propertyId?: string
   createdAt: string
   updatedAt?: string
@@ -223,7 +226,6 @@ export type NotificationTrigger =
   | 'appointment-items'
   | 'contract-expiration'
   | 'contract-payment-day'
-  | 'task-due'
   | 'task-created'
   | 'task-due-tomorrow'
   | 'task-due-today'
@@ -232,11 +234,22 @@ export type NotificationTrigger =
   | 'contract-created'
   | 'inspection'
   | 'bug'
+  | 'user-created'
+  | 'user-role-changed'
+  | 'user-access-approved'
+  | 'user-access-rejected'
+
+export type NotificationEventType = 'appointments' | 'contracts' | 'tasks' | 'inspections' | 'bugs' | 'user-access'
+export type NotificationTemplateEventType = NotificationEventType | 'general'
+export type NotificationTemplateContentType = 'html' | 'text'
 
 export interface NotificationTemplate {
   id: string
   name: string
   channel: NotificationChannel
+  eventType: NotificationTemplateEventType
+  contentType: NotificationTemplateContentType
+  description?: string
   subject?: string
   content: string
   createdAt: string
@@ -247,7 +260,7 @@ export interface NotificationRule {
   id: string
   name: string
   trigger: NotificationTrigger
-  eventType?: 'tasks'
+  eventType: NotificationEventType
   groupId?: string
   channels: NotificationChannel[]
   emailTemplateId?: string
@@ -255,6 +268,7 @@ export interface NotificationRule {
   whatsappTemplateId?: string
   recipientRoles: UserRole[]
   recipientUserIds: string[]
+  sendToTaskAssignee?: boolean
   daysBefore?: number
   isActive: boolean
   createdAt: string

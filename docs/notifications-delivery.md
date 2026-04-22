@@ -10,6 +10,13 @@ Run these migrations in order:
 - `supabase/140_create_notification_deliveries.sql`
 - `supabase/141_auto_enqueue_notification_events.sql`
 - `supabase/142_task_notification_conditions_and_master_template.sql`
+- `supabase/151_add_user_access_notification_events.sql`
+- `supabase/152_refactor_notification_templates_runtime.sql`
+- `supabase/153_seed_default_notification_templates.sql`
+- `supabase/154_seed_default_notification_rules.sql`
+- `supabase/155_cleanup_legacy_task_due_notifications.sql`
+- `supabase/156_promote_legacy_notification_event_types.sql`
+- `supabase/157_task_assignee_and_notification_recipient.sql`
 
 Main queue table:
 
@@ -18,6 +25,14 @@ Main queue table:
 Master template table:
 
 - `public.notification_master_templates`
+
+Template metadata:
+
+- `notification_templates.event_type` organizes reusable templates by domain (`general`, `appointments`, `contracts`, `tasks`, `inspections`, `bugs`, `user-access`)
+- `notification_templates.content_type` controls whether the template is authored as `html` or `text`
+- `notification_deliveries.content_type` stores the format selected when the delivery was enqueued
+- `153_seed_default_notification_templates.sql` seeds a default catalog for every existing tenant and automatically seeds future tenants on insert
+- `154_seed_default_notification_rules.sql` seeds an initial ruleset for supported event types and wires future tenants to receive both templates and rules automatically
 
 Key statuses:
 
@@ -124,7 +139,10 @@ Migration `141_auto_enqueue_notification_events.sql` adds trigger-based enqueue 
 - `task-due-tomorrow` from `public.tasks` (`due_date = tomorrow`)
 - `task-due-today` from `public.tasks` (`due_date = today`)
 - `task-overdue-open` from `public.tasks` (`due_date < today` and not completed)
-- `task-due` from `public.tasks` (legacy compatibility)
+- `user-created` from `public.user_profiles` inserts
+- `user-role-changed` from `public.user_profiles` role changes
+- `user-access-approved` from `public.user_profiles` status changes to `approved`
+- `user-access-rejected` from `public.user_profiles` status changes to `rejected`
 - `inspection` from `public.inspections`
 - `bug` from `public.bug_reports` inserts
 
@@ -132,11 +150,66 @@ Important behavior:
 
 - Rules are resolved by `notification_rules.trigger` and `is_active = true`.
 - Recipients are resolved from `user_profiles` by selected roles and explicit users.
+- Task rules can also deliver directly to the selected task assignee when `notification_rules.send_to_task_assignee = true`.
 - Only recipients with `status = 'approved'` are enqueued.
 - `next_attempt_at` is calculated from event datetime minus `days_before`.
 - Deliveries are deduplicated by `eventKey` + rule + channel + recipient.
 - Payload for task events includes both task data and related property data (`payload.task` and `payload.property`).
+- Task payload also exposes structured assignee data in `payload.task.assignee`, plus `payload.task.assigneeName`, `payload.task.assigneeType`, and `payload.task.assigneeId`.
+- Payload for appointment events includes `payload.appointment`.
+- Payload for contract events includes `payload.contract`.
+- Payload for inspection events includes `payload.inspection`.
+- Payload for bug events includes `payload.bug`.
+- Payload for user access events includes `payload.user`, `payload.group`, `payload.access`, and `payload.changes`.
 - Master header/footer can be configured per channel in `notification_master_templates` and are applied at dispatch time.
+- Email deliveries render HTML when `content_type = 'html'`.
+- SMS and WhatsApp deliveries receive a plain-text version, even when the stored template is HTML.
+
+Useful template tokens for user access events:
+
+- `{{user.githubLogin}}`
+- `{{user.email}}`
+- `{{group.role}}`
+- `{{access.status}}`
+- `{{changes.previousRole}}`
+- `{{changes.currentRole}}`
+
+Default seeded template catalog:
+
+- Appointments: `appointment-items`
+- Contracts: `contract-created`, `contract-expiration`, `contract-payment-day`
+- Tasks: `task-created`, `task-due-tomorrow`, `task-due-today`, `task-overdue-open`, `task-resolved`
+- Inspections: `inspection`
+- Bugs: `bug`
+- User access: `user-created`, `user-role-changed`, `user-access-approved`, `user-access-rejected`
+- Channels: HTML email plus plain-text SMS and WhatsApp templates for each event
+- Seeded template IDs follow the pattern `default-<channel>-<trigger>`
+
+Default seeded rules:
+
+- One `Appointment notifications` group with the scheduled appointment trigger
+- One `Contract notifications` group with all supported contract triggers
+- One `Task notifications` group with all supported task triggers
+- One `Inspection notifications` group with the inspection trigger
+- One `Bug report notifications` group with the bug-report trigger
+- One `User access notifications` group with all supported user-access triggers
+- Default channel: `email`
+- Default recipients: users with role `admin`
+- SMS and WhatsApp stay available in the template catalog, but are not activated by default
+
+Useful template tokens for task assignee delivery:
+
+- `{{task.assignee.name}}`
+- `{{task.assignee.email}}`
+- `{{task.assignee.phone}}`
+- `{{task.assigneeType}}`
+- `{{task.assigneeId}}`
+
+Legacy cleanup:
+
+- `155_cleanup_legacy_task_due_notifications.sql` removes the obsolete `task-due` trigger from the active ruleset
+- Existing `task-due` rules are expanded into `task-due-tomorrow`, `task-due-today` and `task-overdue-open`
+- `156_promote_legacy_notification_event_types.sql` promotes appointments, contracts, inspections and bugs into first-class `event_type` values
 
 ## Suggested execution model
 
