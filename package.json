@@ -11,7 +11,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "optimize": "vite optimize",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "deploy": "npm run build && wrangler deploy"
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",

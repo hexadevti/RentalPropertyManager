@@ -63,18 +63,8 @@ export default function PropertiesView() {
   const supportsEnvironments = formData.type === 'house' || formData.type === 'apartment'
 
   const getDefaultEnvironments = (propertyType: PropertyType) => {
-    if (propertyType === 'house') {
-      return language === 'pt'
-        ? ['Sala', 'Cozinha', 'Quarto principal', 'Quarto 2', 'Banheiro social', 'Área de serviço', 'Garagem', 'Área externa']
-        : ['Living room', 'Kitchen', 'Primary bedroom', 'Bedroom 2', 'Main bathroom', 'Laundry area', 'Garage', 'Outdoor area']
-    }
-
-    if (propertyType === 'apartment') {
-      return language === 'pt'
-        ? ['Sala', 'Cozinha', 'Quarto principal', 'Quarto 2', 'Banheiro', 'Lavanderia', 'Varanda']
-        : ['Living room', 'Kitchen', 'Primary bedroom', 'Bedroom 2', 'Bathroom', 'Laundry area', 'Balcony']
-    }
-
+    if (propertyType === 'house') return t.properties_view.form.default_environments_house
+    if (propertyType === 'apartment') return t.properties_view.form.default_environments_apartment
     return []
   }
 
