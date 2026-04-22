@@ -88,6 +88,41 @@ function isUuid(value: string | null | undefined): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
+function hasAuthCallbackParams() {
+  const searchParams = new URLSearchParams(window.location.search)
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+
+  return (
+    searchParams.has('code')
+    || searchParams.has('error')
+    || hashParams.has('access_token')
+    || hashParams.has('refresh_token')
+    || hashParams.has('error')
+  )
+}
+
+function cleanupAuthCallbackUrl() {
+  const url = new URL(window.location.href)
+  const authSearchKeys = ['code', 'error', 'error_code', 'error_description', 'state']
+  let changed = false
+
+  for (const key of authSearchKeys) {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key)
+      changed = true
+    }
+  }
+
+  if (url.hash.includes('access_token') || url.hash.includes('refresh_token') || url.hash.includes('error=')) {
+    url.hash = ''
+    changed = true
+  }
+
+  if (changed) {
+    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
@@ -414,9 +449,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        const { data } = await supabase.auth.getSession()
+        const startedFromAuthCallback = hasAuthCallbackParams()
+        const { data, error } = await supabase.auth.getSession()
+        if (error) {
+          console.error('Failed to restore Supabase session:', error)
+        }
+
         if (data.session?.user && isMounted) {
           await loadOrCreateProfile(data.session.user)
+        }
+
+        if (startedFromAuthCallback) {
+          cleanupAuthCallbackUrl()
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error)
@@ -448,7 +492,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           void loadOrCreateProfile(session.user).finally(() => {
-            if (isMounted) setIsLoading(false)
+            if (isMounted) {
+              cleanupAuthCallbackUrl()
+              setIsLoading(false)
+            }
           })
           return
         }
