@@ -34,6 +34,8 @@ interface AuthContextType {
   signOut: () => Promise<void>
 }
 
+type OAuthProvider = 'github' | 'google'
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 type AppUser = {
@@ -120,6 +122,31 @@ function cleanupAuthCallbackUrl() {
 
   if (changed) {
     window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`)
+  }
+}
+
+function getTopNavigableWindow() {
+  try {
+    if (window.top && window.top !== window.self) {
+      return window.top
+    }
+  } catch {}
+
+  return window
+}
+
+function promoteAuthCallbackToTopWindow() {
+  if (!hasAuthCallbackParams()) return false
+
+  const targetWindow = getTopNavigableWindow()
+  if (targetWindow === window) return false
+
+  try {
+    targetWindow.location.replace(window.location.href)
+    return true
+  } catch (error) {
+    console.error('Failed to promote auth callback to top window:', error)
+    return false
   }
 }
 
@@ -394,11 +421,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPlatformAdmin(false)
   }, [])
 
+  const getOAuthRedirectTo = useCallback(() => {
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    return isLocalhost
+      ? `${window.location.origin}/`
+      : (import.meta.env.VITE_AUTH_REDIRECT_URL || `${window.location.origin}/`)
+  }, [])
+
+  const signInWithOAuthProvider = useCallback(async (provider: OAuthProvider) => {
+    const redirectTo = getOAuthRedirectTo()
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+      },
+    })
+
+    if (error) throw error
+    if (!data?.url) {
+      throw new Error(`Missing OAuth redirect URL for provider: ${provider}`)
+    }
+
+    const targetWindow = getTopNavigableWindow()
+    targetWindow.location.assign(data.url)
+  }, [getOAuthRedirectTo])
+
   useEffect(() => {
     let isMounted = true
 
     const initAuth = async () => {
       try {
+        if (promoteAuthCallbackToTopWindow()) {
+          return
+        }
+
         if (import.meta.env.VITE_DEV_MODE === 'true') {
           const email = import.meta.env.VITE_DEV_USER_EMAIL || 'dev@dev.com'
           const password = import.meta.env.VITE_DEV_USER_PASSWORD
@@ -662,27 +719,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signInWithGitHub = async () => {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    const redirectTo = isLocalhost
-      ? `${window.location.origin}/`
-      : (import.meta.env.VITE_AUTH_REDIRECT_URL || `${window.location.origin}/`)
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: { redirectTo },
-    })
-    if (error) throw error
+    await signInWithOAuthProvider('github')
   }
 
   const signInWithGoogle = async () => {
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    const redirectTo = isLocalhost
-      ? `${window.location.origin}/`
-      : (import.meta.env.VITE_AUTH_REDIRECT_URL || `${window.location.origin}/`)
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo },
-    })
-    if (error) throw error
+    await signInWithOAuthProvider('google')
   }
 
   const signUp = async (orgName: string, name: string, email: string, password: string) => {
