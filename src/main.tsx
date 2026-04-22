@@ -18,12 +18,10 @@ const hasOAuthCallback =
   || hashParams.has('error')
 
 if (hasOAuthCallback) {
-  try {
-    if (window.top && window.top !== window.self) {
-      window.top.location.replace(window.location.href)
-    }
-  } catch (error) {
-    console.error('Failed to promote OAuth callback to top window:', error)
+  const callbackUrl = new URL(window.location.href)
+  if (callbackUrl.pathname !== '/auth/callback') {
+    callbackUrl.pathname = '/auth/callback'
+    window.location.replace(callbackUrl.toString())
   }
 }
 
