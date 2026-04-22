@@ -9,6 +9,7 @@
       refreshed_success: 'Dados atualizados',
       update: 'Atualizar',
       create: 'Criar',
+      auth_redirecting: 'Concluindo autenticacao...',
     },
     
     tabs: {
@@ -1448,6 +1449,7 @@
       refreshed_success: 'Data updated',
       update: 'Update',
       create: 'Create',
+      auth_redirecting: 'Completing authentication...',
     },
     
     tabs: {

@@ -48,6 +48,53 @@ type TenantOption = {
   name: string
 }
 
+function AuthCallbackPage() {
+  const { t } = useLanguage()
+  const {
+    isLoading,
+    isAuthenticated,
+    isApproved,
+    isPending,
+    isRejected,
+  } = useAuth()
+
+  useEffect(() => {
+    if (isLoading) return
+
+    const destination = new URL(window.location.origin)
+    const searchParams = new URLSearchParams(window.location.search)
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const authError =
+      searchParams.get('error_description')
+      || searchParams.get('error')
+      || hashParams.get('error_description')
+      || hashParams.get('error')
+
+    if (authError) {
+      toast.error(authError)
+    }
+
+    if (isAuthenticated || isApproved || isPending || isRejected || authError) {
+      window.location.replace(destination.toString())
+      return
+    }
+
+    window.location.replace(destination.toString())
+  }, [isApproved, isAuthenticated, isLoading, isPending, isRejected])
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        <div className="space-y-1">
+          <p className="text-lg font-semibold">{t.appName}</p>
+          <p className="text-muted-foreground">{t.common.auth_redirecting}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AppContent() {
   const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
@@ -75,6 +122,7 @@ function AppContent() {
   const [pinnedItems, setPinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([])
   const [isChangingTenant, setIsChangingTenant] = useState(false)
+  const isAuthCallbackRoute = window.location.pathname === '/auth/callback'
 
   const tabTitleMap: Record<string, string> = {
     properties: t.tabs.properties,
@@ -136,6 +184,10 @@ function AppContent() {
   }
 
   const currentMonthBalance = calculateCurrentMonthBalance()
+
+  if (isAuthCallbackRoute) {
+    return <AuthCallbackPage />
+  }
 
   if (isLoading) {
     return (
