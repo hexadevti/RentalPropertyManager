@@ -125,31 +125,6 @@ function cleanupAuthCallbackUrl() {
   }
 }
 
-function getTopNavigableWindow() {
-  try {
-    if (window.top && window.top !== window.self) {
-      return window.top
-    }
-  } catch {}
-
-  return window
-}
-
-function promoteAuthCallbackToTopWindow() {
-  if (!hasAuthCallbackParams()) return false
-
-  const targetWindow = getTopNavigableWindow()
-  if (targetWindow === window) return false
-
-  try {
-    targetWindow.location.replace(window.location.href)
-    return true
-  } catch (error) {
-    console.error('Failed to promote auth callback to top window:', error)
-    return false
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
@@ -436,21 +411,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithOAuthProvider = useCallback(async (provider: OAuthProvider) => {
     const redirectTo = getOAuthRedirectTo()
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo,
-        skipBrowserRedirect: true,
       },
     })
 
     if (error) throw error
-    if (!data?.url) {
-      throw new Error(`Missing OAuth redirect URL for provider: ${provider}`)
-    }
-
-    const targetWindow = getTopNavigableWindow()
-    targetWindow.location.assign(data.url)
   }, [getOAuthRedirectTo])
 
   useEffect(() => {
@@ -458,10 +426,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       try {
-        if (promoteAuthCallbackToTopWindow()) {
-          return
-        }
-
         if (import.meta.env.VITE_DEV_MODE === 'true') {
           const email = import.meta.env.VITE_DEV_USER_EMAIL || 'dev@dev.com'
           const password = import.meta.env.VITE_DEV_USER_PASSWORD
