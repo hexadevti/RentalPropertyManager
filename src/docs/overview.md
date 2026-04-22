@@ -1,8 +1,8 @@
-# Rental Property Manager
+# RPM - Rental Property Manager
 
 ## O que é o sistema?
 
-O **Rental Property Manager** é uma plataforma completa para gestão de imóveis para locação. Centraliza em um só lugar o controle de propriedades, inquilinos, contratos, finanças, tarefas, documentos e vistorias.
+O **RPM - Rental Property Manager** é uma plataforma completa para gestão de imóveis para locação. Centraliza em um só lugar o controle de propriedades, inquilinos, contratos, finanças, tarefas, documentos e vistorias.
 
 ## Módulos disponíveis
 

@@ -480,7 +480,7 @@ export function HomePage({ onLoginClick }: HomePageProps) {
       <header className="sticky top-0 z-50 border-b border-border/60 bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 shrink-0">
-            <img src={rpmLogo} alt="RPM" className="h-16 w-auto" />
+            <img src={rpmLogo} alt="RPM - Rental Property Manager" className="h-16 w-auto" />
           </div>
 
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
@@ -771,8 +771,8 @@ export function HomePage({ onLoginClick }: HomePageProps) {
           </h2>
           <p className="text-muted-foreground text-lg mb-8">
             {lang === 'pt'
-              ? 'Crie sua conta gratuitamente e veja como o RPM simplifica a gestão dos seus imóveis.'
-              : 'Create your free account and see how RPM simplifies managing your properties.'}
+              ? 'Crie sua conta gratuitamente e veja como o RPM - Rental Property Manager simplifica a gestão dos seus imóveis.'
+              : 'Create your free account and see how RPM - Rental Property Manager simplifies managing your properties.'}
           </p>
           <Button size="lg" onClick={onLoginClick} className="gap-2 h-12 px-10 text-base">
             {lang === 'pt' ? 'Começar gratuitamente' : 'Start for free'}
@@ -788,11 +788,11 @@ export function HomePage({ onLoginClick }: HomePageProps) {
             <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
               <House size={14} weight="fill" className="text-primary-foreground" />
             </div>
-            <span className="font-bold">RPM</span>
+            <span className="font-bold">RPM - Rental Property Manager</span>
             <span className="text-muted-foreground text-sm ml-2">— {t.footer.tagline}</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} RPM. {t.footer.rights}
+            © {new Date().getFullYear()} RPM - Rental Property Manager. {t.footer.rights}
           </p>
         </div>
       </footer>

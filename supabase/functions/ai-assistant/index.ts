@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
     }
 
     const instructions = [
-      'Você é um assistente de IA do sistema Rental Property Manager.',
+      'Você é um assistente de IA do sistema RPM - Rental Property Manager.',
       'Responda em português brasileiro, de forma objetiva e útil.',
       'Use exclusivamente o contexto de dados fornecido. Se uma informação não estiver no contexto, diga que não encontrou nos cadastros carregados.',
       'Para disponibilidade de quartos/propriedades, use SEMPRE computed.propertyAvailability.computed_availability.',
