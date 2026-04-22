@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import type {
   Contract,
@@ -41,6 +41,23 @@ import { getContractSelectionLabel } from '@/lib/contractLabels'
 import helpContent from '@/docs/inspections.md?raw'
 import formHelpContent from '@/docs/form-inspection.md?raw'
 import { HelpButton } from '@/components/HelpButton'
+import { translations } from '@/lib/i18n'
+
+// System area names are stored in the DB in whatever language was active at creation time.
+// This re-translates them to the current language so they always display correctly.
+const SYSTEM_AREA_KEYS = ['furniture', 'inspection_items'] as const
+type SystemAreaKey = typeof SYSTEM_AREA_KEYS[number]
+
+function translateAreaName(name: string, language: 'pt' | 'en'): string {
+  for (const key of SYSTEM_AREA_KEYS) {
+    const ptLabel = translations.pt.inspections_view.room_areas[key as SystemAreaKey]
+    const enLabel = translations.en.inspections_view.room_areas[key as SystemAreaKey]
+    if (name === ptLabel || name === enLabel) {
+      return translations[language].inspections_view.room_areas[key as SystemAreaKey]
+    }
+  }
+  return name
+}
 
 type InspectionFormState = {
   title: string
@@ -87,12 +104,13 @@ function buildInspectionAreas(language: 'pt' | 'en', property: Property | null |
   if (!property) return []
 
   if (property.type === 'room') {
+    const roomAreaLabels = translations[language].inspections_view.room_areas
     const areas: InspectionArea[] = []
     if (property.furnitureItems?.length) {
-      areas.push(buildArea(language === 'pt' ? 'Mobiliário' : 'Furniture', property.furnitureItems))
+      areas.push(buildArea(roomAreaLabels.furniture, property.furnitureItems))
     }
     if (property.inspectionItems?.length) {
-      areas.push(buildArea(language === 'pt' ? 'Itens de vistoria' : 'Inspection items', property.inspectionItems))
+      areas.push(buildArea(roomAreaLabels.inspection_items, property.inspectionItems))
     }
     return areas
   }
@@ -140,7 +158,7 @@ function resetAreaEvaluations(areas: InspectionArea[]): InspectionArea[] {
 }
 
 export default function InspectionsView() {
-  const { language } = useLanguage()
+  const { language, t } = useLanguage()
   const [inspections, setInspections] = useKV<Inspection[]>('inspections', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
@@ -155,112 +173,106 @@ export default function InspectionsView() {
   const [propertyFilter, setPropertyFilter] = useState('all')
 
   const labels = useMemo(() => ({
-    title: language === 'pt' ? 'Vistoria digital' : 'Digital inspections',
-    subtitle: language === 'pt'
-      ? 'Registre entrada, saída e manutenção com checklist por ambiente.'
-      : 'Track move-in, move-out and maintenance with room-by-room checklists.',
-    add: language === 'pt' ? 'Nova vistoria' : 'New inspection',
-    edit: language === 'pt' ? 'Editar vistoria' : 'Edit inspection',
-    emptyTitle: language === 'pt' ? 'Nenhuma vistoria cadastrada' : 'No inspections yet',
-    emptyDescription: language === 'pt'
-      ? 'Crie sua primeira vistoria para acompanhar o estado dos imóveis.'
-      : 'Create your first inspection to track property condition.',
-    property: language === 'pt' ? 'Propriedade' : 'Property',
-    contract: language === 'pt' ? 'Contrato' : 'Contract',
-    noContract: language === 'pt' ? 'Sem contrato' : 'No contract',
-    selectPropertyFirst: language === 'pt' ? 'Selecione uma propriedade primeiro' : 'Select a property first',
-    noContractForProperty: language === 'pt' ? 'Nenhum contrato para esta propriedade' : 'No contracts for this property',
-    continueToMatrix: language === 'pt' ? 'Continuar para checklist' : 'Continue to checklist',
-    backToSelection: language === 'pt' ? 'Voltar' : 'Back',
-    type: language === 'pt' ? 'Tipo' : 'Type',
-    inspector: language === 'pt' ? 'Responsável' : 'Inspector',
-    scheduledDate: language === 'pt' ? 'Data da vistoria' : 'Inspection date',
-    summary: language === 'pt' ? 'Resumo geral' : 'Summary',
-    search: language === 'pt' ? 'Buscar por título, imóvel ou responsável...' : 'Search by title, property or inspector...',
-    allProperties: language === 'pt' ? 'Todas as propriedades' : 'All properties',
-    save: language === 'pt' ? 'Salvar vistoria' : 'Save inspection',
-    cancel: language === 'pt' ? 'Cancelar' : 'Cancel',
-    delete: language === 'pt' ? 'Excluir' : 'Delete',
-    refresh: language === 'pt' ? 'Atualizar' : 'Refresh',
-    areaNotes: language === 'pt' ? 'Observações' : 'Notes',
-    itemNotes: language === 'pt' ? 'Observações do item' : 'Item notes',
-    addArea: language === 'pt' ? 'Adicionar ambiente' : 'Add area',
-    addItem: language === 'pt' ? 'Adicionar item' : 'Add item',
-    issues: language === 'pt' ? 'pontos de atenção' : 'attention points',
-    items: language === 'pt' ? 'itens' : 'items',
-    noItemsConfigured: language === 'pt'
-      ? 'Nenhum item de vistoria ou mobiliário cadastrado nesta propriedade.'
-      : 'No inspection items or furniture registered for this property.',
-    noEnvironmentsConfigured: language === 'pt'
-      ? 'Nenhum ambiente cadastrado nesta propriedade.'
-      : 'No environments registered for this property.',
-    generatePdf: language === 'pt' ? 'Gerar PDF' : 'Generate PDF',
-    generatingPdf: language === 'pt' ? 'Gerando...' : 'Generating...',
-    pdfError: language === 'pt' ? 'Erro ao gerar PDF' : 'Failed to generate PDF',
-    pdfNeedsAssessed: language === 'pt'
-      ? 'A vistoria precisa estar no status "Avaliada" para gerar o PDF.'
-      : 'The inspection must be in "Assessed" status to generate the PDF.',
-    advanceDraft: language === 'pt' ? 'Iniciar' : 'Start',
-    advanceInProgress: language === 'pt' ? 'Concluir avaliação' : 'Complete evaluation',
-    statusAdvanced: language === 'pt' ? 'Status atualizado' : 'Status updated',
-    backToDraft: language === 'pt' ? 'Voltar para rascunho' : 'Back to draft',
-    backToDraftConfirm: language === 'pt'
-      ? 'Ao voltar para rascunho, todas as classificações e observações serão apagadas. Deseja continuar?'
-      : 'Going back to draft will clear all condition ratings and notes. Continue?',
-    backToDraftSuccess: language === 'pt' ? 'Vistoria voltou para rascunho' : 'Inspection returned to draft',
-    created: language === 'pt' ? 'Vistoria criada com sucesso' : 'Inspection created successfully',
-    updated: language === 'pt' ? 'Vistoria atualizada com sucesso' : 'Inspection updated successfully',
-    deleted: language === 'pt' ? 'Vistoria excluída com sucesso' : 'Inspection deleted successfully',
-    structureModeHint: language === 'pt'
-      ? 'Em rascunho: edite os itens e ambientes. Inicie a vistoria para avaliar as condições.'
-      : 'Draft mode: edit items and areas. Start the inspection to rate conditions.',
-    evaluateModeHint: language === 'pt'
-      ? 'Em andamento: avalie as condições de cada item. Estrutura bloqueada.'
-      : 'In progress: rate conditions for each item. Structure is locked.',
-    // type-constraint messages
-    hintNoCheckIn: language === 'pt'
-      ? 'Nenhuma vistoria registrada para este contrato. Crie a vistoria de entrada primeiro.'
-      : 'No inspections for this contract yet. Create the move-in inspection first.',
-    hintCheckInDraft: language === 'pt'
-      ? 'A vistoria de entrada existe mas ainda está em rascunho. Inicie-a para liberar outros tipos.'
-      : 'The move-in inspection exists but is still a draft. Start it to unlock other types.',
-    hintCheckInInProgress: language === 'pt'
-      ? 'Vistoria de entrada em andamento. Você pode criar vistorias de saída, manutenção ou periódica.'
-      : 'Move-in inspection is in progress. You can create check-out, maintenance or periodic inspections.',
-    hintCheckInAssessed: language === 'pt'
-      ? 'Vistoria de entrada avaliada. Você pode criar vistorias de saída, manutenção ou periódica vinculadas a ela.'
-      : 'Move-in inspection is assessed. You can create check-out, maintenance or periodic inspections linked to it.',
-    linkedCheckIn: language === 'pt' ? 'Vistoria de entrada vinculada' : 'Linked move-in inspection',
-    createLinked: language === 'pt' ? 'Nova vistoria vinculada' : 'New linked inspection',
-    linkedGroup: language === 'pt' ? 'Vistorias vinculadas' : 'Linked inspections',
-    mainInspection: language === 'pt' ? 'Vistoria principal' : 'Main inspection',
-    comparedToPrevious: language === 'pt' ? 'Diferenças da vistoria anterior' : 'Differences from previous inspection',
-    noDifferences: language === 'pt' ? 'Sem diferenças registradas' : 'No differences recorded',
-    previous: language === 'pt' ? 'Anterior' : 'Previous',
-    current: language === 'pt' ? 'Atual' : 'Current',
-    createTask: language === 'pt' ? 'Criar task' : 'Create task',
-    taskCreated: language === 'pt' ? 'Task criada e vinculada à propriedade' : 'Task created and linked to property',
-  }), [language])
+    title: t.inspections_view.title,
+    subtitle: t.inspections_view.subtitle,
+    add: t.inspections_view.add,
+    edit: t.inspections_view.edit,
+    emptyTitle: t.inspections_view.empty_title,
+    emptyDescription: t.inspections_view.empty_description,
+    property: t.inspections_view.property,
+    contract: t.inspections_view.contract,
+    noContract: t.inspections_view.no_contract,
+    selectPropertyFirst: t.inspections_view.select_property_first,
+    noContractForProperty: t.inspections_view.no_contract_for_property,
+    continueToMatrix: t.inspections_view.continue_to_matrix,
+    backToSelection: t.inspections_view.back_to_selection,
+    type: t.inspections_view.type,
+    inspector: t.inspections_view.inspector,
+    inspectorPlaceholder: t.inspections_view.inspector_placeholder,
+    scheduledDate: t.inspections_view.scheduled_date,
+    summary: t.inspections_view.summary,
+    summaryPlaceholder: t.inspections_view.summary_placeholder,
+    titleOptional: t.inspections_view.title_optional,
+    titlePlaceholder: t.inspections_view.title_placeholder,
+    search: t.inspections_view.search,
+    allProperties: t.inspections_view.all_properties,
+    save: t.inspections_view.save,
+    cancel: t.inspections_view.cancel,
+    delete: t.inspections_view.delete,
+    refresh: t.inspections_view.refresh,
+    dataUpdated: t.inspections_view.data_updated,
+    areaNotes: t.inspections_view.area_notes,
+    itemNotes: t.inspections_view.item_notes,
+    addArea: t.inspections_view.add_area,
+    addItem: t.inspections_view.add_item,
+    newArea: t.inspections_view.new_area,
+    newItem: t.inspections_view.new_item,
+    section: t.inspections_view.section,
+    areaLabel: t.inspections_view.area_label,
+    issues: t.inspections_view.issues,
+    items: t.inspections_view.items,
+    inspectionsCount: t.inspections_view.inspections_count,
+    differencesCount: t.inspections_view.differences_count,
+    additionalSections: t.inspections_view.additional_sections,
+    additionalDifferences: t.inspections_view.additional_differences,
+    note: t.inspections_view.note,
+    noPreviousRecord: t.inspections_view.no_previous_record,
+    noItemsConfigured: t.inspections_view.no_items_configured,
+    noEnvironmentsConfigured: t.inspections_view.no_environments_configured,
+    generatePdf: t.inspections_view.generate_pdf,
+    generatingPdf: t.inspections_view.generating_pdf,
+    pdfError: t.inspections_view.pdf_error,
+    pdfNeedsAssessed: t.inspections_view.pdf_needs_assessed,
+    advanceDraft: t.inspections_view.advance_draft,
+    advanceInProgress: t.inspections_view.advance_in_progress,
+    statusAdvanced: t.inspections_view.status_advanced,
+    backToDraft: t.inspections_view.back_to_draft,
+    backToDraftConfirm: t.inspections_view.back_to_draft_confirm,
+    backToDraftSuccess: t.inspections_view.back_to_draft_success,
+    created: t.inspections_view.created,
+    updated: t.inspections_view.updated,
+    deleted: t.inspections_view.deleted,
+    deletedProperty: t.inspections_view.deleted_property,
+    structureModeHint: t.inspections_view.structure_mode_hint,
+    evaluateModeHint: t.inspections_view.evaluate_mode_hint,
+    hintNoCheckIn: t.inspections_view.hint_no_check_in,
+    hintCheckInDraft: t.inspections_view.hint_check_in_draft,
+    hintCheckInInProgress: t.inspections_view.hint_check_in_in_progress,
+    hintCheckInAssessed: t.inspections_view.hint_check_in_assessed,
+    linkedCheckIn: t.inspections_view.linked_check_in,
+    createLinked: t.inspections_view.create_linked,
+    linkedGroup: t.inspections_view.linked_group,
+    mainInspection: t.inspections_view.main_inspection,
+    comparedToPrevious: t.inspections_view.compared_to_previous,
+    noDifferences: t.inspections_view.no_differences,
+    previous: t.inspections_view.previous,
+    current: t.inspections_view.current,
+    createTask: t.inspections_view.create_task,
+    taskCreated: t.inspections_view.task_created,
+    propertyRequired: t.inspections_view.property_required,
+    contractRequired: t.inspections_view.contract_required,
+    negativeDifferencePrefix: t.inspections_view.negative_difference_prefix,
+  }), [t])
 
   const typeLabels: Record<InspectionType, string> = {
-    'check-in':  language === 'pt' ? 'Entrada'    : 'Move-in',
-    'check-out': language === 'pt' ? 'Saída'      : 'Move-out',
-    maintenance: language === 'pt' ? 'Manutenção' : 'Maintenance',
-    periodic:    language === 'pt' ? 'Periódica'  : 'Periodic',
+    'check-in': t.inspections_view.inspection_type['check-in'],
+    'check-out': t.inspections_view.inspection_type['check-out'],
+    maintenance: t.inspections_view.inspection_type.maintenance,
+    periodic: t.inspections_view.inspection_type.periodic,
   }
 
   const statusLabels: Record<InspectionStatus, string> = {
-    draft:         language === 'pt' ? 'Rascunho'     : 'Draft',
-    'in-progress': language === 'pt' ? 'Em andamento' : 'In progress',
-    assessed:      language === 'pt' ? 'Avaliada'     : 'Assessed',
+    draft: t.inspections_view.inspection_status.draft,
+    'in-progress': t.inspections_view.inspection_status['in-progress'],
+    assessed: t.inspections_view.inspection_status.assessed,
   }
 
   const conditionLabels: Record<InspectionItemCondition, string> = {
-    excellent: language === 'pt' ? 'Excelente' : 'Excellent',
-    good:      language === 'pt' ? 'Bom'       : 'Good',
-    attention: language === 'pt' ? 'Atenção'   : 'Needs attention',
-    damaged:   language === 'pt' ? 'Danificado': 'Damaged',
-    na:        language === 'pt' ? 'N/A'       : 'N/A',
+    excellent: t.inspections_view.condition.excellent,
+    good: t.inspections_view.condition.good,
+    attention: t.inspections_view.condition.attention,
+    damaged: t.inspections_view.condition.damaged,
+    na: t.inspections_view.condition.na,
   }
 
   const buildEmptyForm = (): InspectionFormState => ({
@@ -288,7 +300,7 @@ export default function InspectionsView() {
     (properties || []).find((p) => p.id === propertyId) ?? null
 
   const getPropertyName = (propertyId: string) =>
-    getPropertyById(propertyId)?.name ?? (language === 'pt' ? 'Propriedade removida' : 'Deleted property')
+    getPropertyById(propertyId)?.name ?? labels.deletedProperty
 
   const selectedProperty = getPropertyById(formData.propertyId)
   const isRoomType = selectedProperty?.type === 'room'
@@ -368,20 +380,16 @@ export default function InspectionsView() {
   )
 
   const handleCreateTaskFromDifference = (inspection: Inspection, difference: InspectionDifference) => {
-    const title = language === 'pt'
-      ? `Corrigir ${difference.itemLabel} - ${difference.areaName}`
-      : `Fix ${difference.itemLabel} - ${difference.areaName}`
+    const title = `Fix ${difference.itemLabel} - ${difference.areaName}`
     const previousText = difference.previousCondition
       ? conditionLabels[difference.previousCondition]
-      : (language === 'pt' ? 'Sem registro anterior' : 'No previous record')
+      : labels.noPreviousRecord
     const description = [
-      language === 'pt'
-        ? `Diferença negativa identificada na vistoria "${inspection.title}".`
-        : `Negative difference identified in inspection "${inspection.title}".`,
+      `${labels.negativeDifferencePrefix} "${inspection.title}".`,
       `${labels.previous}: ${previousText}`,
       `${labels.current}: ${conditionLabels[difference.currentCondition]}`,
       difference.currentNotes
-        ? `${language === 'pt' ? 'Observação' : 'Note'}: ${difference.currentNotes}`
+        ? `${labels.note}: ${difference.currentNotes}`
         : '',
     ].filter(Boolean).join('\n')
 
@@ -555,13 +563,14 @@ export default function InspectionsView() {
   }
 
   const handleDelete = (inspectionId: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return
     setInspections((current) => (current || []).filter((inspection) => inspection.id !== inspectionId))
     toast.success(labels.deleted)
   }
 
   const handleRefresh = () => {
     setInspections((current) => [...(current || [])])
-    toast.success(language === 'pt' ? 'Dados atualizados' : 'Data updated')
+    toast.success(labels.dataUpdated)
   }
 
   const handleAdvanceStatus = (inspection: Inspection) => {
@@ -607,11 +616,11 @@ export default function InspectionsView() {
     e.preventDefault()
 
     if (!formData.propertyId) {
-      toast.error(language === 'pt' ? 'Selecione uma propriedade.' : 'Select a property.')
+      toast.error(labels.propertyRequired)
       return
     }
     if (!formData.contractId) {
-      toast.error(language === 'pt' ? 'Selecione um contrato.' : 'Select a contract.')
+      toast.error(labels.contractRequired)
       return
     }
 
@@ -819,7 +828,7 @@ export default function InspectionsView() {
                             id="inspection-inspector"
                             value={formData.inspectorName}
                             onChange={(e) => setFormData((current) => ({ ...current, inspectorName: e.target.value }))}
-                            placeholder={language === 'pt' ? 'Nome do vistoriador' : 'Inspector name'}
+                            placeholder={labels.inspectorPlaceholder}
                           />
                         </div>
 
@@ -835,12 +844,12 @@ export default function InspectionsView() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="inspection-title">{language === 'pt' ? 'Título (opcional)' : 'Title (optional)'}</Label>
+                          <Label htmlFor="inspection-title">{labels.titleOptional}</Label>
                           <Input
                             id="inspection-title"
                             value={formData.title}
                             onChange={(e) => setFormData((current) => ({ ...current, title: e.target.value }))}
-                            placeholder={language === 'pt' ? 'Ex.: Vistoria de entrada - Apto 203' : 'E.g. Move-in inspection - Apt 203'}
+                            placeholder={labels.titlePlaceholder}
                           />
                         </div>
                       </div>
@@ -852,7 +861,7 @@ export default function InspectionsView() {
                           value={formData.summary}
                           onChange={(e) => setFormData((current) => ({ ...current, summary: e.target.value }))}
                           rows={3}
-                          placeholder={language === 'pt' ? 'Resumo do estado do imóvel, pendências e próximos passos.' : 'Summarize property condition, pending issues and next steps.'}
+                          placeholder={labels.summaryPlaceholder}
                         />
                       </div>
                     </div>
@@ -892,7 +901,7 @@ export default function InspectionsView() {
                                     ...current.areas,
                                     {
                                       id: createId(),
-                                      name: language === 'pt' ? 'Novo ambiente' : 'New area',
+                                      name: labels.newArea,
                                       notes: '',
                                       items: (selectedProperty?.inspectionItems || []).map((label) => ({
                                         id: createId(),
@@ -916,7 +925,7 @@ export default function InspectionsView() {
                                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                   <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px] flex-1">
                                     <div className="space-y-2">
-                                      <Label>{isRoomType ? (language === 'pt' ? 'Seção' : 'Section') : (language === 'pt' ? 'Ambiente' : 'Area')}</Label>
+                                      <Label>{isRoomType ? labels.section : labels.areaLabel}</Label>
                                       {matrixMode === 'structure' ? (
                                         <Input
                                           value={area.name}
@@ -924,7 +933,7 @@ export default function InspectionsView() {
                                         />
                                       ) : (
                                         <p className="text-sm font-semibold py-2 px-3 rounded-md border border-border bg-muted/50 text-muted-foreground">
-                                          {area.name}
+                                          {translateAreaName(area.name, language)}
                                         </p>
                                       )}
                                     </div>
@@ -1031,7 +1040,7 @@ export default function InspectionsView() {
                                       ...current,
                                       items: [
                                         ...current.items,
-                                        { id: createId(), label: language === 'pt' ? 'Novo item' : 'New item', condition: 'na', notes: '' },
+                                        { id: createId(), label: labels.newItem, condition: 'na', notes: '' },
                                       ],
                                     }))}
                                   >
@@ -1118,7 +1127,7 @@ export default function InspectionsView() {
                   <p className="text-sm font-medium text-foreground">{getContractLabel(group.root.contractId)}</p>
                 </div>
                 <Badge variant="outline">
-                  {1 + group.children.length} {language === 'pt' ? 'vistorias' : 'inspections'}
+                  {1 + group.children.length} {labels.inspectionsCount}
                 </Badge>
               </div>
               <div className="space-y-3">
@@ -1151,7 +1160,7 @@ export default function InspectionsView() {
                         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                           <span>{format(new Date(inspection.scheduledDate), 'dd/MM/yyyy')}</span>
                           <span>•</span>
-                          <span>{inspectionDifferences.length} {language === 'pt' ? 'diferença(s)' : 'difference(s)'}</span>
+                          <span>{inspectionDifferences.length} {labels.differencesCount}</span>
                         </div>
                       )}
                     </div>
@@ -1207,7 +1216,7 @@ export default function InspectionsView() {
                       return (
                         <div key={area.id} className="rounded-lg border border-border/70 p-3">
                           <div className="flex items-center justify-between gap-3">
-                            <p className="font-medium">{area.name}</p>
+                            <p className="font-medium">{translateAreaName(area.name, language)}</p>
                             <span className="text-xs text-muted-foreground">{area.items.length} {labels.items}</span>
                           </div>
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -1222,7 +1231,7 @@ export default function InspectionsView() {
                       })}
                       {inspection.areas.length > 3 && (
                         <p className="text-xs text-muted-foreground">
-                          +{inspection.areas.length - 3} {language === 'pt' ? 'seções adicionais' : 'additional sections'}
+                          +{inspection.areas.length - 3} {labels.additionalSections}
                         </p>
                       )}
                     </div>
@@ -1237,7 +1246,7 @@ export default function InspectionsView() {
                           <div key={`${difference.areaName}-${difference.itemLabel}`} className="rounded-lg border border-border/70 p-3 text-sm">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-medium">{difference.areaName}</span>
+                                <span className="font-medium">{translateAreaName(difference.areaName, language)}</span>
                                 <span className="text-muted-foreground">•</span>
                                 <span>{difference.itemLabel}</span>
                               </div>
@@ -1272,7 +1281,7 @@ export default function InspectionsView() {
                       )}
                       {inspectionDifferences.length > 4 && (
                         <p className="text-xs text-muted-foreground">
-                          +{inspectionDifferences.length - 4} {language === 'pt' ? 'diferenças adicionais' : 'additional differences'}
+                          +{inspectionDifferences.length - 4} {labels.additionalDifferences}
                         </p>
                       )}
                     </div>

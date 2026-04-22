@@ -107,6 +107,10 @@ export function UserManagement() {
       return
     }
 
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) {
+      return
+    }
+
     try {
       await deleteUser(githubLogin)
       toast.success('Usuário removido com sucesso')

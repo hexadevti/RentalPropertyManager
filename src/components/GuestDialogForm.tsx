@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import helpContent from '@/docs/form-guest.md?raw'
 import { HelpButton } from '@/components/HelpButton'
@@ -90,7 +90,7 @@ export default function GuestDialogForm({
   onGuestCreated,
   editingGuest,
 }: GuestDialogFormProps) {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [formData, setFormData] = useState<GuestFormState>(createEmptyGuestForm())
   const [newDocType, setNewDocType] = useState('')
@@ -253,13 +253,13 @@ export default function GuestDialogForm({
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => addRelatedPerson(key)}>
             <Plus weight="bold" size={16} className="mr-2" />
-            {language === 'pt' ? 'Adicionar' : 'Add'}
+            {t.guests_view.form.add}
           </Button>
         </div>
 
         {people.length === 0 && (
           <div className="rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
-            {language === 'pt' ? 'Nenhum item cadastrado.' : 'No items added.'}
+            {t.guests_view.form.no_items}
           </div>
         )}
 
@@ -308,10 +308,10 @@ export default function GuestDialogForm({
 
               <div className="col-span-2 space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <Label>{language === 'pt' ? 'Documentos' : 'Documents'}</Label>
+                  <Label>{t.guests_view.form.documents}</Label>
                   <Button type="button" variant="outline" size="sm" onClick={() => addRelatedDocument(key, index)}>
                     <Plus weight="bold" size={14} className="mr-2" />
-                    {language === 'pt' ? 'Documento' : 'Document'}
+                    {t.guests_view.form.document_item}
                   </Button>
                 </div>
 
@@ -320,13 +320,13 @@ export default function GuestDialogForm({
                     <Input
                       value={document.type}
                       onChange={(e) => updateRelatedDocument(key, index, documentIndex, { type: e.target.value })}
-                      placeholder={language === 'pt' ? 'Tipo (CPF, RG...)' : 'Type (ID, Passport...)'}
+                      placeholder={t.guests_view.form.document_type_placeholder}
                       className="w-40 shrink-0"
                     />
                     <Input
                       value={document.number}
                       onChange={(e) => updateRelatedDocument(key, index, documentIndex, { number: e.target.value })}
-                      placeholder={language === 'pt' ? 'Número do documento' : 'Document number'}
+                      placeholder={t.guests_view.form.document_number_placeholder}
                     />
                     <Button type="button" size="icon" variant="ghost" onClick={() => removeRelatedDocument(key, index, documentIndex)}>
                       <Trash size={14} className="text-destructive" />
@@ -345,20 +345,20 @@ export default function GuestDialogForm({
               </div>
 
               <div>
-                <Label>{language === 'pt' ? 'Estado Civil' : 'Marital Status'} {t.guests_view.form.optional}</Label>
+                <Label>{t.guests_view.form.marital_status} {t.guests_view.form.optional}</Label>
                 <Input
                   value={person.maritalStatus || ''}
                   onChange={(e) => updateRelatedPerson(key, index, { maritalStatus: e.target.value })}
-                  placeholder={language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
+                  placeholder={t.guests_view.form.marital_status_placeholder}
                 />
               </div>
 
               <div className="col-span-2">
-                <Label>{language === 'pt' ? 'Profissão' : 'Profession'} {t.guests_view.form.optional}</Label>
+                <Label>{t.guests_view.form.profession} {t.guests_view.form.optional}</Label>
                 <Input
                   value={person.profession || ''}
                   onChange={(e) => updateRelatedPerson(key, index, { profession: e.target.value })}
-                  placeholder={language === 'pt' ? 'Ex.: Arquiteto(a)' : 'E.g. Architect'}
+                  placeholder={t.guests_view.form.profession_placeholder}
                 />
               </div>
 
@@ -404,7 +404,7 @@ export default function GuestDialogForm({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1">
             {editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}
-            <HelpButton content={helpContent} title="Ajuda — Formulário de Hóspede" />
+            <HelpButton content={helpContent} title="Ajuda â€” FormulÃ¡rio de HÃ³spede" />
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -444,7 +444,7 @@ export default function GuestDialogForm({
             </div>
 
             <div className="col-span-2 space-y-2">
-              <Label>{language === 'pt' ? 'Documentos' : 'Documents'}</Label>
+              <Label>{t.guests_view.form.documents}</Label>
               {formData.documents.map((doc, i) => (
                 <div key={i} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
                   <IdentificationCard size={16} className="text-muted-foreground shrink-0" />
@@ -458,13 +458,13 @@ export default function GuestDialogForm({
                 <Input
                   value={newDocType}
                   onChange={(e) => setNewDocType(e.target.value)}
-                  placeholder={language === 'pt' ? 'Tipo (CPF, RG...)' : 'Type (ID, Passport...)'}
+                  placeholder={t.guests_view.form.document_type_placeholder}
                   className="w-36 shrink-0"
                 />
                 <Input
                   value={newDocNumber}
                   onChange={(e) => setNewDocNumber(e.target.value)}
-                  placeholder={language === 'pt' ? 'Número do documento' : 'Document number'}
+                  placeholder={t.guests_view.form.document_number_placeholder}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addDocument() } }}
                 />
                 <Button type="button" variant="outline" onClick={addDocument} className="shrink-0">
@@ -484,22 +484,22 @@ export default function GuestDialogForm({
             </div>
 
             <div>
-              <Label htmlFor="guest-marital-status">{language === 'pt' ? 'Estado Civil' : 'Marital Status'} {t.guests_view.form.optional}</Label>
+              <Label htmlFor="guest-marital-status">{t.guests_view.form.marital_status} {t.guests_view.form.optional}</Label>
               <Input
                 id="guest-marital-status"
                 value={formData.maritalStatus}
                 onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value })}
-                placeholder={language === 'pt' ? 'Ex.: Solteiro(a)' : 'E.g. Single'}
+                placeholder={t.guests_view.form.marital_status_placeholder}
               />
             </div>
 
             <div className="col-span-2">
-              <Label htmlFor="guest-profession">{language === 'pt' ? 'Profissão' : 'Profession'} {t.guests_view.form.optional}</Label>
+              <Label htmlFor="guest-profession">{t.guests_view.form.profession} {t.guests_view.form.optional}</Label>
               <Input
                 id="guest-profession"
                 value={formData.profession}
                 onChange={(e) => setFormData({ ...formData, profession: e.target.value })}
-                placeholder={language === 'pt' ? 'Ex.: Arquiteto(a)' : 'E.g. Architect'}
+                placeholder={t.guests_view.form.profession_placeholder}
               />
             </div>
 
@@ -535,14 +535,14 @@ export default function GuestDialogForm({
 
             {renderRelatedPeopleSection(
               'sponsors',
-              language === 'pt' ? 'Sponsors' : 'Sponsors',
-              language === 'pt' ? 'Cadastre os patrocinadores vinculados a este hóspede.' : 'Register sponsors linked to this guest.'
+              t.guests_view.form.sponsors_title,
+              t.guests_view.form.sponsors_description
             )}
 
             {renderRelatedPeopleSection(
               'dependents',
-              language === 'pt' ? 'Dependentes' : 'Dependents',
-              language === 'pt' ? 'Cadastre os dependentes vinculados a este hóspede.' : 'Register dependents linked to this guest.'
+              t.guests_view.form.dependents_title,
+              t.guests_view.form.dependents_description
             )}
           </div>
 

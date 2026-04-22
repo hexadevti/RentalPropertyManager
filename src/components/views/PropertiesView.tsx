@@ -324,10 +324,7 @@ export default function PropertiesView() {
 
   const handleGenerateContract = (propertyId: string) => {
     if (getPropertyStatus(propertyId) !== 'available') {
-      toast.error(language === 'pt'
-        ? 'Só é possível criar contrato para propriedades disponíveis.'
-        : 'Contracts can only be created for available properties.'
-      )
+      toast.error(t.properties_view.contract_unavailable)
       return
     }
 
@@ -336,7 +333,7 @@ export default function PropertiesView() {
   }
 
   const buildDuplicatePropertyName = (baseName: string, existingNames: string[]) => {
-    const copyLabel = t.language === 'pt' ? 'Cópia' : 'Copy'
+    const copyLabel = t.properties_view.copy_label
     let candidate = `${baseName} (${copyLabel})`
     let index = 2
 
@@ -367,7 +364,7 @@ export default function PropertiesView() {
       return [...currentList, duplicatedProperty]
     })
 
-    toast.success(t.language === 'pt' ? 'Imóvel duplicado com sucesso' : 'Property duplicated successfully')
+    toast.success(t.properties_view.duplicated_success)
   }
 
   const getStatusColor = (status: PropertyStatus) => {
@@ -409,7 +406,7 @@ export default function PropertiesView() {
             variant={viewMode === 'list' ? 'default' : 'outline'}
             size="icon"
             onClick={() => setViewMode('list')}
-            title={language === 'pt' ? 'Lista' : 'List'}
+            title={t.properties_view.view_list}
           >
             <SquaresFour size={16} />
           </Button>
@@ -417,7 +414,7 @@ export default function PropertiesView() {
             variant={viewMode === 'map' ? 'default' : 'outline'}
             size="icon"
             onClick={() => setViewMode('map')}
-            title={language === 'pt' ? 'Mapa' : 'Map'}
+            title={t.properties_view.view_map}
           >
             <Compass size={16} />
           </Button>
@@ -511,32 +508,32 @@ export default function PropertiesView() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">{t.language === 'pt' ? 'Endereço' : 'Address'}</Label>
+                <Label htmlFor="address">{t.properties_view.form.address}</Label>
                 <Input
                   id="address"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder={t.language === 'pt' ? 'Digite o endereço do imóvel' : 'Enter property address'}
+                  placeholder={t.properties_view.form.address_placeholder}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="conservationState">{t.language === 'pt' ? 'Estado de conservação' : 'Conservation state'}</Label>
+                <Label htmlFor="conservationState">{t.properties_view.form.conservation_state}</Label>
                 <Input
                   id="conservationState"
                   value={formData.conservationState}
                   onChange={(e) => setFormData({ ...formData, conservationState: e.target.value })}
-                  placeholder={t.language === 'pt' ? 'Ex.: Ótimo, Bom, Regular' : 'E.g.: Excellent, Good, Fair'}
+                  placeholder={t.properties_view.form.conservation_state_placeholder}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="city">{t.language === 'pt' ? 'Cidade' : 'City'}</Label>
+                <Label htmlFor="city">{t.properties_view.form.city}</Label>
                 <Input
                   id="city"
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  placeholder={t.language === 'pt' ? 'Ex.: São Paulo' : 'E.g.: Sao Paulo'}
+                  placeholder={t.properties_view.form.city_placeholder}
                 />
               </div>
 
@@ -552,12 +549,12 @@ export default function PropertiesView() {
               </div>
 
               <div className="space-y-2">
-                <Label>{t.language === 'pt' ? 'Mobília' : 'Furniture'}</Label>
+                <Label>{t.properties_view.form.furniture}</Label>
                 <div className="flex gap-2">
                   <Input
                     value={furnitureInput}
                     onChange={(e) => setFurnitureInput(e.target.value)}
-                    placeholder={t.language === 'pt' ? 'Ex.: Cama box queen' : 'E.g.: Queen bed'}
+                    placeholder={t.properties_view.form.furniture_placeholder}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
@@ -567,8 +564,8 @@ export default function PropertiesView() {
                   />
                   <Button type="button" onClick={handleAddOrUpdateFurniture}>
                     {editingFurnitureIndex === null
-                      ? (t.language === 'pt' ? 'Adicionar' : 'Add')
-                      : (t.language === 'pt' ? 'Alterar' : 'Update')}
+                      ? t.properties_view.form.add
+                      : t.properties_view.form.update}
                   </Button>
                 </div>
                 {formData.furnitureItems.length > 0 ? (
@@ -589,18 +586,18 @@ export default function PropertiesView() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    {t.language === 'pt' ? 'Nenhum item de mobília adicionado' : 'No furniture items added'}
+                    {t.properties_view.form.furniture_empty}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label>{t.language === 'pt' ? 'Itens para vistoria' : 'Inspection items'}</Label>
+                <Label>{t.properties_view.form.inspection_items}</Label>
                 <div className="flex gap-2">
                   <Input
                     value={inspectionItemInput}
                     onChange={(e) => setInspectionItemInput(e.target.value)}
-                    placeholder={t.language === 'pt' ? 'Ex.: Interfone, Fechadura digital, Ar-condicionado' : 'E.g.: Intercom, Smart lock, Air conditioner'}
+                    placeholder={t.properties_view.form.inspection_items_placeholder}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
@@ -610,8 +607,8 @@ export default function PropertiesView() {
                   />
                   <Button type="button" onClick={handleAddOrUpdateInspectionItem}>
                     {editingInspectionItemIndex === null
-                      ? (t.language === 'pt' ? 'Adicionar' : 'Add')
-                      : (t.language === 'pt' ? 'Alterar' : 'Update')}
+                      ? t.properties_view.form.add
+                      : t.properties_view.form.update}
                   </Button>
                 </div>
                 {formData.inspectionItems.length > 0 ? (
@@ -632,7 +629,7 @@ export default function PropertiesView() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    {t.language === 'pt' ? 'Nenhum item de vistoria adicionado' : 'No inspection items added'}
+                    {t.properties_view.form.inspection_items_empty}
                   </p>
                 )}
               </div>
@@ -640,16 +637,16 @@ export default function PropertiesView() {
               {supportsEnvironments && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <Label>{t.language === 'pt' ? 'Ambientes' : 'Environments'}</Label>
+                    <Label>{t.properties_view.form.environments}</Label>
                     <Button type="button" variant="outline" size="sm" onClick={handleLoadDefaultEnvironments}>
-                      {t.language === 'pt' ? 'Carregar base' : 'Load defaults'}
+                      {t.properties_view.form.load_defaults}
                     </Button>
                   </div>
                   <div className="flex gap-2">
                     <Input
                       value={environmentInput}
                       onChange={(e) => setEnvironmentInput(e.target.value)}
-                      placeholder={t.language === 'pt' ? 'Ex.: Sala, Cozinha, Suíte, Lavanderia' : 'E.g.: Living room, Kitchen, Suite, Laundry'}
+                      placeholder={t.properties_view.form.environments_placeholder}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault()
@@ -659,8 +656,8 @@ export default function PropertiesView() {
                     />
                     <Button type="button" onClick={handleAddOrUpdateEnvironment}>
                       {editingEnvironmentIndex === null
-                        ? (t.language === 'pt' ? 'Adicionar' : 'Add')
-                        : (t.language === 'pt' ? 'Alterar' : 'Update')}
+                        ? t.properties_view.form.add
+                        : t.properties_view.form.update}
                     </Button>
                   </div>
                   {formData.environments.length > 0 ? (
@@ -681,17 +678,17 @@ export default function PropertiesView() {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      {t.language === 'pt' ? 'Nenhum ambiente cadastrado' : 'No environments added'}
+                      {t.properties_view.form.environments_empty}
                     </p>
                   )}
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label>{t.language === 'pt' ? 'Proprietários' : 'Owners'}</Label>
+                <Label>{t.properties_view.form.owners}</Label>
                 {(!owners || owners.length === 0) ? (
                   <p className="text-sm text-muted-foreground">
-                    {t.language === 'pt' ? 'Nenhum proprietário cadastrado' : 'No owners registered'}
+                    {t.properties_view.form.owners_empty}
                   </p>
                 ) : (
                   <div className="border rounded-lg p-4 space-y-3 max-h-48 overflow-y-auto">
@@ -797,7 +794,7 @@ export default function PropertiesView() {
                       onClick={() => { setFocusPropertyId(property.id); setViewMode('map') }}
                     >
                       <Compass size={14} />
-                      {language === 'pt' ? 'Mostrar no mapa' : 'Show on map'}
+                      {t.properties_view.show_on_map}
                     </Button>
                   )}
                   {currentStatus === 'available' && (
@@ -823,7 +820,7 @@ export default function PropertiesView() {
                       onClick={() => handleDuplicateProperty(property)}
                     >
                       <Plus size={14} />
-                      {t.language === 'pt' ? 'Duplicar' : 'Duplicate'}
+                      {t.properties_view.duplicate}
                     </Button>
                     <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(property)}>
                       <Trash size={14} />

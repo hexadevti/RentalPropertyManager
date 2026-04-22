@@ -11,6 +11,12 @@ export function parseDateInputValue(input: string, pattern: DateFormatPattern): 
     return isValid(parsedIso) ? parsedIso : null
   }
 
+  // Full ISO datetime string (e.g. from Supabase: "2026-04-21T23:17:15.221113+00")
+  if (/^\d{4}-\d{2}-\d{2}T/.test(text)) {
+    const parsedIso = parseISO(text)
+    return isValid(parsedIso) ? parsedIso : null
+  }
+
   const parsed = parse(text, pattern, new Date())
   if (!isValid(parsed)) return null
 
@@ -30,4 +36,13 @@ export function formatDateValue(date: Date | string, pattern: DateFormatPattern)
   }
 
   return format(parsedDate, pattern)
+}
+
+export function formatDateTimeValue(date: Date | string, pattern: DateFormatPattern): string {
+  const parsedDate = typeof date === 'string' ? parseDateInputValue(date, pattern) : date
+  if (!parsedDate || !isValid(parsedDate)) {
+    return ''
+  }
+
+  return format(parsedDate, `${pattern} HH:mm`)
 }

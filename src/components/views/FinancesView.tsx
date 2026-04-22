@@ -263,6 +263,7 @@ export default function FinancesView() {
   }
 
   const handleDelete = (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return
     setTransactions((current) => (current || []).filter(t => t.id !== id))
     toast.success(t.finances_view.deleted_success)
   }
@@ -476,24 +477,24 @@ export default function FinancesView() {
                     size={16}
                     className={`transition-transform ${filtersOpen ? 'rotate-0' : '-rotate-90'}`}
                   />
-                  {language === 'pt' ? 'Filtros' : 'Filters'}
+                  {t.finances_view.filters}
                 </Button>
               </CollapsibleTrigger>
               <Button variant="outline" size="sm" onClick={clearFilters}>
-                {language === 'pt' ? 'Limpar filtros' : 'Clear filters'}
+                {t.finances_view.clear_filters}
               </Button>
             </div>
           </CardHeader>
           <CollapsibleContent>
             <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Mês' : 'Month'}</Label>
+            <Label>{t.finances_view.month}</Label>
             <Select value={monthFilter} onValueChange={setMonthFilter}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todos os meses' : 'All months'}</SelectItem>
+                <SelectItem value="all">{t.finances_view.all_months}</SelectItem>
                 {monthOptions.map((month) => (
                   <SelectItem key={month} value={month}>
                     {format(parseISO(`${month}-01`), 'MMMM yyyy', { locale })}
@@ -504,23 +505,23 @@ export default function FinancesView() {
           </div>
 
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Período inicial' : 'Start date'}</Label>
+            <Label>{t.finances_view.start_date}</Label>
             <DateInput value={startDateFilter} onChange={setStartDateFilter} />
           </div>
 
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Período final' : 'End date'}</Label>
+            <Label>{t.finances_view.end_date}</Label>
             <DateInput value={endDateFilter} onChange={setEndDateFilter} />
           </div>
 
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Contrato' : 'Contract'}</Label>
+            <Label>{t.finances_view.contract_filter}</Label>
             <Select value={contractFilter} onValueChange={setContractFilter}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todos os contratos' : 'All contracts'}</SelectItem>
+                <SelectItem value="all">{t.finances_view.all_contracts}</SelectItem>
                 {(contracts || []).map((contract) => (
                   <SelectItem key={contract.id} value={contract.id}>
                     {getContractSelectionLabel(contract, properties || [])}
@@ -531,13 +532,13 @@ export default function FinancesView() {
           </div>
 
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Hóspede' : 'Guest'}</Label>
+            <Label>{t.finances_view.guest_filter}</Label>
             <Select value={guestFilter} onValueChange={setGuestFilter}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todos os hóspedes' : 'All guests'}</SelectItem>
+                <SelectItem value="all">{t.finances_view.all_guests}</SelectItem>
                 {(guests || []).map((guest) => (
                   <SelectItem key={guest.id} value={guest.id}>
                     {guest.name}
@@ -548,13 +549,13 @@ export default function FinancesView() {
           </div>
 
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Categoria' : 'Category'}</Label>
+            <Label>{t.finances_view.category_filter}</Label>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todas as categorias' : 'All categories'}</SelectItem>
+                <SelectItem value="all">{t.finances_view.all_categories}</SelectItem>
                 {categoryOptions.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
@@ -565,13 +566,13 @@ export default function FinancesView() {
           </div>
 
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Prestador de serviço' : 'Service provider'}</Label>
+            <Label>{t.finances_view.service_provider_filter}</Label>
             <Select value={serviceProviderFilter} onValueChange={setServiceProviderFilter}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todos os prestadores' : 'All providers'}</SelectItem>
+                <SelectItem value="all">{t.finances_view.all_providers}</SelectItem>
                 {(serviceProviders || []).map((provider) => (
                   <SelectItem key={provider.id} value={provider.id}>
                     {provider.name} - {provider.service}
@@ -582,13 +583,13 @@ export default function FinancesView() {
           </div>
 
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Proprietário' : 'Owner'}</Label>
+            <Label>{t.finances_view.owner_filter}</Label>
             <Select value={ownerFilter} onValueChange={setOwnerFilter}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todos os proprietários' : 'All owners'}</SelectItem>
+                <SelectItem value="all">{t.finances_view.all_owners}</SelectItem>
                 {(owners || []).map((owner) => (
                   <SelectItem key={owner.id} value={owner.id}>
                     {owner.name}
@@ -599,13 +600,13 @@ export default function FinancesView() {
           </div>
 
           <div className="space-y-2">
-            <Label>{language === 'pt' ? 'Propriedade' : 'Property'}</Label>
+            <Label>{t.finances_view.property_filter}</Label>
             <Select value={propertyFilter} onValueChange={setPropertyFilter}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{language === 'pt' ? 'Todas as propriedades' : 'All properties'}</SelectItem>
+                <SelectItem value="all">{t.finances_view.all_properties}</SelectItem>
                 {(properties || []).map((property) => (
                   <SelectItem key={property.id} value={property.id}>
                     {property.name}
@@ -674,16 +675,10 @@ export default function FinancesView() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <CalendarBlank weight="duotone" size={64} className="text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
-              {language === 'pt' ? 'Nenhuma transação encontrada' : 'No transactions found'}
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              {language === 'pt'
-                ? 'Ajuste ou limpe os filtros para ver o fluxo de caixa.'
-                : 'Adjust or clear the filters to see the cash flow.'}
-            </p>
+            <h3 className="text-lg font-semibold mb-2">{t.finances_view.no_results}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{t.finances_view.no_results_hint}</p>
             <Button variant="outline" onClick={clearFilters}>
-              {language === 'pt' ? 'Limpar filtros' : 'Clear filters'}
+              {t.finances_view.clear_filters}
             </Button>
           </CardContent>
         </Card>

@@ -37,3 +37,14 @@ export function useLanguage() {
   }
   return context
 }
+
+export function useLanguageOptional(): LanguageContextType {
+  const context = useContext(LanguageContext)
+  if (context) return context
+
+  return {
+    language: 'pt',
+    setLanguage: () => {},
+    t: translations.pt,
+  }
+}

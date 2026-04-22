@@ -10,19 +10,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
+import { useLanguageOptional } from '@/lib/LanguageContext'
 import type { BugReport, BugReportAttachment, BugReportStatus } from '@/types'
 import { BugAttachmentPreview } from '@/components/BugAttachmentPreview'
 
 type TenantOption = {
   id: string
   name: string
-}
-
-const statusLabels: Record<BugReportStatus, string> = {
-  open: 'Aberto',
-  'in-review': 'Em análise',
-  resolved: 'Resolvido',
-  dismissed: 'Descartado',
 }
 
 function statusClass(status: BugReportStatus) {
@@ -66,6 +60,7 @@ function mapAttachment(row: any): BugReportAttachment {
 }
 
 export default function BugReportsView() {
+  const { t } = useLanguageOptional()
   const [reports, setReports] = useState<BugReport[]>([])
   const [attachments, setAttachments] = useState<BugReportAttachment[]>([])
   const [tenants, setTenants] = useState<TenantOption[]>([])
@@ -74,6 +69,13 @@ export default function BugReportsView() {
   const [isLoading, setIsLoading] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({})
+
+  const statusLabels: Record<BugReportStatus, string> = {
+    open: t.bug_reports_view.status.open,
+    'in-review': t.bug_reports_view.status.in_review,
+    resolved: t.bug_reports_view.status.resolved,
+    dismissed: t.bug_reports_view.status.dismissed,
+  }
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -92,7 +94,7 @@ export default function BugReportsView() {
     ])
 
     if (bugError) {
-      toast.error(bugError.message || 'Falha ao carregar bugs.')
+      toast.error(bugError.message || t.bug_reports_view.load_error)
       setReports([])
       setAttachments([])
       setIsLoading(false)
@@ -173,7 +175,7 @@ export default function BugReportsView() {
     setSavingId(null)
 
     if (error) {
-      toast.error(error.message || 'Falha ao atualizar bug.')
+      toast.error(error.message || t.bug_reports_view.update_error)
       return
     }
 
@@ -182,21 +184,21 @@ export default function BugReportsView() {
         ? { ...item, status, resolutionNotes: resolutionNotes || undefined, updatedAt: new Date().toISOString() }
         : item
     )))
-    toast.success('Bug atualizado.')
+    toast.success(t.bug_reports_view.updated_success)
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Bug reports</h2>
+          <h2 className="text-3xl font-bold tracking-tight">{t.bug_reports_view.title}</h2>
           <p className="text-muted-foreground mt-1">
-            Acompanhe reports enviados pelos usuários e controle o status de atuação.
+            {t.bug_reports_view.subtitle}
           </p>
         </div>
         <Button variant="outline" onClick={() => void loadData()} disabled={isLoading} className="gap-2">
           <ArrowsClockwise size={16} />
-          {isLoading ? 'Atualizando...' : 'Atualizar'}
+          {isLoading ? t.bug_reports_view.refreshing : t.common.refresh}
         </Button>
       </div>
 
@@ -204,15 +206,15 @@ export default function BugReportsView() {
         <Input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por usuário, tenant, tela, registro ou descrição..."
+          placeholder={t.bug_reports_view.search_placeholder}
         />
         <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as BugReportStatus | 'active' | 'all')}>
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os status</SelectItem>
-            <SelectItem value="active">Aberto e em análise</SelectItem>
+            <SelectItem value="all">{t.bug_reports_view.filter_all_status}</SelectItem>
+            <SelectItem value="active">{t.bug_reports_view.filter_active}</SelectItem>
             {Object.entries(statusLabels).map(([value, label]) => (
               <SelectItem key={value} value={value}>{label}</SelectItem>
             ))}
@@ -224,8 +226,8 @@ export default function BugReportsView() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Bug size={64} weight="duotone" className="text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum bug encontrado</h3>
-            <p className="text-sm text-muted-foreground">Os reports enviados aparecerão aqui.</p>
+            <h3 className="text-lg font-semibold mb-2">{t.bug_reports_view.no_results}</h3>
+            <p className="text-sm text-muted-foreground">{t.bug_reports_view.no_results_hint}</p>
           </CardContent>
         </Card>
       ) : (
@@ -247,7 +249,7 @@ export default function BugReportsView() {
                       <CardDescription className="mt-2">
                         {report.reporterLogin} {report.reporterEmail ? `- ${report.reporterEmail}` : ''}
                         {' | '}
-                        {report.tenantId ? tenantNameById.get(report.tenantId) || report.tenantId : 'Sem tenant'}
+                        {report.tenantId ? tenantNameById.get(report.tenantId) || report.tenantId : t.bug_reports_view.no_tenant}
                         {' | '}
                         {format(new Date(report.createdAt), 'dd/MM/yyyy HH:mm')}
                       </CardDescription>
@@ -273,7 +275,7 @@ export default function BugReportsView() {
                 <CardContent className="space-y-4">
                   {report.recordLabel && (
                     <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-                      <strong>Registro:</strong> {report.recordLabel}
+                      <strong>{t.bug_reports_view.record_label}:</strong> {report.recordLabel}
                     </div>
                   )}
 
@@ -282,12 +284,12 @@ export default function BugReportsView() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Notas de atuação</Label>
+                    <Label>{t.bug_reports_view.notes_label}</Label>
                     <Textarea
                       value={notesDraft[report.id] || ''}
                       onChange={(event) => setNotesDraft((current) => ({ ...current, [report.id]: event.target.value }))}
                       rows={3}
-                      placeholder="Registre análise, decisão ou solução aplicada."
+                      placeholder={t.bug_reports_view.notes_placeholder}
                     />
                     <Button
                       variant="outline"
@@ -295,13 +297,13 @@ export default function BugReportsView() {
                       disabled={savingId === report.id}
                       onClick={() => void updateReport(report, report.status)}
                     >
-                      Salvar notas
+                      {t.bug_reports_view.save_notes}
                     </Button>
                   </div>
 
                   {reportAttachments.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Anexos</p>
+                      <p className="text-sm font-medium">{t.bug_reports_view.attachments}</p>
                       <div className="grid gap-3 md:grid-cols-2">
                         {reportAttachments.map((attachment) => (
                           <BugAttachmentPreview key={attachment.id} attachment={attachment} />

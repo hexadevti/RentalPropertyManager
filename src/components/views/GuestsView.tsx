@@ -15,7 +15,7 @@ import helpContent from '@/docs/guests.md?raw'
 import { HelpButton } from '@/components/HelpButton'
 
 export default function GuestsView() {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const { formatPhone } = usePhoneFormat()
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
@@ -33,6 +33,7 @@ export default function GuestsView() {
   }
 
   const handleDelete = (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return
     setGuests((currentGuests) => (currentGuests || []).filter(g => g.id !== id))
     toast.success(t.guests_view.deleted_success)
   }
@@ -130,7 +131,7 @@ export default function GuestsView() {
                           {((guest.sponsors?.length || 0) > 0 || (guest.dependents?.length || 0) > 0) && (
                             <div className="flex items-center gap-1.5">
                               <Users size={16} weight="duotone" />
-                              {`${guest.sponsors?.length || 0} ${language === 'pt' ? 'sponsors' : 'sponsors'} • ${guest.dependents?.length || 0} ${language === 'pt' ? 'dependentes' : 'dependents'}`}
+                              {`${guest.sponsors?.length || 0} ${t.guests_view.sponsors} • ${guest.dependents?.length || 0} ${t.guests_view.dependents}`}
                             </div>
                           )}
                           {(guest.documents || []).length > 0 && (
@@ -164,12 +165,12 @@ export default function GuestsView() {
                   {(guest.sponsors?.length || 0) > 0 && (
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-foreground">
-                        {language === 'pt' ? 'Sponsors' : 'Sponsors'}
+                        {t.guests_view.sponsors}
                       </p>
                       <div className="grid gap-2">
                         {(guest.sponsors || []).map((sponsor) => (
                           <div key={sponsor.id} className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
-                            <div className="font-medium">{sponsor.name || (language === 'pt' ? 'Sem nome' : 'Unnamed')}</div>
+                            <div className="font-medium">{sponsor.name || t.guests_view.unnamed}</div>
                             <div className="text-muted-foreground">
                               {[sponsor.email, sponsor.phone ? formatPhone(sponsor.phone) : ''].filter(Boolean).join(' • ')}
                             </div>
@@ -182,12 +183,12 @@ export default function GuestsView() {
                   {(guest.dependents?.length || 0) > 0 && (
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-foreground">
-                        {language === 'pt' ? 'Dependentes' : 'Dependents'}
+                        {t.guests_view.dependents}
                       </p>
                       <div className="grid gap-2">
                         {(guest.dependents || []).map((dependent) => (
                           <div key={dependent.id} className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
-                            <div className="font-medium">{dependent.name || (language === 'pt' ? 'Sem nome' : 'Unnamed')}</div>
+                            <div className="font-medium">{dependent.name || t.guests_view.unnamed}</div>
                             <div className="text-muted-foreground">
                               {[dependent.email, dependent.phone ? formatPhone(dependent.phone) : ''].filter(Boolean).join(' • ')}
                             </div>

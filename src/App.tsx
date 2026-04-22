@@ -9,6 +9,7 @@ import GuestsView from './components/views/GuestsView'
 import ContractsView from './components/views/ContractsView'
 import DocumentsView from './components/views/DocumentsView'
 import ContractTemplatesView from './components/views/ContractTemplatesView'
+import NotificationsView from './components/views/NotificationsView'
 import ServiceProvidersView from './components/views/ServiceProvidersView'
 import AppointmentsView from './components/views/AppointmentsView'
 import OwnersView from './components/views/OwnersView'
@@ -26,6 +27,7 @@ import { NumberFormatProvider } from '@/lib/NumberFormatContext'
 import { PhoneFormatProvider } from '@/lib/PhoneFormatContext'
 import { DateFormatProvider } from '@/lib/DateFormatContext'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
+import { ThemeProvider } from '@/components/ThemeProvider'
 import { UserInfo } from '@/components/UserInfo'
 import { Login } from '@/components/Login'
 import { HomePage } from '@/components/HomePage'
@@ -36,6 +38,7 @@ import { usePropertyMigration } from '@/hooks/use-property-migration'
 import { useUserPresence } from '@/hooks/use-user-presence'
 import { AppSidebar } from '@/components/AppSidebar'
 import { BugReportDialog } from '@/components/BugReportDialog'
+import { useTheme } from 'next-themes'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -48,6 +51,7 @@ type TenantOption = {
 function AppContent() {
   const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
+  const { resolvedTheme } = useTheme()
   const {
     isApproved,
     isPending,
@@ -82,6 +86,7 @@ function AppContent() {
     'ai-assistant': t.tabs['ai-assistant'],
     inspections: t.tabs.inspections,
     templates: t.tabs.templates,
+    notifications: t.tabs.notifications,
     providers: t.tabs.providers,
     appointments: t.tabs.appointments,
     'bug-reports': t.tabs['bug-reports'],
@@ -161,7 +166,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div id="spark-app" className={`min-h-screen bg-background ${resolvedTheme === 'dark' ? 'dark-theme' : ''}`}>
       <Toaster />
       
       <AppSidebar
@@ -254,6 +259,7 @@ function AppContent() {
           {activeTab === 'ai-assistant' && isAdmin && <AiAssistantView />}
           {activeTab === 'inspections' && isAdmin && <InspectionsView />}
           {activeTab === 'templates' && isAdmin && <ContractTemplatesView />}
+          {activeTab === 'notifications' && isAdmin && <NotificationsView />}
           {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}
           {activeTab === 'appointments' && <AppointmentsView />}
           {activeTab === 'my-bug-reports' && isAdmin && !isPlatformAdmin && <MyBugReportsView />}
@@ -269,17 +275,19 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <LanguageProvider>
-        <CurrencyProvider>
-          <NumberFormatProvider>
-            <PhoneFormatProvider>
-              <DateFormatProvider>
-                <AppContent />
-              </DateFormatProvider>
-            </PhoneFormatProvider>
-          </NumberFormatProvider>
-        </CurrencyProvider>
-      </LanguageProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <CurrencyProvider>
+            <NumberFormatProvider>
+              <PhoneFormatProvider>
+                <DateFormatProvider>
+                  <AppContent />
+                </DateFormatProvider>
+              </PhoneFormatProvider>
+            </NumberFormatProvider>
+          </CurrencyProvider>
+        </LanguageProvider>
+      </ThemeProvider>
     </AuthProvider>
   )
 }

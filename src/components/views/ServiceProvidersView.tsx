@@ -69,7 +69,7 @@ export default function ServiceProvidersView() {
             : p
         )
       )
-      toast.success('Prestador atualizado com sucesso')
+      toast.success(t.service_providers_view.updated_success)
     } else {
       const newProvider: ServiceProvider = {
         ...formData,
@@ -77,7 +77,7 @@ export default function ServiceProvidersView() {
         createdAt: new Date().toISOString(),
       }
       setProviders((currentProviders) => [...(currentProviders || []), newProvider])
-      toast.success('Prestador cadastrado com sucesso')
+      toast.success(t.service_providers_view.created_success)
     }
     
     setDialogOpen(false)
@@ -99,8 +99,9 @@ export default function ServiceProvidersView() {
   }
 
   const handleDelete = (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return
     setProviders((currentProviders) => (currentProviders || []).filter(p => p.id !== id))
-    toast.success('Prestador removido com sucesso')
+    toast.success(t.service_providers_view.deleted_success)
   }
 
   const filteredProviders = (providers || []).filter(provider =>
@@ -120,8 +121,8 @@ export default function ServiceProvidersView() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-1">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">Prestadores de Serviço</h2>
-            <HelpButton content={helpContent} title="Ajuda — Prestadores de Serviço" />
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.service_providers_view.title}</h2>
+            <HelpButton content={helpContent} title={t.service_providers_view.help_title} />
           </div>
         </div>
         <div className="flex gap-2">
@@ -136,89 +137,89 @@ export default function ServiceProvidersView() {
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <Plus weight="bold" />
-                Adicionar Prestador
+                {t.service_providers_view.add_provider}
               </Button>
             </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
-                {editingProvider ? 'Editar Prestador' : 'Novo Prestador'}
-                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Prestador" />
+                {editingProvider ? t.service_providers_view.form.title_edit : t.service_providers_view.form.title_new}
+                <HelpButton content={formHelpContent} title={t.service_providers_view.form.help_title} />
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <Label htmlFor="provider-name">Nome *</Label>
+                  <Label htmlFor="provider-name">{t.service_providers_view.form.name_required}</Label>
                   <Input
                     id="provider-name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Nome do prestador"
+                    placeholder={t.service_providers_view.form.name_placeholder}
                     required
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <Label htmlFor="provider-service">Serviço Prestado *</Label>
+                  <Label htmlFor="provider-service">{t.service_providers_view.form.service_required}</Label>
                   <Input
                     id="provider-service"
                     value={formData.service}
                     onChange={(e) => setFormData({ ...formData, service: e.target.value })}
-                    placeholder="Ex: Encanador, Eletricista, Limpeza"
+                    placeholder={t.service_providers_view.form.service_placeholder}
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="provider-phone">Telefone *</Label>
+                  <Label htmlFor="provider-phone">{t.service_providers_view.form.phone_required}</Label>
                   <PhoneInput
                     id="provider-phone"
                     value={formData.phone}
                     onValueChange={(value) => setFormData({ ...formData, phone: value })}
-                    placeholder="(00) 00000-0000"
+                    placeholder={t.service_providers_view.form.phone_placeholder}
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="provider-email">E-mail (opcional)</Label>
+                  <Label htmlFor="provider-email">{t.service_providers_view.form.email_optional}</Label>
                   <Input
                     id="provider-email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="email@exemplo.com"
+                    placeholder={t.service_providers_view.form.email_placeholder}
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="provider-document">CPF/CNPJ (opcional)</Label>
+                  <Label htmlFor="provider-document">{t.service_providers_view.form.document_optional}</Label>
                   <Input
                     id="provider-document"
                     value={formData.document}
                     onChange={(e) => setFormData({ ...formData, document: e.target.value })}
-                    placeholder="000.000.000-00"
+                    placeholder={t.service_providers_view.form.document_placeholder}
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <Label htmlFor="provider-address">Endereço (opcional)</Label>
+                  <Label htmlFor="provider-address">{t.service_providers_view.form.address_optional}</Label>
                   <Input
                     id="provider-address"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="Endereço completo"
+                    placeholder={t.service_providers_view.form.address_placeholder}
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <Label htmlFor="provider-notes">Observações (opcional)</Label>
+                  <Label htmlFor="provider-notes">{t.service_providers_view.form.notes_optional}</Label>
                   <Textarea
                     id="provider-notes"
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Informações adicionais sobre o prestador"
+                    placeholder={t.service_providers_view.form.notes_placeholder}
                     rows={3}
                   />
                 </div>
@@ -229,9 +230,9 @@ export default function ServiceProvidersView() {
                   setDialogOpen(false)
                   resetForm()
                 }}>
-                  Cancelar
+                  {t.service_providers_view.form.cancel}
                 </Button>
-                <Button type="submit">Salvar</Button>
+                <Button type="submit">{t.service_providers_view.form.save}</Button>
               </div>
             </form>
           </DialogContent>
@@ -242,7 +243,7 @@ export default function ServiceProvidersView() {
       <div className="relative">
         <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
         <Input
-          placeholder="Buscar por nome, serviço, telefone ou e-mail..."
+          placeholder={t.service_providers_view.search_placeholder}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -254,11 +255,11 @@ export default function ServiceProvidersView() {
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Wrench size={64} weight="duotone" className="text-muted-foreground mb-4" />
             <h3 className="text-xl font-semibold text-foreground mb-2">
-              {searchQuery ? 'Nenhum prestador encontrado' : 'Nenhum prestador cadastrado'}
+              {searchQuery ? t.service_providers_view.no_results : t.service_providers_view.no_providers}
             </h3>
             {!searchQuery && (
               <p className="text-muted-foreground text-center max-w-md">
-                Comece adicionando seu primeiro prestador de serviço
+                {t.service_providers_view.add_first}
               </p>
             )}
           </CardContent>
@@ -316,19 +317,19 @@ export default function ServiceProvidersView() {
                   <div className="space-y-2">
                     {provider.document && (
                       <div className="text-sm">
-                        <span className="font-medium text-foreground">CPF/CNPJ:</span>{' '}
+                        <span className="font-medium text-foreground">{t.service_providers_view.document_label}:</span>{' '}
                         <span className="text-muted-foreground">{provider.document}</span>
                       </div>
                     )}
                     {provider.address && (
                       <div className="text-sm">
-                        <span className="font-medium text-foreground">Endereço:</span>{' '}
+                        <span className="font-medium text-foreground">{t.service_providers_view.address_label}:</span>{' '}
                         <span className="text-muted-foreground">{provider.address}</span>
                       </div>
                     )}
                     {provider.notes && (
                       <div className="text-sm">
-                        <span className="font-medium text-foreground">Observações:</span>{' '}
+                        <span className="font-medium text-foreground">{t.service_providers_view.notes_label}:</span>{' '}
                         <span className="text-muted-foreground italic">{provider.notes}</span>
                       </div>
                     )}

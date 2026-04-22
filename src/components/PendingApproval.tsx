@@ -8,11 +8,10 @@ import { useState } from 'react'
 
 export function PendingApproval() {
   const { currentUser, signOut } = useAuth()
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const [isSigningOut, setIsSigningOut] = useState(false)
   const login = currentUser?.login || 'user'
   const initials = login.slice(0, 2).toUpperCase()
-  const isPortuguese = language === 'pt'
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -93,8 +92,8 @@ export function PendingApproval() {
               >
                 <SignOut size={16} />
                 {isSigningOut
-                  ? (isPortuguese ? 'Saindo...' : 'Signing out...')
-                  : (isPortuguese ? 'Sair da conta' : 'Sign out')}
+                  ? t.pendingApproval.signing_out
+                  : t.pendingApproval.sign_out}
               </Button>
             </div>
           </div>

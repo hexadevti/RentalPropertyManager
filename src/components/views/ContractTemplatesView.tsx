@@ -176,6 +176,7 @@ export default function ContractTemplatesView() {
   }
 
   const handleDelete = (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return
     setTemplates((currentTemplates) => (currentTemplates || []).filter((t) => t.id !== id))
     toast.success('Template excluído com sucesso')
   }
@@ -521,7 +522,7 @@ export default function ContractTemplatesView() {
                     </DialogHeader>
                     <div className="space-y-3 px-6 pb-6 overflow-y-auto max-h-[calc(85vh-76px)]">
                       <div className="rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
-                        {'Os templates agora aceitam XPath baseado nos objetos do contrato no formato: tabela{indice}.coluna{indice}.subcoluna. Exemplo: owners{1}.documents{1}.number.'}
+                        {'Use tokens no formato {{xpath}}. O caminho segue a estrutura tabela{indice}.coluna{indice}.subcoluna, com índices começando em 1. Exemplo: {{owners{1}.documents{1}.number}}. Para não inventar variáveis, use a lista abaixo como fonte de verdade dos caminhos disponíveis no contrato selecionado.'}
                       </div>
 
                       <div className="grid gap-3 rounded-md border p-3">
@@ -557,7 +558,7 @@ export default function ContractTemplatesView() {
                       </div>
 
                       <div className="rounded-md border p-3">
-                        <p className="text-sm font-medium mb-2">Tabelas e propriedades com valores do contrato selecionado</p>
+                        <p className="text-sm font-medium mb-2">Caminhos e valores do contrato selecionado</p>
                         <div className="relative mb-3">
                           <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                           <Input

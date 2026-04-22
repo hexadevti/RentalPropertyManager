@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import helpContent from '@/docs/form-contract.md?raw'
 import { HelpButton } from '@/components/HelpButton'
@@ -168,7 +168,7 @@ export default function ContractDialogForm({
 
   const refreshGuestList = () => {
     setGuestSelectKey(prev => prev + 1)
-    toast.success(t.contracts_view.form.guests_refreshed || 'Lista de hóspedes atualizada')
+    toast.success(t.contracts_view.form.guests_refreshed)
   }
 
   const getMatchingTemplates = (rentalType: RentalType) => {
@@ -188,7 +188,7 @@ export default function ContractDialogForm({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1">
             {editingContract ? t.contracts_view.form.title_edit : t.contracts_view.form.title_new}
-            <HelpButton content={helpContent} title="Ajuda — Formulário de Contrato" />
+            <HelpButton content={helpContent} title="Ajuda â€” FormulÃ¡rio de Contrato" />
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -311,7 +311,7 @@ export default function ContractDialogForm({
             </div>
 
             <div>
-              <Label htmlFor="contract-close-date">{t.language === 'pt' ? 'Data de fechamento do contrato' : 'Contract close date'} {t.contracts_view.form.optional}</Label>
+              <Label htmlFor="contract-close-date">{t.contracts_view.form.close_date} {t.contracts_view.form.optional}</Label>
               <DateInput
                 id="contract-close-date"
                 value={formData.closeDate}
@@ -333,13 +333,13 @@ export default function ContractDialogForm({
 
             <div className="col-span-2">
               <Label htmlFor="contract-special-payment">
-                {t.language === 'pt' ? 'Condição especial de pagamento' : 'Special payment condition'} {t.contracts_view.form.optional}
+                {t.contracts_view.form.special_payment_condition} {t.contracts_view.form.optional}
               </Label>
               <Textarea
                 id="contract-special-payment"
                 value={formData.specialPaymentCondition}
                 onChange={(e) => setFormData({ ...formData, specialPaymentCondition: e.target.value })}
-                placeholder={t.language === 'pt' ? 'Ex.: 50% na assinatura e 50% em 15 dias' : 'E.g.: 50% on signing and 50% in 15 days'}
+                placeholder={t.contracts_view.form.special_payment_placeholder}
                 rows={2}
               />
             </div>
@@ -356,18 +356,18 @@ export default function ContractDialogForm({
             </div>
 
             <div className="col-span-2">
-              <Label htmlFor="contract-template">{t.language === 'pt' ? 'Template de Contrato' : 'Contract Template'} {t.contracts_view.form.optional}</Label>
+              <Label htmlFor="contract-template">{t.contracts_view.form.template} {t.contracts_view.form.optional}</Label>
               <Select
                 value={formData.templateId}
                 onValueChange={(value) => setFormData({ ...formData, templateId: value })}
               >
                 <SelectTrigger id="contract-template">
-                  <SelectValue placeholder={t.language === 'pt' ? 'Selecione um template' : 'Select a template'} />
+                  <SelectValue placeholder={t.contracts_view.form.select_template} />
                 </SelectTrigger>
                 <SelectContent>
                   {getMatchingTemplates(formData.rentalType).length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      {t.language === 'pt' ? 'Nenhum template disponível' : 'No templates available'}
+                      {t.contracts_view.form.no_templates_available}
                     </div>
                   ) : (
                     getMatchingTemplates(formData.rentalType).map(template => (

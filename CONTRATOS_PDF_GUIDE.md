@@ -43,7 +43,7 @@ Este sistema permite gerenciar templates de contratos e gerar PDFs personalizado
 4. Salve o contrato
 
 ### Passo 3: Gerar PDF
-1. Na lista de contratos, clique no ícone de PDF (📄)
+1. Na lista de contratos, clique no ícone de PDF
 2. Selecione o template que deseja usar
 3. Escolha entre:
    - **Visualizar**: Abre o PDF em uma nova aba para revisão
@@ -51,23 +51,64 @@ Este sistema permite gerenciar templates de contratos e gerar PDFs personalizado
 
 ## Variáveis Disponíveis
 
-Use estas variáveis em seus templates para inserir dados dinâmicos:
+Os templates não usam uma lista fixa de variáveis como `{{guestName}}`. O sistema aceita tokens no formato `{{xpath}}`, seguindo a mesma lógica do botão **"Variáveis disponíveis no template"** no formulário.
 
-| Variável | Descrição |
-|----------|-----------|
-| `{{guestName}}` | Nome do hóspede |
-| `{{guestEmail}}` | Email do hóspede |
-| `{{guestPhone}}` | Telefone do hóspede |
-| `{{guestDocument}}` | CPF do hóspede |
-| `{{guestAddress}}` | Endereço do hóspede |
-| `{{guestNationality}}` | Nacionalidade do hóspede |
-| `{{properties}}` | Lista dos imóveis do contrato |
-| `{{startDate}}` | Data de início (formato DD/MM/YYYY) |
-| `{{endDate}}` | Data de término (formato DD/MM/YYYY) |
-| `{{monthlyAmount}}` | Valor mensal formatado com moeda |
-| `{{paymentDueDay}}` | Dia do vencimento |
-| `{{notes}}` | Observações do contrato |
-| `{{currentDate}}` | Data atual (formato DD/MM/YYYY) |
+### Formato do token
+
+- Use sempre `{{seu_xpath}}`
+- O caminho segue a estrutura `tabela{indice}.coluna{indice}.subcoluna`
+- Exemplo: `{{owners{1}.documents{1}.number}}`
+
+### Fontes de dados disponíveis
+
+Os caminhos partem dos objetos carregados para o contrato selecionado:
+
+- `contract`
+- `guest`
+- `properties`
+- `owners`
+- `template`
+- `currentDate`
+
+### Como escrever o caminho
+
+1. Comece pelo objeto raiz, como `contract` ou `guest`
+2. Acesse propriedades com `.`
+3. Para listas, use índice entre chaves, começando em `1`
+4. Para trazer todos os itens de uma lista, use `{x}`
+
+### Exemplos válidos
+
+- `{{guest.name}}`
+- `{{guest.email}}`
+- `{{guest.documents{1}.number}}`
+- `{{contract.startDate}}`
+- `{{contract.endDate}}`
+- `{{contract.monthlyAmount}}`
+- `{{properties{1}.name}}`
+- `{{properties{1}.address}}`
+- `{{owners{1}.name}}`
+- `{{owners{x}.name}}`
+- `{{owners{x}.documents{1}.number}}`
+- `{{currentDate}}`
+
+### Regras importantes
+
+- Os índices são baseados em `1`, não em `0`
+- Se usar `{x}` em uma lista, o sistema retorna todos os valores encontrados em linhas separadas
+- Datas e valores numéricos podem ser formatados automaticamente na geração do PDF
+- Se o caminho não existir, o PDF mostra uma mensagem de erro de XPath ou índice inexistente
+
+### Recomendação de uso
+
+Para descobrir os caminhos corretos, use o botão **"Variáveis disponíveis no template"** dentro do editor:
+
+1. Selecione um contrato de referência
+2. Consulte a lista de caminhos e valores exibidos
+3. Clique em um caminho para testar
+4. Insira o token pronto no template
+
+Essa é a fonte de verdade para saber quais caminhos estão disponíveis em cada contrato.
 
 ## Dicas
 
