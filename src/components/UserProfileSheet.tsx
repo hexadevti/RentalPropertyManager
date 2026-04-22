@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { useTheme } from 'next-themes'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -8,11 +10,11 @@ import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency, currencies, Currency } from '@/lib/CurrencyContext'
-import { DecimalSeparator, useNumberFormat } from '@/lib/NumberFormatContext'
+import { useNumberFormat } from '@/lib/NumberFormatContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 import { useDateFormat, dateFormats, DateFormat } from '@/lib/DateFormatContext'
-import { SignOut, Globe, CurrencyCircleDollar, CalendarBlank, IdentificationCard, EnvelopeSimple, User } from '@phosphor-icons/react'
-import { useState } from 'react'
+import type { DecimalSeparator } from '@/lib/numberFormat'
+import { SignOut, Globe, CurrencyCircleDollar, CalendarBlank, IdentificationCard, EnvelopeSimple, MoonStars } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 interface UserProfileSheetProps {
@@ -22,17 +24,18 @@ interface UserProfileSheetProps {
 
 export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) {
   const { currentUser, userProfile, signOut } = useAuth()
-  const { t, language, setLanguage } = useLanguage()
+  const { t, setLanguage, language } = useLanguage()
   const { currency, setCurrency } = useCurrency()
   const { decimalSeparator, setDecimalSeparator } = useNumberFormat()
   const { validPhoneMasks, setValidPhoneMasks } = usePhoneFormat()
   const { dateFormat, setDateFormat } = useDateFormat()
+  const { theme, setTheme } = useTheme()
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [newPhoneMask, setNewPhoneMask] = useState('')
 
   const login = currentUser?.login || userProfile?.githubLogin || 'user'
   const initials = login.slice(0, 2).toUpperCase()
-  const roleLabel = userProfile?.role === 'admin' ? (t.roles?.admin || 'Administrador') : (t.roles?.guest || 'Hóspede')
+  const roleLabel = userProfile?.role === 'admin' ? (t.roles?.admin || 'Administrator') : (t.roles?.guest || 'Guest')
   const roleColor = userProfile?.role === 'admin' ? 'default' : 'secondary'
 
   const handleSignOut = async () => {
@@ -47,58 +50,61 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
     }
   }
 
-  const handleLanguageChange = (val: string) => {
-    setLanguage(val as 'pt' | 'en')
+  const handleLanguageChange = (value: string) => {
+    setLanguage(value as 'pt' | 'en')
     toast.success(t.settings_view.language_updated)
   }
 
-  const handleCurrencyChange = (val: string) => {
-    setCurrency(val as Currency)
+  const handleThemeChange = (value: string) => {
+    setTheme(value)
+    toast.success(t.settings_view.theme_updated)
+  }
+
+  const handleCurrencyChange = (value: string) => {
+    setCurrency(value as Currency)
     toast.success(t.settings_view.currency_updated)
   }
 
-  const handleDateFormatChange = (val: string) => {
-    setDateFormat(val as DateFormat)
+  const handleDateFormatChange = (value: string) => {
+    setDateFormat(value as DateFormat)
     toast.success(t.settings_view.date_format_updated)
   }
 
-  const handleDecimalSeparatorChange = (val: string) => {
-    setDecimalSeparator(val as DecimalSeparator)
-    toast.success(isPortuguese ? 'Formato de número atualizado' : 'Number format updated')
+  const handleDecimalSeparatorChange = (value: string) => {
+    setDecimalSeparator(value as DecimalSeparator)
+    toast.success(t.settings_view.number_format_updated)
   }
 
   const handleAddPhoneMask = () => {
-    const trimmed = newPhoneMask.trim()
-    if (!trimmed || !trimmed.toLowerCase().includes('x')) {
-      toast.error(isPortuguese ? 'Informe uma máscara usando x para os dígitos.' : 'Use x for phone digits.')
+    const trimmedMask = newPhoneMask.trim()
+    if (!trimmedMask || !trimmedMask.toLowerCase().includes('x')) {
+      toast.error(t.settings_view.phone_mask_invalid)
       return
     }
-    setValidPhoneMasks([...validPhoneMasks, trimmed])
+
+    setValidPhoneMasks([...validPhoneMasks, trimmedMask])
     setNewPhoneMask('')
-    toast.success(isPortuguese ? 'Máscara adicionada' : 'Mask added')
+    toast.success(t.settings_view.phone_mask_added)
   }
 
   const handleRemovePhoneMask = (mask: string) => {
     if (validPhoneMasks.length <= 1) {
-      toast.error(isPortuguese ? 'Mantenha pelo menos uma máscara.' : 'Keep at least one mask.')
+      toast.error(t.settings_view.phone_mask_keep_one)
       return
     }
-    const nextMasks = validPhoneMasks.filter((item) => item !== mask)
-    setValidPhoneMasks(nextMasks)
+
+    setValidPhoneMasks(validPhoneMasks.filter((item) => item !== mask))
   }
 
   if (!currentUser || !userProfile) return null
-
-  const isPortuguese = language === 'pt'
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto px-5 sm:px-7">
         <SheetHeader className="pb-4">
-          <SheetTitle>{isPortuguese ? 'Perfil do Usuário' : 'User Profile'}</SheetTitle>
+          <SheetTitle>{t.settings_view.profile_title}</SheetTitle>
         </SheetHeader>
 
-        {/* Avatar + role */}
         <div className="flex items-center gap-4 py-4">
           <Avatar className="h-16 w-16 border-2 border-border">
             <AvatarImage src={currentUser.avatarUrl} alt={login} />
@@ -106,22 +112,21 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
           </Avatar>
           <div className="space-y-1">
             <p className="text-lg font-semibold">{login}</p>
-            <Badge variant={roleColor as any}>{roleLabel}</Badge>
+            <Badge variant={roleColor as 'default' | 'secondary'}>{roleLabel}</Badge>
           </div>
         </div>
 
         <Separator />
 
-        {/* Identity data */}
         <div className="py-4 space-y-3">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-            {isPortuguese ? 'Identificação' : 'Identity'}
+            {t.settings_view.identity_section}
           </p>
 
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
               <IdentificationCard size={13} />
-              {isPortuguese ? 'ID do usuário' : 'User ID'}
+              {t.settings_view.user_id}
             </Label>
             <p className="text-sm font-mono bg-muted rounded px-2 py-1 break-all select-all">{currentUser.id}</p>
           </div>
@@ -129,7 +134,7 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
               <EnvelopeSimple size={13} />
-              {isPortuguese ? 'E-mail' : 'Email'}
+              {t.guests_view.form.email}
             </Label>
             <p className="text-sm bg-muted rounded px-2 py-1">{currentUser.email || userProfile.email || '—'}</p>
           </div>
@@ -137,10 +142,9 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
 
         <Separator />
 
-        {/* Preferences */}
         <div className="py-4 space-y-4">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-            {isPortuguese ? 'Preferências' : 'Preferences'}
+            {t.settings_view.preferences_section}
           </p>
 
           <div className="space-y-2">
@@ -155,6 +159,22 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
               <SelectContent>
                 <SelectItem value="pt">{t.settings_view.languages.pt}</SelectItem>
                 <SelectItem value="en">{t.settings_view.languages.en}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              <MoonStars size={14} className="text-muted-foreground" />
+              {t.settings_view.theme_label}
+            </Label>
+            <Select value={theme || 'light'} onValueChange={handleThemeChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">{t.settings_view.themes.light}</SelectItem>
+                <SelectItem value="dark">{t.settings_view.themes.dark}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -200,39 +220,35 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <CurrencyCircleDollar size={14} className="text-muted-foreground" />
-              {isPortuguese ? 'Formato de número' : 'Number format'}
+              {t.settings_view.number_format_label}
             </Label>
             <Select value={decimalSeparator} onValueChange={handleDecimalSeparatorChange}>
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value=",">{isPortuguese ? 'Vírgula decimal: 1.234,56' : 'Decimal comma: 1.234,56'}</SelectItem>
-                <SelectItem value=".">{isPortuguese ? 'Ponto decimal: 1,234.56' : 'Decimal point: 1,234.56'}</SelectItem>
+                <SelectItem value=",">{t.settings_view.decimal_comma}</SelectItem>
+                <SelectItem value=".">{t.settings_view.decimal_point}</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              {isPortuguese
-                ? 'Essa preferência é salva para o seu usuário e aplicada nos campos de valores.'
-                : 'This preference is saved for your user and applied to amount fields.'}
-            </p>
+            <p className="text-xs text-muted-foreground">{t.settings_view.number_format_hint}</p>
           </div>
 
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <IdentificationCard size={14} className="text-muted-foreground" />
-              {isPortuguese ? 'Máscaras de telefone' : 'Phone masks'}
+              {t.settings_view.phone_masks_label}
             </Label>
             <div className="space-y-2 rounded-md border p-3">
               <p className="text-xs font-medium text-muted-foreground">
-                {isPortuguese ? 'Máscaras válidas' : 'Valid masks'}
+                {t.settings_view.valid_masks}
               </p>
               <div className="space-y-2">
                 {validPhoneMasks.map((mask) => (
                   <div key={mask} className="flex items-center justify-between gap-2 rounded bg-muted px-2 py-1 text-sm">
                     <span className="font-mono">{mask}</span>
                     <Button type="button" variant="ghost" size="sm" onClick={() => handleRemovePhoneMask(mask)}>
-                      {isPortuguese ? 'Remover' : 'Remove'}
+                      {t.settings_view.remove_mask}
                     </Button>
                   </div>
                 ))}
@@ -241,19 +257,15 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
                 <input
                   value={newPhoneMask}
                   onChange={(event) => setNewPhoneMask(event.target.value)}
-                  placeholder="(xx) xxxxx-xxxx"
+                  placeholder={t.settings_view.phone_mask_placeholder}
                   className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
                 <Button type="button" variant="outline" size="sm" onClick={handleAddPhoneMask}>
-                  {isPortuguese ? 'Adicionar' : 'Add'}
+                  {t.settings_view.add_mask}
                 </Button>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {isPortuguese
-                ? 'Use x para indicar dígitos. O sistema escolhe automaticamente uma máscara compatível com o telefone digitado.'
-                : 'Use x for digits. The system automatically chooses a compatible mask for the typed phone.'}
-            </p>
+            <p className="text-xs text-muted-foreground">{t.settings_view.phone_mask_hint}</p>
           </div>
         </div>
 
@@ -267,7 +279,7 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
             disabled={isSigningOut}
           >
             <SignOut size={16} />
-            {isPortuguese ? 'Sair da conta' : 'Sign out'}
+            {t.settings_view.sign_out}
           </Button>
         </div>
       </SheetContent>

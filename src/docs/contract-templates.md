@@ -2,7 +2,7 @@
 
 ## O que é esta tela?
 
-Cria e gerencia modelos reutilizáveis de contrato para geração automática de PDFs. Cada template usa variáveis dinâmicas que são substituídas pelos dados reais do contrato, hóspede e propriedade no momento da geração.
+Cria e gerencia modelos reutilizáveis de contrato para geração automática de PDFs. Cada template usa tokens no formato `{{xpath}}`, que são resolvidos com os dados reais do contrato selecionado no momento da geração.
 
 ## Tipos de template
 
@@ -20,30 +20,42 @@ O template é editado em um **editor de texto rico** com suporte a:
 - Alinhamento de texto
 - Tamanho de fonte
 
-## Variáveis dinâmicas
+## Variáveis do template
 
-Insira variáveis no texto usando a sintaxe `{nome_da_variavel}`. Elas serão substituídas automaticamente na geração do PDF.
+Os templates não usam variáveis fixas como `{nome_inquilino}`. Use sempre tokens no formato `{{xpath}}`.
 
-### Variáveis disponíveis
+### Estrutura do XPath
 
-| Variável | Conteúdo |
-|---|---|
-| `{nome_inquilino}` | Nome completo do hóspede |
-| `{cpf_inquilino}` | CPF do hóspede |
-| `{endereco_imovel}` | Endereço da propriedade |
-| `{valor_aluguel}` | Valor mensal do contrato |
-| `{data_inicio}` | Data de início do contrato |
-| `{data_fim}` | Data de fim do contrato |
-| `{dia_vencimento}` | Dia de vencimento do pagamento |
-| `{nome_proprietario}` | Nome do proprietário do imóvel |
-| `{fiadores}` | Nomes dos fiadores do hóspede |
-| `{data_hoje}` | Data atual da geração do PDF |
+- Formato: `tabela{indice}.coluna{indice}.subcoluna`
+- Exemplo: `{{owners{1}.documents{1}.number}}`
+- O índice começa em `1`
+- Para listas, use `{x}` quando quiser trazer todos os itens
 
-> Use o **Construtor de variáveis** no painel lateral para inserir variáveis sem precisar digitar a sintaxe.
+### Objetos raiz disponíveis
+
+- `contract`
+- `guest`
+- `properties`
+- `owners`
+- `template`
+- `currentDate`
+
+### Exemplos válidos
+
+- `{{guest.name}}`
+- `{{guest.documents{1}.number}}`
+- `{{contract.startDate}}`
+- `{{contract.monthlyAmount}}`
+- `{{properties{1}.name}}`
+- `{{owners{1}.name}}`
+- `{{owners{x}.name}}`
+- `{{currentDate}}`
+
+> Use o botão **Ajuda: Variáveis** para consultar os caminhos disponíveis e inserir o token pronto no editor.
 
 ## Pré-visualização
 
-Selecione um contrato existente no campo **Prévia com contrato** para ver como o template ficará preenchido com dados reais antes de usá-lo.
+Selecione um contrato existente no campo **Contrato base para preview** para ver como o template ficará preenchido com dados reais antes de usá-lo.
 
 ## Duplicar template
 
@@ -55,4 +67,4 @@ Use o botão **Duplicar** para criar uma cópia de um template existente como po
 
 > Teste sempre a pré-visualização antes de usar o template em um contrato real.
 
-> Para contratos com múltiplos proprietários, use `{nome_proprietario}` — o sistema inclui todos os vinculados ao imóvel.
+> A lista exibida em **Ajuda: Variáveis** é a fonte de verdade para saber quais caminhos existem no contrato selecionado.

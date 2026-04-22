@@ -22,6 +22,7 @@ import {
   FolderOpen,
   Bug,
   ClockCounterClockwise,
+  Bell,
   ArrowUp,
   ArrowDown,
   Brain
@@ -52,6 +53,7 @@ export const menuItems: MenuItem[] = [
   { id: 'ai-assistant', icon: Brain, value: 'ai-assistant', adminOnly: true },
   { id: 'inspections', icon: ClipboardText, value: 'inspections' },
   { id: 'templates', icon: FileText, value: 'templates', adminOnly: true },
+  { id: 'notifications', icon: Bell, value: 'notifications', adminOnly: true },
   { id: 'providers', icon: Wrench, value: 'providers', adminOnly: true },
   { id: 'appointments', icon: CalendarCheck, value: 'appointments' },
   { id: 'my-bug-reports', icon: Bug, value: 'my-bug-reports', regularAdminOnly: true },
@@ -212,22 +214,22 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsC
             <>
               <ContextMenuItem onSelect={() => unpinItem(item.id)}>
                 <PushPinSlash size={16} />
-                {language === 'pt' ? 'Desafixar' : 'Unpin'}
+                {t.sidebar.unpin}
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem disabled={isFirstPinned} onSelect={() => movePinnedItem(item.id, 'up')}>
                 <ArrowUp size={16} />
-                {language === 'pt' ? 'Mover para cima' : 'Move up'}
+                {t.sidebar.move_up}
               </ContextMenuItem>
               <ContextMenuItem disabled={isLastPinned} onSelect={() => movePinnedItem(item.id, 'down')}>
                 <ArrowDown size={16} />
-                {language === 'pt' ? 'Mover para baixo' : 'Move down'}
+                {t.sidebar.move_down}
               </ContextMenuItem>
             </>
           ) : (
             <ContextMenuItem onSelect={() => pinItem(item.id)}>
               <PushPin size={16} />
-              {language === 'pt' ? 'Fixar' : 'Pin'}
+              {t.sidebar.pin}
             </ContextMenuItem>
           )}
         </ContextMenuContent>

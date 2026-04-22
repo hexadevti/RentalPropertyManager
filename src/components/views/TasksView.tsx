@@ -21,11 +21,12 @@ import { useLanguage } from '@/lib/LanguageContext'
 
 export default function TasksView() {
   const { t } = useLanguage()
+  const tv = t.tasks_view
   const [tasks, setTasks] = useKV<Task[]>('tasks', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -46,7 +47,7 @@ export default function TasksView() {
         createdAt: editingTask.createdAt,
       }
       setTasks((current) => (current || []).map((task) => task.id === editingTask.id ? updatedTask : task))
-      toast.success('Task updated successfully')
+      toast.success(tv.form.updated_success)
     } else {
       const newTask: Task = {
         ...formData,
@@ -54,7 +55,7 @@ export default function TasksView() {
         createdAt: new Date().toISOString()
       }
       setTasks((current) => [...(current || []), newTask])
-      toast.success('Task added successfully')
+      toast.success(tv.form.created_success)
     }
 
     resetForm()
@@ -103,7 +104,7 @@ export default function TasksView() {
   }
 
   const handleToggle = (taskId: string) => {
-    setTasks((current) => 
+    setTasks((current) =>
       (current || []).map(task =>
         task.id === taskId
           ? { ...task, status: task.status === 'completed' ? 'pending' : 'completed' }
@@ -113,8 +114,9 @@ export default function TasksView() {
   }
 
   const handleDelete = (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return
     setTasks((current) => (current || []).filter(t => t.id !== id))
-    toast.success('Task deleted')
+    toast.success(tv.deleted_success)
   }
 
   const getPriorityColor = (priority: TaskPriority) => {
@@ -142,10 +144,9 @@ export default function TasksView() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-1">
-            <h2 className="text-2xl font-semibold tracking-tight">Tasks & Appointments</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">{tv.title}</h2>
             <HelpButton content={helpContent} title="Ajuda — Tarefas" />
           </div>
-          <p className="text-sm text-muted-foreground mt-1">Manage maintenance and administrative tasks</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
@@ -156,36 +157,36 @@ export default function TasksView() {
             <DialogTrigger asChild>
               <Button className="gap-2" onClick={handleOpenCreate}>
                 <Plus weight="bold" size={16} />
-                Add Task
+                {tv.add_task}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
-                {editingTask ? 'Edit Task' : 'Add Task'}
+                {editingTask ? tv.form.title_edit : tv.form.title_new}
                 <HelpButton content={formHelpContent} title="Ajuda — Formulário de Tarefa" />
               </DialogTitle>
-              <DialogDescription>{editingTask ? 'Update task details and status' : 'Create a new task or appointment'}</DialogDescription>
+              <DialogDescription>{editingTask ? tv.form.updated_success : tv.form.created_success}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="title">{tv.form.task_title}</Label>
                 <Input
                   id="title"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Fix leaking faucet"
+                  placeholder={tv.form.title_placeholder}
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description">{tv.form.description}</Label>
                 <Textarea
                   id="description"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Task details..."
+                  placeholder={tv.form.description_placeholder}
                   rows={3}
                   required
                 />
@@ -193,7 +194,7 @@ export default function TasksView() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dueDate">Due Date</Label>
+                  <Label htmlFor="dueDate">{tv.form.due_date}</Label>
                   <DateInput
                     id="dueDate"
                     value={formData.dueDate}
@@ -202,15 +203,15 @@ export default function TasksView() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="priority">Priority</Label>
+                  <Label htmlFor="priority">{tv.form.priority}</Label>
                   <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value as TaskPriority })}>
                     <SelectTrigger id="priority">
-                      <SelectValue />
+                      <SelectValue placeholder={tv.form.select_priority} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="low">{tv.priority.low}</SelectItem>
+                      <SelectItem value="medium">{tv.priority.medium}</SelectItem>
+                      <SelectItem value="high">{tv.priority.high}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -218,22 +219,22 @@ export default function TasksView() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="assignee">Assignee (Optional)</Label>
+                  <Label htmlFor="assignee">{tv.form.assignee} {tv.form.optional}</Label>
                   <Input
                     id="assignee"
                     value={formData.assignee}
                     onChange={(e) => setFormData({ ...formData, assignee: e.target.value })}
-                    placeholder="Service provider or person"
+                    placeholder={tv.form.assignee_placeholder}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="propertyId">Property (Optional)</Label>
+                  <Label htmlFor="propertyId">{tv.form.property} {tv.form.optional}</Label>
                   <Select value={formData.propertyId || 'none'} onValueChange={(value) => setFormData({ ...formData, propertyId: value === 'none' ? '' : value })}>
                     <SelectTrigger id="propertyId">
-                      <SelectValue placeholder="Select property" />
+                      <SelectValue placeholder={tv.form.select_property} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="none">{tv.no_property}</SelectItem>
                       {(properties || []).map((property) => (
                         <SelectItem key={property.id} value={property.id}>
                           {property.name}
@@ -245,24 +246,24 @@ export default function TasksView() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
+                <Label htmlFor="status">{tv.form.status}</Label>
                 <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as TaskStatus })}>
                   <SelectTrigger id="status">
-                    <SelectValue />
+                    <SelectValue placeholder={tv.form.select_status} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="in-progress">In progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="pending">{tv.status.pending}</SelectItem>
+                    <SelectItem value="in-progress">{tv.status['in-progress']}</SelectItem>
+                    <SelectItem value="completed">{tv.status.completed}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancel
+                  {tv.form.cancel}
                 </Button>
-                <Button type="submit">{editingTask ? 'Save Changes' : 'Add Task'}</Button>
+                <Button type="submit">{tv.form.save}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -274,11 +275,11 @@ export default function TasksView() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <CheckSquare weight="duotone" size={64} className="text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No tasks yet</h3>
-            <p className="text-sm text-muted-foreground mb-4">Add your first task to get started</p>
+            <h3 className="text-lg font-semibold mb-2">{tv.no_tasks}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{tv.add_first}</p>
             <Button onClick={handleOpenCreate} className="gap-2">
               <Plus weight="bold" size={16} />
-              Add Task
+              {tv.add_task}
             </Button>
           </CardContent>
         </Card>
@@ -287,7 +288,7 @@ export default function TasksView() {
           {sortedTasks.map((task) => {
             const property = (properties || []).find(p => p.id === task.propertyId)
             const isPastDue = new Date(task.dueDate) < new Date() && task.status !== 'completed'
-            
+
             return (
               <Card key={task.id} className={task.status === 'completed' ? 'opacity-60' : ''}>
                 <CardContent className="flex items-start gap-4 p-4">
@@ -302,14 +303,14 @@ export default function TasksView() {
                         {task.title}
                       </h3>
                       <Badge variant="outline" className={getPriorityColor(task.priority)}>
-                        {task.priority}
+                        {tv.priority[task.priority]}
                       </Badge>
-                      {isPastDue && <Badge variant="destructive" className="text-xs">Overdue</Badge>}
+                      {isPastDue && <Badge variant="destructive" className="text-xs">{tv.overdue}</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>Due: {format(new Date(task.dueDate), 'MMM dd, yyyy')}</span>
-                      {task.assignee && <span>• Assigned to: {task.assignee}</span>}
+                      <span>{tv.due_date}: {format(new Date(task.dueDate), 'MMM dd, yyyy')}</span>
+                      {task.assignee && <span>• {tv.assignee}: {task.assignee}</span>}
                       {property && <span>• {property.name}</span>}
                     </div>
                   </div>

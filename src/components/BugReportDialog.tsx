@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/AuthContext'
+import { useLanguage } from '@/lib/LanguageContext'
 import { useKV } from '@/lib/useSupabaseKV'
 import { supabase } from '@/lib/supabase'
 import type { Appointment, Contract, ContractTemplate, Document, Guest, Inspection, Owner, Property, ServiceProvider, Task, Transaction } from '@/types'
@@ -43,6 +44,7 @@ function isUuid(value: string | null | undefined) {
 
 export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugReportDialogProps) {
   const { currentUser, currentTenantId } = useAuth()
+  const { t } = useLanguage()
   const [properties] = useKV<Property[]>('properties', [])
   const [owners] = useKV<Owner[]>('owners', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
@@ -118,7 +120,7 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
       { type: pastedFile.type }
     )
     setSelectedPrint(namedFile)
-    toast.success('Print colado do clipboard.')
+    toast.success(t.bug_report_dialog.pasted_success)
   }
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -134,11 +136,11 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!currentTenantId || !currentUser) {
-      toast.error('Sessão não carregada. Entre novamente para reportar o bug.')
+      toast.error(t.bug_report_dialog.session_error)
       return
     }
     if (!description.trim()) {
-      toast.error('Descreva o problema antes de enviar.')
+      toast.error(t.bug_report_dialog.description_required)
       return
     }
 
@@ -166,7 +168,7 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
 
     if (reportError) {
       setIsSubmitting(false)
-      toast.error(reportError.message || 'Falha ao registrar bug.')
+      toast.error(reportError.message || t.bug_report_dialog.create_error)
       return
     }
 
@@ -184,7 +186,7 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
 
       if (uploadError) {
         setIsSubmitting(false)
-        toast.error(`Bug registrado, mas o print não subiu: ${uploadError.message}`)
+        toast.error(`${t.bug_report_dialog.upload_partial_error_prefix} ${uploadError.message}`)
         setOpen(false)
         resetForm()
         return
@@ -202,11 +204,11 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
         })
 
       if (attachmentError) {
-        toast.error(`Bug registrado, mas o anexo não foi vinculado: ${attachmentError.message}`)
+        toast.error(`${t.bug_report_dialog.attachment_partial_error_prefix} ${attachmentError.message}`)
       }
     }
 
-    toast.success('Bug reportado com sucesso.')
+    toast.success(t.bug_report_dialog.created_success)
     setOpen(false)
     resetForm()
   }
@@ -216,21 +218,21 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Bug size={16} weight="duotone" />
-          Reportar bug
+          {t.bug_report_dialog.trigger_label}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Reportar um bug</DialogTitle>
+          <DialogTitle>{t.bug_report_dialog.title}</DialogTitle>
           <DialogDescription>
-            Informe onde o problema aconteceu, o registro afetado e, se possível, anexe um print.
+            {t.bug_report_dialog.description}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} onPaste={handlePaste} className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="bug-screen">Tela do sistema</Label>
+              <Label htmlFor="bug-screen">{t.bug_report_dialog.screen}</Label>
               <Select
                 value={screen}
                 onValueChange={(value) => {
@@ -250,13 +252,13 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="bug-record">Registro relacionado</Label>
+              <Label htmlFor="bug-record">{t.bug_report_dialog.related_record}</Label>
               <Select value={recordId} onValueChange={setRecordId} disabled={recordOptions.length === 0}>
                 <SelectTrigger id="bug-record">
-                  <SelectValue placeholder="Selecione um registro" />
+                  <SelectValue placeholder={t.bug_report_dialog.select_record} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sem registro específico</SelectItem>
+                  <SelectItem value="none">{t.bug_report_dialog.no_specific_record}</SelectItem>
                   {recordOptions.map((option) => (
                     <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
                   ))}
@@ -266,19 +268,19 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="bug-description">Descrição do problema</Label>
+            <Label htmlFor="bug-description">{t.bug_report_dialog.problem_description}</Label>
             <Textarea
               id="bug-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={5}
-              placeholder="Conte o que aconteceu, o que você esperava e se conseguiu reproduzir."
+              placeholder={t.bug_report_dialog.problem_placeholder}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="bug-print">Print da tela (opcional)</Label>
+            <Label htmlFor="bug-print">{t.bug_report_dialog.screenshot_optional}</Label>
             <Input
               id="bug-print"
               type="file"
@@ -286,25 +288,25 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
               onChange={(event) => setSelectedPrint(event.target.files?.[0] || null)}
             />
             <p className="text-xs text-muted-foreground">
-              Você também pode usar Ctrl+V aqui para colar um print copiado da tela.
+              {t.bug_report_dialog.screenshot_hint}
             </p>
             {printPreviewUrl && (
               <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
-                <img src={printPreviewUrl} alt="Preview do print" className="max-h-72 w-full object-contain" />
+                <img src={printPreviewUrl} alt={t.bug_report_dialog.screenshot_preview_alt} className="max-h-72 w-full object-contain" />
               </div>
             )}
             {printFile && !printPreviewUrl && (
-              <p className="text-sm text-muted-foreground">Arquivo selecionado: {printFile.name}</p>
+              <p className="text-sm text-muted-foreground">{t.bug_report_dialog.selected_file}: {printFile.name}</p>
             )}
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isSubmitting}>
-              Cancelar
+              {t.bug_report_dialog.cancel}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               <UploadSimple size={16} />
-              {isSubmitting ? 'Enviando...' : 'Enviar reporte'}
+              {isSubmitting ? t.bug_report_dialog.submitting : t.bug_report_dialog.submit}
             </Button>
           </DialogFooter>
         </form>

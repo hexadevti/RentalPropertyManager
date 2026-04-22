@@ -145,6 +145,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
   }
 
   const handleDelete = (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro?')) return
     setContracts((currentContracts) => (currentContracts || []).filter(c => c.id !== id))
     toast.success(t.contracts_view.deleted_success)
   }
@@ -175,7 +176,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
 
   const getGuestName = (guestId: string) => {
     const guest = (guests || []).find(g => g.id === guestId)
-    return guest ? guest.name : 'Unknown'
+    return guest ? guest.name : t.contracts_view.unknown_guest
   }
 
   const getPropertyNames = (propertyIds: string[]) => {
@@ -218,19 +219,19 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
 
   const handlePDFGeneration = async (action: 'download' | 'view') => {
     if (!selectedContractForPDF || !selectedTemplateId) {
-      toast.error('Selecione um template')
+      toast.error(t.contracts_view.pdf_template_required)
       return
     }
 
     const template = (templates || []).find(t => t.id === selectedTemplateId)
     if (!template) {
-      toast.error('Template não encontrado')
+      toast.error(t.contracts_view.pdf_template_not_found)
       return
     }
 
     const guest = (guests || []).find(g => g.id === selectedContractForPDF.guestId)
     if (!guest) {
-      toast.error('Hóspede não encontrado')
+      toast.error(t.contracts_view.pdf_guest_not_found)
       return
     }
 
@@ -261,18 +262,18 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
       if (action === 'download') {
         const filename = `contrato-${guest.name.replace(/\s+/g, '-').toLowerCase()}-${format(new Date(), 'yyyy-MM-dd')}.pdf`
         downloadPDF(pdf, filename)
-        toast.success('PDF baixado com sucesso')
+        toast.success(t.contracts_view.pdf_download_success)
       } else {
         openPDFInNewTab(pdf)
-        toast.success('PDF aberto em nova aba')
+        toast.success(t.contracts_view.pdf_open_success)
       }
 
       setPdfDialogOpen(false)
       setSelectedContractForPDF(null)
       setSelectedTemplateId('')
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error)
-      toast.error('Erro ao gerar PDF')
+      console.error('Failed to generate contract PDF:', error)
+      toast.error(t.contracts_view.pdf_error)
     }
   }
 
@@ -434,7 +435,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                 </div>
 
                 <div>
-                  <Label htmlFor="contract-close-date">{language === 'pt' ? 'Data de fechamento do contrato' : 'Contract close date'} {t.contracts_view.form.optional}</Label>
+                  <Label htmlFor="contract-close-date">{t.contracts_view.form.close_date} {t.contracts_view.form.optional}</Label>
                   <DateInput
                     id="contract-close-date"
                     value={formData.closeDate}
@@ -456,13 +457,13 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
 
                 <div className="col-span-2">
                   <Label htmlFor="contract-special-payment">
-                    {language === 'pt' ? 'Condição especial de pagamento' : 'Special payment condition'} {t.contracts_view.form.optional}
+                    {t.contracts_view.form.special_payment_condition} {t.contracts_view.form.optional}
                   </Label>
                   <Textarea
                     id="contract-special-payment"
                     value={formData.specialPaymentCondition}
                     onChange={(e) => setFormData({ ...formData, specialPaymentCondition: e.target.value })}
-                    placeholder={language === 'pt' ? 'Ex.: 50% na assinatura e 50% em 15 dias' : 'E.g.: 50% on signing and 50% in 15 days'}
+                    placeholder={t.contracts_view.form.special_payment_placeholder}
                     rows={2}
                   />
                 </div>
@@ -479,18 +480,18 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                 </div>
 
                 <div className="col-span-2">
-                  <Label htmlFor="contract-template">{language === 'pt' ? 'Template de Contrato' : 'Contract Template'} {t.contracts_view.form.optional}</Label>
+                  <Label htmlFor="contract-template">{t.contracts_view.form.template} {t.contracts_view.form.optional}</Label>
                   <Select
                     value={formData.templateId}
                     onValueChange={(value) => setFormData({ ...formData, templateId: value })}
                   >
                     <SelectTrigger id="contract-template">
-                      <SelectValue placeholder={language === 'pt' ? 'Selecione um template' : 'Select a template'} />
+                      <SelectValue placeholder={t.contracts_view.form.select_template} />
                     </SelectTrigger>
                     <SelectContent>
                       {getMatchingTemplates(formData.rentalType).length === 0 ? (
                         <div className="p-2 text-sm text-muted-foreground text-center">
-                          {language === 'pt' ? 'Nenhum template disponível' : 'No templates available'}
+                          {t.contracts_view.form.no_templates_available}
                         </div>
                       ) : (
                         getMatchingTemplates(formData.rentalType).map(template => (
@@ -616,7 +617,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                     {contract.specialPaymentCondition && (
                       <div className="mt-3 pt-3 border-t border-border">
                         <p className="text-xs text-muted-foreground mb-1">
-                          {language === 'pt' ? 'Condição especial de pagamento' : 'Special payment condition'}
+                          {t.contracts_view.special_payment_condition}
                         </p>
                         <p className="text-sm text-muted-foreground">{contract.specialPaymentCondition}</p>
                       </div>
@@ -624,7 +625,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                     {contract.closeDate && (
                       <div className="mt-3 pt-3 border-t border-border">
                         <p className="text-xs text-muted-foreground mb-1">
-                          {language === 'pt' ? 'Data de fechamento do contrato' : 'Contract close date'}
+                          {t.contracts_view.close_date}
                         </p>
                         <p className="text-sm text-muted-foreground">{format(new Date(contract.closeDate), 'dd/MM/yyyy')}</p>
                       </div>
@@ -639,12 +640,12 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                           variant="outline"
                           className="gap-1.5 h-8 text-xs"
                           onClick={() => onNavigate?.('inspections')}
-                          title={language === 'pt' ? 'Ver vistorias deste contrato' : 'View inspections for this contract'}
+                          title={t.contracts_view.view_inspections_title}
                         >
                           <ClipboardText size={14} weight="duotone" className="text-primary" />
                           {contractInspections.length === 1
-                            ? (language === 'pt' ? '1 vistoria' : '1 inspection')
-                            : (language === 'pt' ? `${contractInspections.length} vistorias` : `${contractInspections.length} inspections`)}
+                            ? t.contracts_view.one_inspection
+                            : `${contractInspections.length} ${t.contracts_view.many_inspections}`}
                         </Button>
                       ) : null
                     })()}

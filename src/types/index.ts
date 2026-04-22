@@ -88,6 +88,7 @@ export interface Task {
   assignee?: string
   propertyId?: string
   createdAt: string
+  updatedAt?: string
 }
 
 export interface ServiceProvider {
@@ -213,6 +214,49 @@ export interface ContractTemplate {
   name: string
   type: TemplateType
   content: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type NotificationChannel = 'email' | 'sms' | 'whatsapp'
+export type NotificationTrigger =
+  | 'appointment-items'
+  | 'contract-expiration'
+  | 'contract-payment-day'
+  | 'task-due'
+  | 'task-created'
+  | 'task-due-tomorrow'
+  | 'task-due-today'
+  | 'task-overdue-open'
+  | 'task-resolved'
+  | 'contract-created'
+  | 'inspection'
+  | 'bug'
+
+export interface NotificationTemplate {
+  id: string
+  name: string
+  channel: NotificationChannel
+  subject?: string
+  content: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NotificationRule {
+  id: string
+  name: string
+  trigger: NotificationTrigger
+  eventType?: 'tasks'
+  groupId?: string
+  channels: NotificationChannel[]
+  emailTemplateId?: string
+  smsTemplateId?: string
+  whatsappTemplateId?: string
+  recipientRoles: UserRole[]
+  recipientUserIds: string[]
+  daysBefore?: number
+  isActive: boolean
   createdAt: string
   updatedAt: string
 }

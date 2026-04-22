@@ -109,7 +109,7 @@ function makeIcon(L: typeof import('leaflet'), color: string, focused: boolean) 
 }
 
 export default function PropertyMapView({ properties, getPropertyStatus, focusPropertyId }: Props) {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const { formatCurrency } = useCurrency()
   const mapRef = useRef<LeafletMap | null>(null)
   const mapDivRef = useRef<HTMLDivElement>(null)
@@ -230,8 +230,8 @@ export default function PropertyMapView({ properties, getPropertyStatus, focusPr
                 </span>
               </div>
               <div style="margin-top:6px;font-size:12px">
-                ${p.pricePerMonth ? `<div>${language === 'pt' ? 'Mensal' : 'Monthly'}: <strong>${formatCurrency(p.pricePerMonth)}</strong></div>` : ''}
-                ${p.pricePerNight ? `<div>${language === 'pt' ? 'Diária' : 'Nightly'}: <strong>${formatCurrency(p.pricePerNight)}</strong></div>` : ''}
+                ${p.pricePerMonth ? `<div>${t.properties_view.map.monthly}: <strong>${formatCurrency(p.pricePerMonth)}</strong></div>` : ''}
+                ${p.pricePerNight ? `<div>${t.properties_view.map.nightly}: <strong>${formatCurrency(p.pricePerNight)}</strong></div>` : ''}
               </div>
             </div>
           `
@@ -314,13 +314,13 @@ export default function PropertyMapView({ properties, getPropertyStatus, focusPr
     <div style={{ isolation: 'isolate', height: 520 }} className="relative rounded-lg overflow-hidden border bg-card">
       {loading && total > 0 && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[100] bg-background/90 border rounded-full px-4 py-1.5 text-sm shadow">
-          {language === 'pt' ? `Localizando imóveis… ${located}/${total}` : `Locating properties… ${located}/${total}`}
+          {`${t.properties_view.map.locating} ${located}/${total}`}
         </div>
       )}
       {!loading && noAddress && (
         <div className="absolute inset-0 z-[100] flex items-center justify-center bg-background/80">
           <p className="text-muted-foreground text-sm">
-            {language === 'pt' ? 'Nenhum imóvel possui endereço cadastrado.' : 'No properties have an address registered.'}
+            {t.properties_view.map.no_address}
           </p>
         </div>
       )}
@@ -332,14 +332,14 @@ export default function PropertyMapView({ properties, getPropertyStatus, focusPr
       {!loading && hasMarkers && (
         <button
           onClick={handleFitAll}
-          title={language === 'pt' ? 'Ver todos os imóveis' : 'View all properties'}
+          title={t.properties_view.map.view_all_title}
           style={{ zIndex: 1000 }}
           className="absolute bottom-6 right-3 bg-background border rounded-lg shadow px-3 py-2 text-sm font-medium hover:bg-accent transition-colors flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 256 256" fill="currentColor">
             <path d="M213.66,42.34a8,8,0,0,0-7.84-2l-176,48A8,8,0,0,0,28.8,99.6L96,128l28.4,67.2a8,8,0,0,0,7.4,5c.27,0,.54,0,.81,0a8,8,0,0,0,7.3-5.31l48-176A8,8,0,0,0,213.66,42.34Z"/>
           </svg>
-          {language === 'pt' ? 'Ver todos' : 'View all'}
+          {t.properties_view.map.view_all}
         </button>
       )}
       <div ref={mapDivRef} style={{ width: '100%', height: '100%' }} />

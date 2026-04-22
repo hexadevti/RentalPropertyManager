@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import { formatDateValue, normalizeDateInputValue, parseDateInputValue, type DateFormatPattern } from '@/lib/dateFormat'
+import { formatDateValue, formatDateTimeValue, normalizeDateInputValue, parseDateInputValue, type DateFormatPattern } from '@/lib/dateFormat'
 
 export type DateFormat = DateFormatPattern
 
@@ -20,6 +20,7 @@ interface DateFormatContextType {
   setDateFormat: (dateFormat: DateFormat) => void
   config: DateFormatConfig
   formatDate: (date: Date | string) => string
+  formatDateTime: (date: Date | string) => string
   parseDateInput: (input: string) => Date | null
   normalizeDateInput: (input: string) => string | null
 }
@@ -34,12 +35,14 @@ export function DateFormatProvider({ children }: { children: ReactNode }) {
   const parseDateInput = (input: string) => parseDateInputValue(input, config.pattern)
   const normalizeDateInput = (input: string) => normalizeDateInputValue(input, config.pattern)
   const formatDate = (date: Date | string) => formatDateValue(date, config.pattern)
+  const formatDateTime = (date: Date | string) => formatDateTimeValue(date, config.pattern)
 
   const value: DateFormatContextType = {
     dateFormat: currentDateFormat,
     setDateFormat,
     config,
     formatDate,
+    formatDateTime,
     parseDateInput,
     normalizeDateInput,
   }

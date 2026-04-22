@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/AuthContext'
+import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 
 type AuditLogRow = {
@@ -58,6 +59,7 @@ function getDateRange(period: PeriodFilter, date: string, startDate: string, end
 
 export default function AuditLogsView() {
   const { currentTenantId } = useAuth()
+  const { t } = useLanguage()
   const [logs, setLogs] = useState<AuditLogRow[]>([])
   const [actorProfiles, setActorProfiles] = useState<Record<string, ActorProfile>>({})
   const [userOptions, setUserOptions] = useState<ActorProfile[]>([])
@@ -184,8 +186,8 @@ export default function AuditLogsView() {
     if (profile?.github_login) return profile.github_login
     if (profile?.email) return profile.email
     if (log.actor_login) return log.actor_login
-    if (log.actor_auth_user_id) return `Usuário não encontrado (${log.actor_auth_user_id.slice(0, 8)})`
-    return 'sistema'
+    if (log.actor_auth_user_id) return `${t.audit_logs_view.user_not_found} (${log.actor_auth_user_id.slice(0, 8)})`
+    return t.audit_logs_view.system
   }
 
   const getActorEmail = (log: AuditLogRow) => {
@@ -198,47 +200,56 @@ export default function AuditLogsView() {
     return profile.github_login || profile.email || profile.auth_user_id
   }
 
+  const getActionLabel = (action: string) => {
+    if (action === 'login') return t.audit_logs_view.action_login
+    if (action === 'logout') return t.audit_logs_view.action_logout
+    if (action === 'create') return t.audit_logs_view.action_create
+    if (action === 'update') return t.audit_logs_view.action_update
+    if (action === 'delete') return t.audit_logs_view.action_delete
+    return action
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <div className="flex items-center gap-1">
-            <h2 className="text-3xl font-bold tracking-tight">Log de auditoria</h2>
-            <HelpButton content={helpContent} title="Ajuda — Log de Auditoria" />
+            <h2 className="text-3xl font-bold tracking-tight">{t.tabs['audit-logs']}</h2>
+            <HelpButton content={helpContent} title={t.audit_logs_view.help_title} />
           </div>
           <p className="text-muted-foreground mt-1">
-            Consulte ações de login, logout, criação, alteração e exclusão registradas no app.
+            {t.audit_logs_view.subtitle}
           </p>
         </div>
         <Button variant="outline" onClick={() => void loadLogs()} disabled={isLoading} className="gap-2">
           <ArrowsClockwise size={16} />
-          {isLoading ? 'Atualizando...' : 'Atualizar'}
+          {isLoading ? t.audit_logs_view.refreshing : t.common.refresh}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>Por padrão, a tela carrega apenas registros da última hora.</CardDescription>
+          <CardTitle>{t.audit_logs_view.filters}</CardTitle>
+          <CardDescription>{t.audit_logs_view.filters_hint}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div className="space-y-2">
-            <Label>Período</Label>
+            <Label>{t.audit_logs_view.period}</Label>
             <Select value={period} onValueChange={(value) => setPeriod(value as PeriodFilter)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="last-hour">Última hora</SelectItem>
-                <SelectItem value="today">Hoje</SelectItem>
-                <SelectItem value="date">Data específica</SelectItem>
-                <SelectItem value="range">Intervalo</SelectItem>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="last-hour">{t.audit_logs_view.period_last_hour}</SelectItem>
+                <SelectItem value="today">{t.audit_logs_view.period_today}</SelectItem>
+                <SelectItem value="date">{t.audit_logs_view.period_specific_date}</SelectItem>
+                <SelectItem value="range">{t.audit_logs_view.period_range}</SelectItem>
+                <SelectItem value="all">{t.audit_logs_view.all}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {period === 'date' && (
             <div className="space-y-2">
-              <Label>Data</Label>
+              <Label>{t.audit_logs_view.date}</Label>
               <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </div>
           )}
@@ -246,22 +257,22 @@ export default function AuditLogsView() {
           {period === 'range' && (
             <>
               <div className="space-y-2">
-                <Label>Data inicial</Label>
+                <Label>{t.audit_logs_view.start_date}</Label>
                 <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Data final</Label>
+                <Label>{t.audit_logs_view.end_date}</Label>
                 <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
               </div>
             </>
           )}
 
           <div className="space-y-2">
-            <Label>Entidade</Label>
+            <Label>{t.audit_logs_view.entity}</Label>
             <Select value={entityFilter} onValueChange={setEntityFilter}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="all">{t.audit_logs_view.all_feminine}</SelectItem>
                 {entityOptions.map((entity) => (
                   <SelectItem key={entity} value={entity}>{entity}</SelectItem>
                 ))}
@@ -270,26 +281,26 @@ export default function AuditLogsView() {
           </div>
 
           <div className="space-y-2">
-            <Label>Tipo de evento</Label>
+            <Label>{t.audit_logs_view.event_type}</Label>
             <Select value={actionFilter} onValueChange={(value) => setActionFilter(value as ActionFilter)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="login">login</SelectItem>
-                <SelectItem value="logout">logout</SelectItem>
-                <SelectItem value="create">create</SelectItem>
-                <SelectItem value="update">update</SelectItem>
-                <SelectItem value="delete">delete</SelectItem>
+                <SelectItem value="all">{t.audit_logs_view.all}</SelectItem>
+                <SelectItem value="login">{t.audit_logs_view.action_login}</SelectItem>
+                <SelectItem value="logout">{t.audit_logs_view.action_logout}</SelectItem>
+                <SelectItem value="create">{t.audit_logs_view.action_create}</SelectItem>
+                <SelectItem value="update">{t.audit_logs_view.action_update}</SelectItem>
+                <SelectItem value="delete">{t.audit_logs_view.action_delete}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label>Usuário</Label>
+            <Label>{t.audit_logs_view.user}</Label>
             <Select value={userFilter} onValueChange={setUserFilter}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">{t.audit_logs_view.all}</SelectItem>
                 {userOptions.map((profile) => (
                   <SelectItem key={profile.auth_user_id} value={profile.auth_user_id}>
                     {getUserOptionLabel(profile)}
@@ -300,11 +311,11 @@ export default function AuditLogsView() {
           </div>
 
           <div className="space-y-2">
-            <Label>Buscar por ID</Label>
+            <Label>{t.audit_logs_view.search_by_id}</Label>
             <Input
               value={recordSearch}
               onChange={(event) => setRecordSearch(event.target.value)}
-              placeholder="ID do registro"
+              placeholder={t.audit_logs_view.record_id_placeholder}
             />
           </div>
         </CardContent>
@@ -314,19 +325,19 @@ export default function AuditLogsView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClockCounterClockwise size={20} weight="duotone" />
-            Eventos
+            {t.audit_logs_view.events}
           </CardTitle>
-          <CardDescription>{logs.length} registro(s) encontrados.</CardDescription>
+          <CardDescription>{logs.length} {t.audit_logs_view.records_found}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-lg border border-border">
             <div className="grid min-w-[1040px] grid-cols-[150px_110px_150px_180px_220px_1fr] gap-3 border-b border-border bg-muted/50 px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <span>Data</span>
-              <span>Evento</span>
-              <span>Entidade</span>
-              <span>Usuário</span>
-              <span>E-mail</span>
-              <span>Registro</span>
+              <span>{t.audit_logs_view.date}</span>
+              <span>{t.audit_logs_view.event}</span>
+              <span>{t.audit_logs_view.entity}</span>
+              <span>{t.audit_logs_view.user}</span>
+              <span>{t.audit_logs_view.email}</span>
+              <span>{t.audit_logs_view.record}</span>
             </div>
             {logs.map((log) => (
               <div
@@ -337,7 +348,7 @@ export default function AuditLogsView() {
                   {format(new Date(log.created_at), 'dd/MM/yyyy HH:mm:ss')}
                 </span>
                 <span>
-                  <Badge variant="secondary" className="h-5 px-2 text-[11px]">{log.action}</Badge>
+                  <Badge variant="secondary" className="h-5 px-2 text-[11px]">{getActionLabel(log.action)}</Badge>
                 </span>
                 <span>
                   <Badge variant="outline" className="h-5 max-w-full truncate px-2 text-[11px]">{log.entity}</Badge>
@@ -352,7 +363,7 @@ export default function AuditLogsView() {
           </div>
           {!isLoading && logs.length === 0 && (
             <div className="mt-3 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Nenhum evento encontrado para os filtros selecionados.
+              {t.audit_logs_view.no_events}
             </div>
           )}
         </CardContent>

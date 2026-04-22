@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import type { ClipboardEvent, DragEvent, FormEvent } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { supabase } from '@/lib/supabase'
@@ -49,7 +49,7 @@ function formatFileSize(size?: number) {
 }
 
 export default function DocumentsView() {
-  const { language, t } = useLanguage()
+  const { t } = useLanguage()
   const { currentTenantId } = useAuth()
   const [documents, setDocuments] = useKV<Document[]>('documents', [])
   const [properties] = useKV<Property[]>('properties', [])
@@ -66,59 +66,56 @@ export default function DocumentsView() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const labels = useMemo(() => ({
-    title: language === 'pt' ? 'Documentos' : 'Documents',
-    subtitle: language === 'pt'
-      ? 'Faça upload, baixe e organize documentos por propriedade, contrato, hóspede, proprietário ou geral.'
-      : 'Upload, download and organize documents by property, contract, guest, owner or general.',
-    add: language === 'pt' ? 'Novo documento' : 'New document',
-    upload: language === 'pt' ? 'Enviar documento' : 'Upload document',
-    uploading: language === 'pt' ? 'Enviando...' : 'Uploading...',
-    file: language === 'pt' ? 'Arquivo' : 'File',
-    name: language === 'pt' ? 'Nome do documento' : 'Document name',
-    category: language === 'pt' ? 'Categoria' : 'Category',
-    relation: language === 'pt' ? 'Vincular a' : 'Relate to',
-    entity: language === 'pt' ? 'Registro vinculado' : 'Linked record',
-    notes: language === 'pt' ? 'Observações' : 'Notes',
-    noDocuments: language === 'pt' ? 'Nenhum documento cadastrado' : 'No documents yet',
-    noDocumentsHelp: language === 'pt' ? 'Envie seu primeiro arquivo para organizar o repositório.' : 'Upload your first file to organize the repository.',
-    download: language === 'pt' ? 'Baixar' : 'Download',
-    view: language === 'pt' ? 'Visualizar' : 'View',
-    delete: language === 'pt' ? 'Excluir' : 'Delete',
-    deleteConfirm: language === 'pt'
-      ? 'Tem certeza que deseja excluir este documento? Esta ação não pode ser desfeita.'
-      : 'Are you sure you want to delete this document? This action cannot be undone.',
-    cancel: language === 'pt' ? 'Cancelar' : 'Cancel',
-    refresh: language === 'pt' ? 'Atualizar' : 'Refresh',
-    search: language === 'pt' ? 'Buscar documentos...' : 'Search documents...',
-    allRelations: language === 'pt' ? 'Todos os vínculos' : 'All relations',
-    selectEntity: language === 'pt' ? 'Selecione o registro' : 'Select record',
-    uploadSuccess: language === 'pt' ? 'Documento enviado com sucesso' : 'Document uploaded successfully',
-    uploadError: language === 'pt' ? 'Falha ao enviar documento' : 'Failed to upload document',
-    downloadError: language === 'pt' ? 'Falha ao baixar documento' : 'Failed to download document',
-    viewError: language === 'pt' ? 'Falha ao visualizar documento' : 'Failed to view document',
-    deleteSuccess: language === 'pt' ? 'Documento excluído com sucesso' : 'Document deleted successfully',
-    fileRequired: language === 'pt' ? 'Selecione um arquivo.' : 'Select a file.',
-    pasteOrDrop: language === 'pt' ? 'Cole com Ctrl+V ou arraste um arquivo para anexar.' : 'Paste with Ctrl+V or drag a file to attach.',
-    dropHere: language === 'pt' ? 'Solte o arquivo aqui' : 'Drop the file here',
-    fileAttached: language === 'pt' ? 'Arquivo anexado' : 'File attached',
-    relationRequired: language === 'pt' ? 'Selecione o registro vinculado.' : 'Select the linked record.',
-    tenantRequired: language === 'pt' ? 'Tenant não carregado. Entre novamente.' : 'Tenant not loaded. Sign in again.',
-  }), [language])
+    title: t.documents_view.title,
+    subtitle: t.documents_view.subtitle,
+    add: t.documents_view.add_document,
+    upload: t.documents_view.upload,
+    uploading: t.documents_view.uploading,
+    file: t.documents_view.file,
+    name: t.documents_view.name,
+    namePlaceholder: t.documents_view.name_placeholder,
+    category: t.documents_view.form.category,
+    relation: t.documents_view.relation,
+    entity: t.documents_view.entity,
+    notes: t.documents_view.form.notes,
+    noDocuments: t.documents_view.no_documents,
+    noDocumentsHelp: t.documents_view.no_documents_help,
+    download: t.documents_view.download,
+    view: t.documents_view.view,
+    delete: t.documents_view.delete,
+    deleteConfirm: t.documents_view.delete_confirm,
+    cancel: t.documents_view.form.cancel,
+    refresh: t.common.refresh,
+    search: t.documents_view.search_placeholder,
+    allRelations: t.documents_view.filter_all,
+    selectEntity: t.documents_view.select_entity,
+    uploadSuccess: t.documents_view.upload_success,
+    uploadError: t.documents_view.upload_error,
+    downloadError: t.documents_view.download_error,
+    viewError: t.documents_view.view_error,
+    deleteSuccess: t.documents_view.deleted_success,
+    fileRequired: t.documents_view.file_required,
+    pasteOrDrop: t.documents_view.paste_or_drop,
+    dropHere: t.documents_view.drop_here,
+    fileAttached: t.documents_view.file_attached,
+    relationRequired: t.documents_view.relation_required,
+    tenantRequired: t.documents_view.tenant_required,
+  }), [t])
 
   const relationLabels: Record<DocumentRelationType, string> = {
-    general: language === 'pt' ? 'Geral' : 'General',
-    property: language === 'pt' ? 'Propriedade' : 'Property',
-    contract: language === 'pt' ? 'Contrato' : 'Contract',
-    guest: language === 'pt' ? 'Hóspede/Inquilino' : 'Guest/Tenant',
-    owner: language === 'pt' ? 'Proprietário' : 'Owner',
+    general: t.documents_view.relation_type.general,
+    property: t.documents_view.relation_type.property,
+    contract: t.documents_view.relation_type.contract,
+    guest: t.documents_view.relation_type.guest,
+    owner: t.documents_view.relation_type.owner,
   }
 
   const categoryLabels: Record<DocumentCategory, string> = {
-    contract: language === 'pt' ? 'Contrato' : 'Contract',
-    receipt: language === 'pt' ? 'Recibo' : 'Receipt',
-    insurance: language === 'pt' ? 'Seguro' : 'Insurance',
-    tax: language === 'pt' ? 'Imposto' : 'Tax',
-    other: language === 'pt' ? 'Outro' : 'Other',
+    contract: t.documents_view.category.contract,
+    receipt: t.documents_view.category.receipt,
+    insurance: t.documents_view.category.insurance,
+    tax: t.documents_view.category.tax,
+    other: t.documents_view.category.other,
   }
 
   const [formData, setFormData] = useState<DocumentFormState>({
@@ -386,7 +383,7 @@ export default function DocumentsView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{labels.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Documentos" />
+            <HelpButton content={helpContent} title="Ajuda â€” Documentos" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{labels.subtitle}</p>
         </div>
@@ -406,7 +403,7 @@ export default function DocumentsView() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-1">
                   {labels.upload}
-                  <HelpButton content={formHelpContent} title="Ajuda — Upload de Documento" />
+                  <HelpButton content={formHelpContent} title="Ajuda â€” Upload de Documento" />
                 </DialogTitle>
                 <DialogDescription>{labels.subtitle}</DialogDescription>
               </DialogHeader>
@@ -444,7 +441,7 @@ export default function DocumentsView() {
                       id="document-name"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder={language === 'pt' ? 'Ex.: Contrato assinado' : 'E.g.: Signed agreement'}
+                      placeholder={labels.namePlaceholder}
                       required
                     />
                   </div>

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 import { logAppAudit } from '@/lib/appAudit'
 import type { UserRole, UserStatus } from '@/types'
@@ -67,6 +68,7 @@ type UserPresenceRow = {
 
 export default function UsersPermissionsView() {
   const { isAdmin, isPlatformAdmin, setSessionTenant, currentUser, currentTenantId } = useAuth()
+  const { t } = useLanguage()
 
   const [tenants, setTenants] = useState<TenantOption[]>([])
   const [selectedTenantId, setSelectedTenantId] = useState<string>('')
@@ -159,7 +161,7 @@ export default function UsersPermissionsView() {
       .select('id, name')
       .order('created_at', { ascending: true })
     if (error) {
-      toast.error('Falha ao carregar tenants. Verifique permissões de acesso.')
+      toast.error(t.users_permissions_view.tenants_load_error)
       setTenants([])
     } else {
       const loaded = (data || []) as TenantOption[]
@@ -184,7 +186,7 @@ export default function UsersPermissionsView() {
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: true })
     if (error) {
-      toast.error('Falha ao carregar usuários do tenant selecionado.')
+      toast.error(t.users_permissions_view.users_load_error)
       setProfiles([])
     } else {
       setProfiles((data || []).map((row: any) => ({
@@ -295,10 +297,10 @@ export default function UsersPermissionsView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck size={20} weight="duotone" />
-            Acesso restrito
+            {t.users_permissions_view.restricted_access}
           </CardTitle>
           <CardDescription>
-            Somente administradores podem acessar a tela de Usuários e Permissões.
+            {t.users_permissions_view.restricted_access_description}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -323,7 +325,7 @@ export default function UsersPermissionsView() {
     try {
       const trimmed = tenantDraft.trim()
       if (!trimmed) {
-        toast.error('Nome do tenant é obrigatório')
+        toast.error(t.users_permissions_view.tenant_name_required)
         return
       }
       const { error } = await supabase
@@ -343,9 +345,9 @@ export default function UsersPermissionsView() {
         actorAuthUserId: currentUser?.id,
         actorLogin: currentUser?.login,
       })
-      toast.success('Tenant atualizado com sucesso')
+      toast.success(t.users_permissions_view.tenant_updated_success)
     } catch (error: any) {
-      toast.error(error?.message || 'Falha ao atualizar tenant')
+      toast.error(error?.message || t.users_permissions_view.tenant_update_error)
     } finally {
       setIsSavingTenant(false)
     }
@@ -354,11 +356,11 @@ export default function UsersPermissionsView() {
   const handleSaveProfile = async () => {
     if (!editingLogin || !selectedProfile) return
     if (!draftLogin.trim()) {
-      toast.error('Login do perfil é obrigatório')
+      toast.error(t.users_permissions_view.profile_login_required)
       return
     }
     if (!draftEmail.trim()) {
-      toast.error('E-mail do perfil é obrigatório')
+      toast.error(t.users_permissions_view.profile_email_required)
       return
     }
 
@@ -378,10 +380,10 @@ export default function UsersPermissionsView() {
       const movingTenant = moveTenantId !== selectedTenantId
       if (movingTenant) {
         if (!isPlatformAdmin) {
-          throw new Error('Somente perfil master pode alterar tenant de usuário.')
+          throw new Error(t.users_permissions_view.only_master_can_move)
         }
         if (selectedProfile.authUserId && selectedProfile.authUserId === currentUser?.id) {
-          throw new Error('Você não pode mover seu próprio usuário para outro tenant.')
+          throw new Error(t.users_permissions_view.cannot_move_self)
         }
       }
 
@@ -414,11 +416,11 @@ export default function UsersPermissionsView() {
         actorAuthUserId: currentUser?.id,
         actorLogin: currentUser?.login,
       })
-      toast.success('Perfil atualizado com sucesso')
+      toast.success(t.success.roleUpdated)
       await loadProfilesByTenant(selectedTenantId)
       setEditingLogin(null)
     } catch (error: any) {
-      toast.error(error?.message || 'Falha ao atualizar perfil')
+      toast.error(error?.message || t.errors.updateFailed)
     } finally {
       setIsSavingProfile(false)
       setIsMoveConfirmOpen(false)
@@ -432,11 +434,11 @@ export default function UsersPermissionsView() {
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-1">
-          <h2 className="text-3xl font-bold tracking-tight">Usuários e Permissões</h2>
-          <HelpButton content={helpContent} title="Ajuda — Usuários e Permissões" />
+          <h2 className="text-3xl font-bold tracking-tight">{t.tabs['users-permissions']}</h2>
+          <HelpButton content={helpContent} title={t.users_permissions_view.help_title} />
         </div>
         <p className="text-muted-foreground mt-1">
-          Gerencie permissões de usuários, tenant atual e edição de perfis.
+          {t.users_permissions_view.subtitle}
         </p>
       </div>
 
@@ -444,19 +446,19 @@ export default function UsersPermissionsView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BuildingOffice size={20} weight="duotone" />
-            Controle de Tenant
+            {t.users_permissions_view.tenant_control_title}
           </CardTitle>
           <CardDescription>
-            Visualize o tenant atual e altere o tenant para gerenciar usuários de outros tenants.
+            {t.users_permissions_view.tenant_control_description}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="tenant-selector">Tenant em foco</Label>
+              <Label htmlFor="tenant-selector">{t.users_permissions_view.tenant_in_focus}</Label>
               <Select value={selectedTenantId} onValueChange={setSelectedTenantId} disabled={isLoadingTenants || tenants.length === 0 || !isPlatformAdmin}>
                 <SelectTrigger id="tenant-selector">
-                  <SelectValue placeholder="Selecione um tenant" />
+                  <SelectValue placeholder={t.users_permissions_view.select_tenant} />
                 </SelectTrigger>
                 <SelectContent>
                   {tenants.map((tenant) => (
@@ -466,25 +468,25 @@ export default function UsersPermissionsView() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tenant-name">Nome do Tenant</Label>
+              <Label htmlFor="tenant-name">{t.users_permissions_view.tenant_name}</Label>
               <Input
                 id="tenant-name"
                 value={tenantDraft}
                 onChange={(event) => setTenantDraft(event.target.value)}
-                placeholder="Nome da organização"
+                placeholder={t.users_permissions_view.organization_name}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tenant-id">Tenant ID</Label>
+              <Label htmlFor="tenant-id">{t.users_permissions_view.tenant_id}</Label>
               <Input id="tenant-id" value={selectedTenantId || ''} disabled />
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Tenant do usuário logado: {currentTenantId || '-'}
+            {t.users_permissions_view.logged_user_tenant}: {currentTenantId || '-'}
           </p>
           {!isPlatformAdmin && (
             <p className="text-xs text-muted-foreground">
-              Apenas perfil master pode trocar tenant da sessão e mover usuários entre tenants.
+              {t.users_permissions_view.only_master_session_and_move}
             </p>
           )}
           {isPlatformAdmin && (
@@ -494,18 +496,18 @@ export default function UsersPermissionsView() {
                 if (!selectedTenantId) return
                 try {
                   await setSessionTenant(selectedTenantId)
-                  toast.success('Tenant da sessão atualizado')
+                  toast.success(t.users_permissions_view.session_tenant_updated)
                 } catch (error: any) {
-                  toast.error(error?.message || 'Falha ao trocar tenant da sessão')
+                  toast.error(error?.message || t.users_permissions_view.session_tenant_update_error)
                 }
               }}
               disabled={!selectedTenantId}
             >
-              Usar tenant selecionado na sessão
+              {t.users_permissions_view.use_selected_tenant}
             </Button>
           )}
           <Button onClick={handleSaveTenant} disabled={isSavingTenant || !tenantDraft.trim()}>
-            {isSavingTenant ? 'Salvando...' : 'Salvar Tenant'}
+            {isSavingTenant ? t.users_permissions_view.saving : t.users_permissions_view.save_tenant}
           </Button>
         </CardContent>
       </Card>
@@ -515,14 +517,14 @@ export default function UsersPermissionsView() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <UsersThree size={20} weight="duotone" />
-              Usuários online agora
+              {t.users_permissions_view.online_users_title}
             </CardTitle>
             <CardDescription>
-              Sessões ativas no tenant selecionado, considerando atividade nos últimos 90 segundos.
+              {t.users_permissions_view.online_users_description}
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={() => void loadOnlineUsers(selectedTenantId)} disabled={isLoadingOnlineUsers || !selectedTenantId}>
-            {isLoadingOnlineUsers ? 'Atualizando...' : 'Atualizar'}
+            {isLoadingOnlineUsers ? t.users_permissions_view.refreshing : t.common.refresh}
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -539,36 +541,36 @@ export default function UsersPermissionsView() {
                     <p className="font-medium truncate">{profile?.githubLogin || presence.user_login}</p>
                     <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
                       <Circle size={8} weight="fill" />
-                      online
+                      {t.users_permissions_view.online}
                     </Badge>
-                    {profile && <Badge variant="secondary">{profile.role}</Badge>}
+                    {profile && <Badge variant="secondary">{t.roles[profile.role]}</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground truncate">{presence.user_email || profile?.email || '-'}</p>
                 </div>
               </div>
               <div className="grid gap-2 text-sm lg:min-w-[680px] lg:grid-cols-3">
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Tela</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.screen}</p>
                   <p className="font-medium">{presence.current_tab_label}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">O que está fazendo</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.current_activity}</p>
                   <p className="font-medium">{presence.activity}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Último sinal</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.last_seen}</p>
                   <p className="font-medium">{new Date(presence.last_seen_at).toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">IP</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.ip}</p>
                   <p className="font-medium">{presence.ip_address || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Browser</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.browser}</p>
                   <p className="font-medium">{presence.browser || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Hostname</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.hostname}</p>
                   <p className="font-medium">{presence.hostname || '-'}</p>
                 </div>
               </div>
@@ -576,7 +578,7 @@ export default function UsersPermissionsView() {
           ))}
           {!isLoadingOnlineUsers && onlineUsers.length === 0 && (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Nenhum usuário online no tenant selecionado neste momento.
+              {t.users_permissions_view.no_online_users}
             </div>
           )}
         </CardContent>
@@ -586,47 +588,47 @@ export default function UsersPermissionsView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <PencilSimpleLine size={20} weight="duotone" />
-            Edição de Usuários e Perfis
+            {t.users_permissions_view.user_edit_title}
           </CardTitle>
           <CardDescription>
-            Edite login, e-mail, avatar, papel e status de cada usuário do tenant.
+            {t.users_permissions_view.user_edit_description}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="user-search">Buscar usuário</Label>
+              <Label htmlFor="user-search">{t.users_permissions_view.search_user}</Label>
               <Input
                 id="user-search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Pesquisar por login ou email"
+                placeholder={t.users_permissions_view.search_user_placeholder}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role-filter">Papel</Label>
+              <Label htmlFor="role-filter">{t.users_permissions_view.role}</Label>
               <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as 'all' | UserRole)}>
                 <SelectTrigger id="role-filter">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="admin">admin</SelectItem>
-                  <SelectItem value="guest">guest</SelectItem>
+                  <SelectItem value="all">{t.users_permissions_view.all}</SelectItem>
+                  <SelectItem value="admin">{t.roles.admin}</SelectItem>
+                  <SelectItem value="guest">{t.roles.guest}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status-filter">Status</Label>
+              <Label htmlFor="status-filter">{t.users_permissions_view.status}</Label>
               <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | UserStatus)}>
                 <SelectTrigger id="status-filter">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pending">pending</SelectItem>
-                  <SelectItem value="approved">approved</SelectItem>
-                  <SelectItem value="rejected">rejected</SelectItem>
+                  <SelectItem value="all">{t.users_permissions_view.all}</SelectItem>
+                  <SelectItem value="pending">{t.userManagement.pending}</SelectItem>
+                  <SelectItem value="approved">{t.userManagement.approved}</SelectItem>
+                  <SelectItem value="rejected">{t.userManagement.rejected}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -634,7 +636,7 @@ export default function UsersPermissionsView() {
 
           {isLoadingProfiles && (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Carregando usuários do tenant selecionado...
+              {t.users_permissions_view.loading_users}
             </div>
           )}
           {!isLoadingProfiles && filteredProfiles.map((profile) => (
@@ -642,17 +644,17 @@ export default function UsersPermissionsView() {
               <div className="min-w-0">
                 <p className="font-medium truncate">{profile.githubLogin}</p>
                 <p className="text-sm text-muted-foreground truncate">{profile.email}</p>
-                <p className="text-xs text-muted-foreground">Papel: {profile.role} • Status: {profile.status}</p>
+                <p className="text-xs text-muted-foreground">{t.users_permissions_view.role}: {t.roles[profile.role]} • {t.users_permissions_view.status}: {profile.status === 'pending' ? t.userManagement.pending : profile.status === 'approved' ? t.userManagement.approved : t.userManagement.rejected}</p>
               </div>
               <Button size="sm" variant="outline" onClick={() => openEditDialog(profile.githubLogin)}>
                 <User size={16} weight="duotone" className="mr-2" />
-                Editar Perfil
+                {t.users_permissions_view.edit_profile}
               </Button>
             </div>
           ))}
           {!isLoadingProfiles && filteredProfiles.length === 0 && (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Nenhum usuário encontrado com os filtros atuais.
+              {t.users_permissions_view.no_users_with_filters}
             </div>
           )}
         </CardContent>
@@ -661,15 +663,15 @@ export default function UsersPermissionsView() {
       <Dialog open={!!editingLogin} onOpenChange={(open) => !open && setEditingLogin(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar perfil de usuário</DialogTitle>
+            <DialogTitle>{t.users_permissions_view.edit_profile_title}</DialogTitle>
             <DialogDescription>
-              Atualize os campos abaixo para manter dados e permissões consistentes.
+              {t.users_permissions_view.edit_profile_description}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="profile-login">Login</Label>
+              <Label htmlFor="profile-login">{t.users_permissions_view.login}</Label>
               <Input
                 id="profile-login"
                 value={draftLogin}
@@ -677,7 +679,7 @@ export default function UsersPermissionsView() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="profile-email">E-mail</Label>
+              <Label htmlFor="profile-email">{t.users_permissions_view.email}</Label>
               <Input
                 id="profile-email"
                 type="email"
@@ -686,43 +688,43 @@ export default function UsersPermissionsView() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="profile-avatar">URL do avatar</Label>
+              <Label htmlFor="profile-avatar">{t.users_permissions_view.avatar_url}</Label>
               <Input
                 id="profile-avatar"
                 value={draftAvatar}
                 onChange={(event) => setDraftAvatar(event.target.value)}
-                placeholder="https://..."
+                placeholder={t.users_permissions_view.avatar_url_placeholder}
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="profile-role">Papel</Label>
+                <Label htmlFor="profile-role">{t.users_permissions_view.role}</Label>
                 <Select value={draftRole} onValueChange={(value) => setDraftRole(value as UserRole)}>
                   <SelectTrigger id="profile-role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">admin</SelectItem>
-                    <SelectItem value="guest">guest</SelectItem>
+                    <SelectItem value="admin">{t.roles.admin}</SelectItem>
+                    <SelectItem value="guest">{t.roles.guest}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="profile-status">Status</Label>
+                <Label htmlFor="profile-status">{t.users_permissions_view.status}</Label>
                 <Select value={draftStatus} onValueChange={(value) => setDraftStatus(value as UserStatus)}>
                   <SelectTrigger id="profile-status">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">pending</SelectItem>
-                    <SelectItem value="approved">approved</SelectItem>
-                    <SelectItem value="rejected">rejected</SelectItem>
+                    <SelectItem value="pending">{t.userManagement.pending}</SelectItem>
+                    <SelectItem value="approved">{t.userManagement.approved}</SelectItem>
+                    <SelectItem value="rejected">{t.userManagement.rejected}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="profile-move-tenant">Tenant de destino</Label>
+              <Label htmlFor="profile-move-tenant">{t.users_permissions_view.destination_tenant}</Label>
               <Select value={moveTenantId} onValueChange={setMoveTenantId} disabled={!isPlatformAdmin}>
                 <SelectTrigger id="profile-move-tenant">
                   <SelectValue />
@@ -735,18 +737,18 @@ export default function UsersPermissionsView() {
               </Select>
               <p className="text-xs text-muted-foreground">
                 {isPlatformAdmin
-                  ? 'Altere para mover o usuário para outro tenant.'
-                  : 'Apenas perfil master pode mover usuário entre tenants.'}
+                  ? t.users_permissions_view.change_to_move_user
+                  : t.users_permissions_view.only_master_can_move_user}
               </p>
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingLogin(null)} disabled={isSavingProfile}>
-              Cancelar
+              {t.properties_view.delete_confirm_cancel}
             </Button>
             <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
-              {isSavingProfile ? 'Salvando...' : 'Salvar alterações'}
+              {isSavingProfile ? t.users_permissions_view.saving : t.users_permissions_view.save_changes}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -757,29 +759,29 @@ export default function UsersPermissionsView() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain size={20} weight="duotone" />
-            Uso do Assistente IA — últimos 30 dias
+            {t.users_permissions_view.ai_usage_title}
           </CardTitle>
           <CardDescription>
-            Consultas, tokens consumidos e custo estimado para o tenant <strong>{selectedTenant?.name ?? selectedTenantId}</strong>.
+            {t.users_permissions_view.ai_usage_description_prefix} <strong>{selectedTenant?.name ?? selectedTenantId}</strong>.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoadingAiUsage ? (
-            <p className="text-sm text-muted-foreground">Carregando...</p>
+            <p className="text-sm text-muted-foreground">{t.users_permissions_view.loading}</p>
           ) : (
             <>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-lg border border-border p-4">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Consultas</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{t.users_permissions_view.queries}</p>
                   <p className="text-2xl font-bold">{aiTotals.queries}</p>
                 </div>
                 <div className="rounded-lg border border-border p-4">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Tokens totais</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{t.users_permissions_view.total_tokens}</p>
                   <p className="text-2xl font-bold">{aiTotals.tokens.toLocaleString()}</p>
                 </div>
                 <div className="rounded-lg border border-border p-4">
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
-                    <CurrencyDollar size={13} />Custo estimado (USD)
+                    <CurrencyDollar size={13} />{t.users_permissions_view.estimated_cost_usd}
                   </p>
                   <p className="text-2xl font-bold">${aiTotals.cost.toFixed(6)}</p>
                 </div>
@@ -790,10 +792,10 @@ export default function UsersPermissionsView() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                        <th className="px-4 py-2">Usuário</th>
-                        <th className="px-4 py-2 text-right">Consultas</th>
-                        <th className="px-4 py-2 text-right">Tokens</th>
-                        <th className="px-4 py-2 text-right">Custo (USD)</th>
+                        <th className="px-4 py-2">{t.users_permissions_view.user}</th>
+                        <th className="px-4 py-2 text-right">{t.users_permissions_view.queries}</th>
+                        <th className="px-4 py-2 text-right">{t.users_permissions_view.tokens}</th>
+                        <th className="px-4 py-2 text-right">{t.users_permissions_view.cost_usd}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -812,7 +814,7 @@ export default function UsersPermissionsView() {
 
               {aiUsageLogs.length === 0 && (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum uso registrado nos últimos 30 dias.
+                  {t.users_permissions_view.no_usage_last_30_days}
                 </p>
               )}
             </>
@@ -826,27 +828,27 @@ export default function UsersPermissionsView() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ChartBar size={20} weight="duotone" />
-              Gastos por Tenant — últimos 30 dias
+              {t.users_permissions_view.tenant_spend_title}
             </CardTitle>
             <CardDescription>
-              Visão consolidada do uso do assistente de IA em todos os tenants da plataforma.
+              {t.users_permissions_view.tenant_spend_description}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {allTenantsUsage.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
-                Nenhum uso registrado nos últimos 30 dias.
+                {t.users_permissions_view.no_usage_last_30_days}
               </p>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-muted/50 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                      <th className="px-4 py-2">Tenant</th>
-                      <th className="px-4 py-2 text-right">Consultas</th>
-                      <th className="px-4 py-2 text-right">Tokens</th>
-                      <th className="px-4 py-2 text-right">Custo (USD)</th>
-                      <th className="px-4 py-2 text-right">Última consulta</th>
+                      <th className="px-4 py-2">{t.users_permissions_view.tenant}</th>
+                      <th className="px-4 py-2 text-right">{t.users_permissions_view.queries}</th>
+                      <th className="px-4 py-2 text-right">{t.users_permissions_view.tokens}</th>
+                      <th className="px-4 py-2 text-right">{t.users_permissions_view.cost_usd}</th>
+                      <th className="px-4 py-2 text-right">{t.users_permissions_view.last_query}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -857,14 +859,14 @@ export default function UsersPermissionsView() {
                         <td className="px-4 py-2 text-right">{row.totalTokens.toLocaleString()}</td>
                         <td className="px-4 py-2 text-right">${row.totalCostUsd.toFixed(6)}</td>
                         <td className="px-4 py-2 text-right text-muted-foreground">
-                          {row.lastQueryAt ? new Date(row.lastQueryAt).toLocaleDateString('pt-BR') : '—'}
+                          {row.lastQueryAt ? new Date(row.lastQueryAt).toLocaleDateString() : t.users_permissions_view.not_available}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-border bg-muted/30 font-semibold">
-                      <td className="px-4 py-2">Total</td>
+                      <td className="px-4 py-2">{t.users_permissions_view.total}</td>
                       <td className="px-4 py-2 text-right">{allTenantsUsage.reduce((s, r) => s + r.totalQueries, 0)}</td>
                       <td className="px-4 py-2 text-right">{allTenantsUsage.reduce((s, r) => s + r.totalTokens, 0).toLocaleString()}</td>
                       <td className="px-4 py-2 text-right">${allTenantsUsage.reduce((s, r) => s + r.totalCostUsd, 0).toFixed(6)}</td>
@@ -881,16 +883,15 @@ export default function UsersPermissionsView() {
       <AlertDialog open={isMoveConfirmOpen} onOpenChange={setIsMoveConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar movimentação de tenant</AlertDialogTitle>
+            <AlertDialogTitle>{t.users_permissions_view.confirm_tenant_move_title}</AlertDialogTitle>
             <AlertDialogDescription>
-              Você está movendo o usuário <strong>{draftLogin || editingLogin || '-'}</strong> do tenant <strong>{sourceTenantName}</strong> para <strong>{destinationTenantName}</strong>.
-              Essa alteração pode afetar o acesso do usuário e o escopo dos dados visíveis.
+              {t.users_permissions_view.confirm_tenant_move_prefix} <strong>{draftLogin || editingLogin || '-'}</strong> {t.users_permissions_view.confirm_tenant_move_from} <strong>{sourceTenantName}</strong> {t.users_permissions_view.confirm_tenant_move_to} <strong>{destinationTenantName}</strong>. {t.users_permissions_view.confirm_tenant_move_suffix}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isSavingProfile}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={isSavingProfile}>{t.properties_view.delete_confirm_cancel}</AlertDialogCancel>
             <AlertDialogAction onClick={() => void executeSaveProfile()} disabled={isSavingProfile}>
-              {isSavingProfile ? 'Movendo...' : 'Confirmar movimentação'}
+              {isSavingProfile ? t.users_permissions_view.moving : t.users_permissions_view.confirm_move}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

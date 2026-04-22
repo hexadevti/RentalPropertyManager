@@ -4,6 +4,14 @@ declare module '*.md?raw' {
   const content: string
   export default content
 }
+declare module '*.png' {
+	const src: string
+	export default src
+}
+declare module '*.PNG' {
+	const src: string
+	export default src
+}
 declare const GITHUB_RUNTIME_PERMANENT_NAME: string
 declare const BASE_KV_SERVICE_URL: string
 

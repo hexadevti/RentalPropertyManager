@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { getSupabaseAuthState, subscribeSupabaseAuthState } from '@/lib/supabaseAuthState'
 import { logAppAudit, type AppAuditAction } from '@/lib/appAudit'
@@ -17,6 +18,8 @@ const COLLECTION_KEYS = new Set([
   'documents',
   'guests',
   'inspections',
+  'notification-rules',
+  'notification-templates',
   'owners',
   'properties',
   'service-providers',
@@ -557,6 +560,7 @@ async function loadTasks() {
     assignee: task.assignee || undefined,
     propertyId: task.property_id || undefined,
     createdAt: task.created_at,
+    updatedAt: task.updated_at || undefined,
   }))
 }
 
@@ -609,6 +613,58 @@ async function loadTemplates() {
     content: template.content,
     createdAt: template.created_at,
     updatedAt: template.updated_at,
+  }))
+}
+
+async function loadNotificationTemplates() {
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
+
+  const { data, error } = await supabase
+    .from('notification_templates')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+
+  return (data || []).map((template) => ({
+    id: template.id,
+    name: template.name,
+    channel: template.channel,
+    subject: template.subject || undefined,
+    content: template.content,
+    createdAt: template.created_at,
+    updatedAt: template.updated_at,
+  }))
+}
+
+async function loadNotificationRules() {
+  const tenantId = await getTenantId()
+  if (!tenantId) return []
+
+  const { data, error } = await supabase
+    .from('notification_rules')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: true })
+
+  if (error) throw error
+
+  return (data || []).map((rule) => ({
+    id: rule.id,
+    name: rule.name,
+    trigger: rule.trigger,
+    channels: Array.isArray(rule.channels) ? rule.channels : [],
+    emailTemplateId: rule.email_template_id || undefined,
+    smsTemplateId: rule.sms_template_id || undefined,
+    whatsappTemplateId: rule.whatsapp_template_id || undefined,
+    recipientRoles: Array.isArray(rule.recipient_roles) ? rule.recipient_roles : [],
+    recipientUserIds: Array.isArray(rule.recipient_user_ids) ? rule.recipient_user_ids : [],
+    daysBefore: typeof rule.days_before === 'number' ? rule.days_before : undefined,
+    isActive: rule.is_active ?? true,
+    createdAt: rule.created_at,
+    updatedAt: rule.updated_at,
   }))
 }
 
@@ -802,6 +858,8 @@ async function loadCollection(key: string) {
     case 'contract-templates': return loadTemplates()
     case 'documents': return loadDocuments()
     case 'inspections': return loadInspections()
+    case 'notification-templates': return loadNotificationTemplates()
+    case 'notification-rules': return loadNotificationRules()
     default: return []
   }
 }
@@ -1154,6 +1212,7 @@ async function persistTasks(value: any[]) {
     assignee: task.assignee || null,
     property_id: task.propertyId || null,
     created_at: task.createdAt,
+    updated_at: task.updatedAt || new Date().toISOString(),
   })))
 }
 
@@ -1195,6 +1254,44 @@ async function persistTemplates(value: any[]) {
   })))
 }
 
+async function persistNotificationTemplates(value: any[]) {
+  const tenantId = await getTenantId()
+  if (!tenantId) return
+
+  await replaceSimpleRows('notification_templates', value.map((template) => ({
+    tenant_id: tenantId,
+    id: template.id,
+    name: template.name,
+    channel: template.channel,
+    subject: template.subject || null,
+    content: template.content,
+    created_at: template.createdAt,
+    updated_at: template.updatedAt,
+  })))
+}
+
+async function persistNotificationRules(value: any[]) {
+  const tenantId = await getTenantId()
+  if (!tenantId) return
+
+  await replaceSimpleRows('notification_rules', value.map((rule) => ({
+    tenant_id: tenantId,
+    id: rule.id,
+    name: rule.name,
+    trigger: rule.trigger,
+    channels: rule.channels || [],
+    email_template_id: rule.emailTemplateId || null,
+    sms_template_id: rule.smsTemplateId || null,
+    whatsapp_template_id: rule.whatsappTemplateId || null,
+    recipient_roles: rule.recipientRoles || [],
+    recipient_user_ids: rule.recipientUserIds || [],
+    days_before: typeof rule.daysBefore === 'number' ? rule.daysBefore : null,
+    is_active: rule.isActive ?? true,
+    created_at: rule.createdAt,
+    updated_at: rule.updatedAt,
+  })))
+}
+
 async function persistDocuments(value: any[]) {
   const tenantId = await getTenantId()
   if (!tenantId) return
@@ -1233,6 +1330,8 @@ async function persistCollection(key: string, value: unknown) {
     case 'contract-templates': return persistTemplates(rows)
     case 'documents': return persistDocuments(rows)
     case 'inspections': return persistInspections(rows)
+    case 'notification-templates': return persistNotificationTemplates(rows)
+    case 'notification-rules': return persistNotificationRules(rows)
     default: return undefined
   }
 }
@@ -1296,6 +1395,8 @@ export function useKV<T>(key: string, defaultValue: T): [T, Dispatch<SetStateAct
 
       void persistValue(key, resolved).catch((error) => {
         console.error(`Failed to persist key "${key}" to Supabase`, error)
+        const message = error instanceof Error ? error.message : String(error)
+        toast.error(`Erro ao salvar: ${message}`)
       })
 
       return resolved

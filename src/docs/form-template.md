@@ -17,23 +17,37 @@ Use o editor para escrever o contrato completo. Recursos disponíveis:
 
 ## Inserindo variáveis
 
-Clique no botão **{ }** ou use o painel lateral para inserir variáveis que serão substituídas pelos dados reais na geração do PDF:
+Clique em **Ajuda: Variáveis** para abrir o painel com os caminhos disponíveis. Os tokens precisam seguir o formato `{{xpath}}`.
 
-| Variável | Substituído por |
-|---|---|
-| `{nome_inquilino}` | Nome completo do hóspede |
-| `{cpf_inquilino}` | CPF do hóspede |
-| `{endereco_imovel}` | Endereço da propriedade |
-| `{valor_aluguel}` | Valor mensal do contrato |
-| `{data_inicio}` | Data de início |
-| `{data_fim}` | Data de fim |
-| `{dia_vencimento}` | Dia de vencimento do pagamento |
-| `{nome_proprietario}` | Nome do(s) proprietário(s) |
-| `{fiadores}` | Nomes dos fiadores |
-| `{data_hoje}` | Data de geração do PDF |
+### Como funciona
+
+- Estrutura do caminho: `tabela{indice}.coluna{indice}.subcoluna`
+- Exemplo: `{{owners{1}.documents{1}.number}}`
+- Índices começam em `1`
+- Use `{x}` para retornar todos os itens de uma lista
+
+### Objetos disponíveis
+
+- `contract`
+- `guest`
+- `properties`
+- `owners`
+- `template`
+- `currentDate`
+
+### Exemplos válidos
+
+- `{{guest.name}}`
+- `{{guest.email}}`
+- `{{contract.startDate}}`
+- `{{properties{1}.address}}`
+- `{{owners{x}.name}}`
+- `{{currentDate}}`
+
+> Não invente nomes de variáveis. Use os caminhos exibidos na ajuda da própria tela.
 
 ## Pré-visualização
 
-Selecione um contrato existente no campo **Prévia com contrato** para conferir como as variáveis ficam preenchidas com dados reais antes de salvar o template.
+Selecione um contrato existente no campo **Contrato base para preview** para conferir como os tokens ficam preenchidos com dados reais antes de salvar o template.
 
 > Sempre teste a pré-visualização antes de usar o template em contratos reais.
