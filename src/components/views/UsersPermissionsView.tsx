@@ -13,9 +13,11 @@ import { Badge } from '@/components/ui/badge'
 import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 import { logAppAudit } from '@/lib/appAudit'
-import type { UserRole, UserStatus } from '@/types'
-import { Brain, BuildingOffice, ChartBar, Circle, CurrencyDollar, PencilSimpleLine, ShieldCheck, User, UsersThree } from '@phosphor-icons/react'
+import type { TenantUserInvitation, UserRole, UserStatus } from '@/types'
+import { Brain, BuildingOffice, ChartBar, Circle, CurrencyDollar, EnvelopeSimple, PencilSimpleLine, ShieldCheck, Trash, User, UsersThree } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { InviteTenantUserDialog } from '@/components/InviteTenantUserDialog'
+import { ResetTenantUserPasswordDialog } from '@/components/ResetTenantUserPasswordDialog'
 
 type TenantOption = {
   id: string
@@ -66,6 +68,8 @@ type UserPresenceRow = {
   last_seen_at: string
 }
 
+type InvitationRow = TenantUserInvitation
+
 export default function UsersPermissionsView() {
   const { isAdmin, isPlatformAdmin, setSessionTenant, currentUser, currentTenantId } = useAuth()
   const { t } = useLanguage()
@@ -86,11 +90,16 @@ export default function UsersPermissionsView() {
   const [moveTenantId, setMoveTenantId] = useState<string>('')
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [isMoveConfirmOpen, setIsMoveConfirmOpen] = useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [deleteEmailInput, setDeleteEmailInput] = useState('')
+  const [isDeletingProfile, setIsDeletingProfile] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all')
   const [onlineUsers, setOnlineUsers] = useState<UserPresenceRow[]>([])
+  const [invitations, setInvitations] = useState<InvitationRow[]>([])
   const [isLoadingOnlineUsers, setIsLoadingOnlineUsers] = useState(false)
+  const [isLoadingInvitations, setIsLoadingInvitations] = useState(false)
   const [aiUsageLogs, setAiUsageLogs] = useState<AiUsageRow[]>([])
   const [allTenantsUsage, setAllTenantsUsage] = useState<TenantUsageSummary[]>([])
   const [isLoadingAiUsage, setIsLoadingAiUsage] = useState(false)
@@ -244,6 +253,46 @@ export default function UsersPermissionsView() {
     setIsLoadingAiUsage(false)
   }, [])
 
+  const loadInvitations = useCallback(async (tenantId: string) => {
+    if (!tenantId) {
+      setInvitations([])
+      return
+    }
+
+    setIsLoadingInvitations(true)
+    const { data, error } = await supabase
+      .from('tenant_user_invitations')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (error) {
+      console.warn('Failed to load invitations:', error)
+      setInvitations([])
+    } else {
+      setInvitations((data || []).map((row: any) => ({
+        id: row.id,
+        tenantId: row.tenant_id,
+        invitedProfileId: row.invited_profile_id || undefined,
+        invitedByAuthUserId: row.invited_by_auth_user_id || undefined,
+        claimedAuthUserId: row.claimed_auth_user_id || undefined,
+        email: row.email,
+        login: row.login,
+        role: row.role,
+        message: row.message || undefined,
+        status: row.status,
+        sentAt: row.sent_at || undefined,
+        acceptedAt: row.accepted_at || undefined,
+        expiresAt: row.expires_at,
+        deliveryError: row.delivery_error || undefined,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })))
+    }
+    setIsLoadingInvitations(false)
+  }, [])
+
   useEffect(() => {
     void loadTenants()
   }, [loadTenants])
@@ -253,7 +302,8 @@ export default function UsersPermissionsView() {
     void loadProfilesByTenant(selectedTenantId)
     void loadOnlineUsers(selectedTenantId)
     void loadAiUsage(selectedTenantId)
-  }, [selectedTenantId, loadProfilesByTenant, loadOnlineUsers, loadAiUsage])
+    void loadInvitations(selectedTenantId)
+  }, [selectedTenantId, loadProfilesByTenant, loadOnlineUsers, loadAiUsage, loadInvitations])
 
   useEffect(() => {
     if (!selectedTenantId) return
@@ -424,6 +474,39 @@ export default function UsersPermissionsView() {
     } finally {
       setIsSavingProfile(false)
       setIsMoveConfirmOpen(false)
+    }
+  }
+
+  const handleDeleteProfile = async () => {
+    if (!selectedProfile) return
+    if (deleteEmailInput.trim().toLowerCase() !== selectedProfile.email.trim().toLowerCase()) {
+      toast.error(t.users_permissions_view.delete_profile_email_mismatch)
+      return
+    }
+    setIsDeletingProfile(true)
+    try {
+      const { data, error } = await supabase.rpc('delete_user_profile', {
+        p_profile_id: selectedProfile.id,
+        p_tenant_id: selectedTenantId,
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      await logAppAudit({
+        entity: 'user_profiles',
+        action: 'delete',
+        recordId: selectedProfile.id,
+        tenantId: selectedTenantId,
+        actorAuthUserId: currentUser?.id,
+        actorLogin: currentUser?.login,
+      })
+      toast.success(t.users_permissions_view.delete_profile_success)
+      setIsDeleteConfirmOpen(false)
+      setEditingLogin(null)
+      await loadProfilesByTenant(selectedTenantId)
+    } catch (error: any) {
+      toast.error(error?.message || t.users_permissions_view.delete_profile_error)
+    } finally {
+      setIsDeletingProfile(false)
     }
   }
 
@@ -648,15 +731,113 @@ export default function UsersPermissionsView() {
                 <p className="text-sm text-muted-foreground truncate">{profile.email}</p>
                 <p className="text-xs text-muted-foreground">{t.users_permissions_view.role}: {t.roles[profile.role]} • {t.users_permissions_view.status}: {profile.status === 'pending' ? t.userManagement.pending : profile.status === 'approved' ? t.userManagement.approved : t.userManagement.rejected}</p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => openEditDialog(profile.githubLogin)}>
-                <User size={16} weight="duotone" className="mr-2" />
-                {t.users_permissions_view.edit_profile}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <ResetTenantUserPasswordDialog
+                  tenantId={selectedTenantId}
+                  login={profile.githubLogin}
+                  email={profile.email}
+                  triggerLabel={t.users_permissions_view.reset_password}
+                  title={t.users_permissions_view.reset_password_title}
+                  description={t.users_permissions_view.reset_password_description}
+                  messageLabel={t.users_permissions_view.reset_password_message}
+                  messagePlaceholder={t.users_permissions_view.reset_password_message_placeholder}
+                  cancelLabel={t.properties_view.delete_confirm_cancel}
+                  submitLabel={t.users_permissions_view.send_reset_password}
+                  submittingLabel={t.users_permissions_view.sending_reset_password}
+                  successMessage={t.users_permissions_view.reset_password_sent_success}
+                  errorMessage={t.users_permissions_view.reset_password_send_error}
+                />
+                <Button size="sm" variant="outline" onClick={() => openEditDialog(profile.githubLogin)}>
+                  <User size={16} weight="duotone" className="mr-2" />
+                  {t.users_permissions_view.edit_profile}
+                </Button>
+              </div>
             </div>
           ))}
           {!isLoadingProfiles && filteredProfiles.length === 0 && (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               {t.users_permissions_view.no_users_with_filters}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <EnvelopeSimple size={20} weight="duotone" />
+              {t.users_permissions_view.invite_title}
+            </CardTitle>
+            <CardDescription>
+              {t.users_permissions_view.invite_description}
+            </CardDescription>
+          </div>
+          <InviteTenantUserDialog
+            tenantId={selectedTenantId}
+            triggerLabel={t.users_permissions_view.invite_trigger}
+            title={t.users_permissions_view.invite_title}
+            description={t.users_permissions_view.invite_description}
+            emailLabel={t.users_permissions_view.email}
+            roleLabel={t.users_permissions_view.role}
+            messageLabel={t.users_permissions_view.invite_message}
+            messagePlaceholder={t.users_permissions_view.invite_message_placeholder}
+            cancelLabel={t.properties_view.delete_confirm_cancel}
+            submitLabel={t.users_permissions_view.send_invite}
+            submittingLabel={t.users_permissions_view.sending_invite}
+            emailRequiredMessage={t.users_permissions_view.profile_email_required}
+            successMessage={t.users_permissions_view.invite_sent_success}
+            errorMessage={t.users_permissions_view.invite_send_error}
+            roleAdminLabel={t.roles.admin}
+            roleGuestLabel={t.roles.guest}
+            onInvited={() => {
+              void loadProfilesByTenant(selectedTenantId)
+              void loadInvitations(selectedTenantId)
+            }}
+          />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {isLoadingInvitations && (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              {t.users_permissions_view.loading}
+            </div>
+          )}
+          {!isLoadingInvitations && invitations.map((invitation) => (
+            <div key={invitation.id} className="flex flex-col gap-3 rounded-lg border border-border p-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium truncate">{invitation.login || invitation.email}</p>
+                  <Badge variant={invitation.status === 'pending' ? 'secondary' : 'outline'}>
+                    {invitation.status}
+                  </Badge>
+                  <Badge variant="outline">{t.roles[invitation.role]}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground truncate">{invitation.email}</p>
+                {invitation.message && (
+                  <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{invitation.message}</p>
+                )}
+              </div>
+              <div className="grid gap-2 text-sm lg:min-w-[220px]">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.invite_sent_at}</p>
+                  <p className="font-medium">{invitation.sentAt ? new Date(invitation.sentAt).toLocaleString() : t.users_permissions_view.not_available}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{t.users_permissions_view.invite_expires_at}</p>
+                  <p className="font-medium">{new Date(invitation.expiresAt).toLocaleString()}</p>
+                </div>
+                {invitation.deliveryError && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-destructive">{t.users_permissions_view.invite_delivery_error}</p>
+                    <p className="font-medium text-destructive">{invitation.deliveryError}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {!isLoadingInvitations && invitations.length === 0 && (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              {t.users_permissions_view.no_invitations}
             </div>
           )}
         </CardContent>
@@ -745,12 +926,63 @@ export default function UsersPermissionsView() {
             </div>
           </div>
 
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+            <Button
+              variant="destructive"
+              onClick={() => { setDeleteEmailInput(''); setIsDeleteConfirmOpen(true) }}
+              disabled={isSavingProfile}
+              className="order-last sm:order-first"
+            >
+              <Trash size={16} />
+              {t.users_permissions_view.delete_profile}
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setEditingLogin(null)} disabled={isSavingProfile}>
+                {t.properties_view.delete_confirm_cancel}
+              </Button>
+              <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
+                {isSavingProfile ? t.users_permissions_view.saving : t.users_permissions_view.save_changes}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={(open) => { if (!isDeletingProfile) setIsDeleteConfirmOpen(open) }}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash size={18} />
+              {t.users_permissions_view.delete_profile_title}
+            </DialogTitle>
+            <DialogDescription>
+              {t.users_permissions_view.delete_profile_description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="delete-email-confirm" className="text-sm font-medium">
+              {t.users_permissions_view.delete_profile_confirm_label}:{' '}
+              <span className="font-mono text-foreground">{selectedProfile?.email}</span>
+            </Label>
+            <Input
+              id="delete-email-confirm"
+              value={deleteEmailInput}
+              onChange={(e) => setDeleteEmailInput(e.target.value)}
+              placeholder={t.users_permissions_view.delete_profile_confirm_placeholder}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleDeleteProfile() }}
+              autoComplete="off"
+            />
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingLogin(null)} disabled={isSavingProfile}>
+            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)} disabled={isDeletingProfile}>
               {t.properties_view.delete_confirm_cancel}
             </Button>
-            <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
-              {isSavingProfile ? t.users_permissions_view.saving : t.users_permissions_view.save_changes}
+            <Button
+              variant="destructive"
+              onClick={() => void handleDeleteProfile()}
+              disabled={isDeletingProfile || deleteEmailInput.trim().toLowerCase() !== (selectedProfile?.email ?? '').trim().toLowerCase()}
+            >
+              {isDeletingProfile ? t.users_permissions_view.delete_profile_deleting : t.users_permissions_view.delete_profile_confirm_button}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -34,6 +34,7 @@ import { Login } from '@/components/Login'
 import { HomePage } from '@/components/HomePage'
 import { PendingApproval } from '@/components/PendingApproval'
 import { Rejected } from '@/components/Rejected'
+import { PasswordRecoveryForm } from '@/components/PasswordRecoveryForm'
 import { useKVCleanup } from '@/hooks/use-kv-cleanup'
 import { usePropertyMigration } from '@/hooks/use-property-migration'
 import { useUserPresence } from '@/hooks/use-user-presence'
@@ -59,9 +60,11 @@ function AuthCallbackPage() {
     isPending,
     isRejected,
   } = useAuth()
+  const searchParams = new URLSearchParams(window.location.search)
+  const isPasswordRecoveryMode = searchParams.get('mode') === 'reset-password'
 
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading || isPasswordRecoveryMode) return
 
     const destination = new URL(window.location.origin)
     const searchParams = new URLSearchParams(window.location.search)
@@ -82,7 +85,11 @@ function AuthCallbackPage() {
     }
 
     window.location.replace(destination.toString())
-  }, [isApproved, isAuthenticated, isLoading, isPending, isRejected])
+  }, [isApproved, isAuthenticated, isLoading, isPasswordRecoveryMode, isPending, isRejected])
+
+  if (isPasswordRecoveryMode) {
+    return <PasswordRecoveryForm />
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
@@ -117,6 +124,7 @@ function AppContent() {
   const [properties] = useKV<Property[]>('properties', [])
   const [transactions] = useKV<Transaction[]>('transactions', [])
   const [showLogin, setShowLogin] = useState(false)
+  const hasInviteParam = new URLSearchParams(window.location.search).has('invite')
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('tab') || (isGuest ? 'calendar' : 'properties')
@@ -208,11 +216,24 @@ function AppContent() {
   }
 
   if (!isAuthenticated && !showLogin) {
+    if (hasInviteParam) {
+      return <Login onBack={() => {
+        const nextUrl = new URL(window.location.href)
+        nextUrl.searchParams.delete('invite')
+        window.history.replaceState({}, document.title, `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+        setShowLogin(false)
+      }} />
+    }
     return <HomePage onLoginClick={() => setShowLogin(true)} />
   }
 
   if (!isAuthenticated) {
-    return <Login onBack={() => setShowLogin(false)} />
+    return <Login onBack={() => {
+      const nextUrl = new URL(window.location.href)
+      nextUrl.searchParams.delete('invite')
+      window.history.replaceState({}, document.title, `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+      setShowLogin(false)
+    }} />
   }
 
   if (!isApproved && isPending) {

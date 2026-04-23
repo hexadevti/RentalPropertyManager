@@ -128,6 +128,7 @@ type NotificationRuleForm = {
   recipientRoles: UserRole[]
   recipientUserIds: string[]
   sendToTaskAssignee: boolean
+  sendToEventRecipient: boolean
   conditions: NotificationConditionForm[]
   createdAt: string
   updatedAt: string
@@ -141,6 +142,7 @@ type NotificationRuleGroup = {
   recipientRoles: UserRole[]
   recipientUserIds: string[]
   sendToTaskAssignee: boolean
+  sendToEventRecipient: boolean
   conditions: NotificationConditionForm[]
   createdAt: string
   updatedAt: string
@@ -233,6 +235,7 @@ export default function NotificationsView() {
     recipientRoles: ['admin'],
     recipientUserIds: [],
     sendToTaskAssignee: false,
+    sendToEventRecipient: false,
     conditions: buildDefaultNotificationConditions('tasks'),
     createdAt: '',
     updatedAt: '',
@@ -413,6 +416,7 @@ export default function NotificationsView() {
       recipientRoles: ['admin'],
       recipientUserIds: [],
       sendToTaskAssignee: false,
+      sendToEventRecipient: false,
       conditions: buildDefaultNotificationConditions('tasks'),
       createdAt: '',
       updatedAt: '',
@@ -480,6 +484,7 @@ export default function NotificationsView() {
           recipientRoles: [...rule.recipientRoles],
           recipientUserIds: [...rule.recipientUserIds],
           sendToTaskAssignee: rule.sendToTaskAssignee ?? false,
+          sendToEventRecipient: rule.sendToEventRecipient ?? false,
           conditions: [conditionFromRule],
           createdAt: rule.createdAt,
           updatedAt: rule.updatedAt,
@@ -491,6 +496,7 @@ export default function NotificationsView() {
       existing.recipientRoles = Array.from(new Set([...existing.recipientRoles, ...rule.recipientRoles]))
       existing.recipientUserIds = Array.from(new Set([...existing.recipientUserIds, ...rule.recipientUserIds]))
       existing.sendToTaskAssignee = existing.sendToTaskAssignee || (rule.sendToTaskAssignee ?? false)
+      existing.sendToEventRecipient = existing.sendToEventRecipient || (rule.sendToEventRecipient ?? false)
       existing.conditions.push(conditionFromRule)
       existing.updatedAt = existing.updatedAt > rule.updatedAt ? existing.updatedAt : rule.updatedAt
     }
@@ -803,7 +809,33 @@ export default function NotificationsView() {
         eventType: selectedPreviewEventType,
         channel: t.notifications_view.channels[templateForm.channel],
         subject: templateForm.subject || t.notifications_view.preview.default_subject,
-        recipientCount: ruleForm.recipientUserIds.length + ruleForm.recipientRoles.length + (ruleForm.sendToTaskAssignee ? 1 : 0),
+        recipientCount: ruleForm.recipientUserIds.length + ruleForm.recipientRoles.length + (ruleForm.sendToTaskAssignee ? 1 : 0) + (ruleForm.sendToEventRecipient ? 1 : 0),
+        notificationRecipient: selectedPreviewUser
+          ? {
+              login: selectedPreviewUser.githubLogin,
+              name: selectedPreviewUser.githubLogin,
+              email: selectedPreviewUser.email,
+              authUserId: selectedPreviewUser.authUserId,
+            }
+          : null,
+        invite: previewUserPayload
+          ? {
+              acceptUrl: `https://rpm.example.com/?invite=${previewUserPayload.id}`,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              email: previewUserPayload.email,
+              login: previewUserPayload.githubLogin,
+              role: previewUserPayload.role,
+              message: 'Bem-vindo ao tenant. Use este link para concluir seu acesso.',
+            }
+          : null,
+        passwordReset: previewUserPayload
+          ? {
+              resetUrl: `https://rpm.example.com/auth/callback?mode=reset-password&token=${previewUserPayload.id}`,
+              email: previewUserPayload.email,
+              login: previewUserPayload.githubLogin,
+              message: 'Crie uma nova senha para voltar a acessar o sistema.',
+            }
+          : null,
         appointment: previewAppointmentPayload,
         contract: previewContractPayload,
         task: selectedPreviewTask
@@ -857,7 +889,7 @@ export default function NotificationsView() {
         reporterLogin: previewBugPayload?.reporterLogin || null,
       },
     }
-  }, [ruleForm.conditions, ruleForm.eventType, ruleForm.name, ruleForm.recipientRoles.length, ruleForm.recipientUserIds.length, ruleForm.sendToTaskAssignee, selectedPreviewAppointment, selectedPreviewBug, selectedPreviewContract, selectedPreviewEventType, selectedPreviewInspection, selectedPreviewInspectionProperty, selectedPreviewTask, selectedPreviewTaskAssignee, selectedPreviewTaskProperty, selectedPreviewUser, t.notifications_view.channels, t.notifications_view.preview.default_rule_name, t.notifications_view.preview.default_subject, t.notifications_view.triggers, t.roles, templateForm.channel, templateForm.subject])
+  }, [ruleForm.conditions, ruleForm.eventType, ruleForm.name, ruleForm.recipientRoles.length, ruleForm.recipientUserIds.length, ruleForm.sendToEventRecipient, ruleForm.sendToTaskAssignee, selectedPreviewAppointment, selectedPreviewBug, selectedPreviewContract, selectedPreviewEventType, selectedPreviewInspection, selectedPreviewInspectionProperty, selectedPreviewTask, selectedPreviewTaskAssignee, selectedPreviewTaskProperty, selectedPreviewUser, t.notifications_view.channels, t.notifications_view.preview.default_rule_name, t.notifications_view.preview.default_subject, t.notifications_view.triggers, t.roles, templateForm.channel, templateForm.subject])
 
   const xpathPreviewRows = useMemo(() => {
     const rows: PreviewRow[] = []
@@ -924,6 +956,7 @@ export default function NotificationsView() {
       ...current,
       eventType,
       sendToTaskAssignee: eventType === 'tasks' ? current.sendToTaskAssignee : false,
+      sendToEventRecipient: eventType === 'user-access' ? current.sendToEventRecipient : false,
       conditions: buildDefaultNotificationConditions(eventType),
     }))
   }
@@ -1022,6 +1055,7 @@ export default function NotificationsView() {
       recipientRoles: [...ruleGroup.recipientRoles],
       recipientUserIds: [...ruleGroup.recipientUserIds],
       sendToTaskAssignee: ruleGroup.sendToTaskAssignee,
+      sendToEventRecipient: ruleGroup.sendToEventRecipient,
       conditions: ruleGroup.conditions.map((condition) => ({ ...condition })),
       createdAt: ruleGroup.createdAt,
       updatedAt: ruleGroup.updatedAt,
@@ -1050,7 +1084,7 @@ export default function NotificationsView() {
       return
     }
 
-    if (!ruleForm.recipientRoles.length && !ruleForm.recipientUserIds.length && !ruleForm.sendToTaskAssignee) {
+    if (!ruleForm.recipientRoles.length && !ruleForm.recipientUserIds.length && !ruleForm.sendToTaskAssignee && !ruleForm.sendToEventRecipient) {
       toast.error(t.notifications_view.messages.recipients_required)
       return
     }
@@ -1095,6 +1129,7 @@ export default function NotificationsView() {
       recipientRoles: [...ruleForm.recipientRoles],
       recipientUserIds: [...ruleForm.recipientUserIds],
       sendToTaskAssignee: ruleForm.eventType === 'tasks' ? ruleForm.sendToTaskAssignee : false,
+      sendToEventRecipient: ruleForm.eventType === 'user-access' ? ruleForm.sendToEventRecipient : false,
       daysBefore: NOTIFICATION_TIMED_TRIGGERS.has(condition.trigger)
         ? (typeof condition.daysBefore === 'number' ? condition.daysBefore : DEFAULT_NOTIFICATION_DAYS_BEFORE[condition.trigger] || 0)
         : undefined,
@@ -1152,6 +1187,7 @@ export default function NotificationsView() {
         recipient_roles: rule.recipientRoles || [],
         recipient_user_ids: rule.recipientUserIds || [],
         send_to_task_assignee: rule.sendToTaskAssignee ?? false,
+        send_to_event_recipient: rule.sendToEventRecipient ?? false,
         days_before: typeof rule.daysBefore === 'number' ? rule.daysBefore : null,
         is_active: rule.isActive ?? true,
         created_at: rule.createdAt,
@@ -1529,6 +1565,14 @@ export default function NotificationsView() {
                         {ruleGroup.sendToTaskAssignee
                           ? t.notifications_view.rule.task_assignee_enabled
                           : t.notifications_view.rule.task_assignee_disabled}
+                      </p>
+                    )}
+                    {ruleGroup.eventType === 'user-access' && (
+                      <p>
+                        <span className="font-medium">{t.notifications_view.rule.event_recipient_label}:</span>{' '}
+                        {ruleGroup.sendToEventRecipient
+                          ? t.notifications_view.rule.event_recipient_enabled
+                          : t.notifications_view.rule.event_recipient_disabled}
                       </p>
                     )}
                   </div>
@@ -2060,6 +2104,21 @@ export default function NotificationsView() {
                       <div className="min-w-0">
                         <p className="font-medium">{t.notifications_view.rule.task_assignee_label}</p>
                         <p className="text-xs text-muted-foreground">{t.notifications_view.rule.task_assignee_description}</p>
+                      </div>
+                    </label>
+                  )}
+                  {ruleForm.eventType === 'user-access' && (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+                      <Checkbox
+                        checked={ruleForm.sendToEventRecipient}
+                        onCheckedChange={(checked) => setRuleForm((current) => ({
+                          ...current,
+                          sendToEventRecipient: checked === true,
+                        }))}
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium">{t.notifications_view.rule.event_recipient_label}</p>
+                        <p className="text-xs text-muted-foreground">{t.notifications_view.rule.event_recipient_description}</p>
                       </div>
                     </label>
                   )}

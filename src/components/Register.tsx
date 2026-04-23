@@ -1,17 +1,51 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
+import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Eye, EyeSlash, UserPlus, CheckCircle } from '@phosphor-icons/react'
+import { Eye, EyeSlash, UserPlus, CheckCircle, GithubLogo, GoogleLogo } from '@phosphor-icons/react'
+import { Separator } from '@/components/ui/separator'
 
 interface RegisterProps {
   onBackToLogin: () => void
 }
 
+type ResolvedInvitation = {
+  token: string
+  tenantId: string
+  tenantName: string
+  email: string
+  login?: string
+  role: 'admin' | 'guest'
+  message: string
+  expiresAt: string | null
+  alreadyClaimed?: boolean
+}
+
+async function readFunctionErrorMessage(error: unknown) {
+  if (typeof error === 'object' && error !== null && 'context' in error) {
+    const context = (error as { context?: unknown }).context
+    if (typeof context === 'string' && context) return context
+    if (context instanceof Response) {
+      const bodyText = await context.text().catch(() => '')
+      try {
+        const parsed = bodyText ? JSON.parse(bodyText) : null
+        if (parsed?.error) return parsed.error
+      } catch {}
+      if (bodyText) return bodyText
+    }
+  }
+  if (error instanceof Error && error.message) return error.message
+  return 'Não foi possível resolver o convite.'
+}
+
 export default function Register({ onBackToLogin }: RegisterProps) {
-  const { signUp } = useAuth()
+  const { signUp, signInWithGitHub, signInWithGoogle } = useAuth()
+  const invitationToken = useMemo(() => new URLSearchParams(window.location.search).get('invite') || '', [])
+  const isInviteMode = invitationToken.length > 0
+
   const [orgName, setOrgName] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -23,6 +57,56 @@ export default function Register({ onBackToLogin }: RegisterProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false)
+  const [resolvedInvitation, setResolvedInvitation] = useState<ResolvedInvitation | null>(null)
+  const [isLoadingInvitation, setIsLoadingInvitation] = useState(isInviteMode)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isInviteMode) return
+
+    let cancelled = false
+
+    const resolveInvitation = async () => {
+      setIsLoadingInvitation(true)
+      setInviteError(null)
+      try {
+        const { data, error } = await supabase.functions.invoke<{
+          success?: boolean
+          invitation?: ResolvedInvitation
+          error?: string
+        }>('tenant-user-invitations', {
+          body: {
+            action: 'resolve',
+            token: invitationToken,
+          },
+        })
+
+        if (error) {
+          throw new Error(await readFunctionErrorMessage(error))
+        }
+        if (data?.error) {
+          throw new Error(data.error)
+        }
+        if (!data?.invitation) {
+          throw new Error('Convite não encontrado.')
+        }
+        if (cancelled) return
+
+        setResolvedInvitation(data.invitation)
+        setOrgName(data.invitation.tenantName)
+        setName(data.invitation.login || '')
+        setEmail(data.invitation.email)
+      } catch (err: unknown) {
+        if (cancelled) return
+        setInviteError(err instanceof Error ? err.message : 'Não foi possível carregar o convite.')
+      } finally {
+        if (!cancelled) setIsLoadingInvitation(false)
+      }
+    }
+
+    void resolveInvitation()
+    return () => { cancelled = true }
+  }, [invitationToken, isInviteMode])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,6 +142,58 @@ export default function Register({ onBackToLogin }: RegisterProps) {
     }
   }
 
+  const handleOAuth = async (provider: 'google' | 'github') => {
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      if (provider === 'google') {
+        await signInWithGoogle()
+      } else {
+        await signInWithGitHub()
+      }
+    } catch {
+      setError(provider === 'google'
+        ? 'Não foi possível entrar com Google.'
+        : 'Não foi possível entrar com GitHub.')
+      setIsSubmitting(false)
+    }
+  }
+
+  if (isInviteMode && isLoadingInvitation) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 flex items-center justify-center p-6">
+        <Card className="w-full max-w-md shadow-2xl border-2">
+          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+            <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold">Carregando convite</h2>
+              <p className="text-muted-foreground text-sm">Estamos validando seu link de acesso.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (isInviteMode && (inviteError || !resolvedInvitation)) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 flex items-center justify-center p-6">
+        <Card className="w-full max-w-md shadow-2xl border-2">
+          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+            <UserPlus size={64} weight="duotone" className="text-primary" />
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold">Convite indisponível</h2>
+              <p className="text-muted-foreground text-sm">{inviteError || 'Este convite não está mais disponível.'}</p>
+            </div>
+            <Button className="mt-2" onClick={onBackToLogin}>
+              Voltar para o login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 flex items-center justify-center p-6">
@@ -65,7 +201,7 @@ export default function Register({ onBackToLogin }: RegisterProps) {
           <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
             <CheckCircle size={64} weight="duotone" className="text-primary" />
             <div className="space-y-2">
-              <h2 className="text-xl font-bold">Cadastro realizado!</h2>
+              <h2 className="text-xl font-bold">{isInviteMode ? 'Convite aceito!' : 'Cadastro realizado!'}</h2>
               {needsEmailConfirmation ? (
                 <>
                   <p className="text-muted-foreground text-sm">
@@ -73,16 +209,13 @@ export default function Register({ onBackToLogin }: RegisterProps) {
                     Clique no link do e-mail para ativar sua conta.
                   </p>
                   <p className="text-muted-foreground text-sm">
-                    Caso não encontre, verifique a caixa de spam.
+                    Após a confirmação, você poderá acessar o tenant <strong>{orgName}</strong>.
                   </p>
                 </>
               ) : (
-                <>
-                  <p className="text-muted-foreground text-sm">
-                    Sua conta foi criada com sucesso. Um administrador precisa aprovar
-                    seu acesso antes que você possa entrar no sistema.
-                  </p>
-                </>
+                <p className="text-muted-foreground text-sm">
+                  Sua conta foi criada com sucesso{isInviteMode ? ` e vinculada ao tenant ${orgName}.` : '.'}
+                </p>
               )}
             </div>
             <Button className="mt-2" onClick={onBackToLogin}>
@@ -101,48 +234,134 @@ export default function Register({ onBackToLogin }: RegisterProps) {
           <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
             <UserPlus size={30} weight="duotone" className="text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Criar conta</CardTitle>
-          <CardDescription>Preencha os dados para solicitar acesso</CardDescription>
+          <CardTitle className="text-2xl font-bold">
+            {isInviteMode ? 'Aceitar convite' : 'Criar conta'}
+          </CardTitle>
+          <CardDescription>
+            {isInviteMode
+              ? 'Conclua seu acesso ao tenant convidado'
+              : 'Preencha os dados para solicitar acesso'}
+          </CardDescription>
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="reg-org">Nome da organização</Label>
-              <Input
-                id="reg-org"
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                placeholder="Minha Imobiliária"
-                required
-                autoComplete="organization"
-              />
+          {isInviteMode && resolvedInvitation && (
+            <div className="mb-4 rounded-xl border border-border bg-muted/40 p-4 space-y-2">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Tenant</p>
+                <p className="font-medium">{resolvedInvitation.tenantName}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">E-mail</p>
+                <p className="font-medium">{resolvedInvitation.email}</p>
+              </div>
+              {!!resolvedInvitation.message && (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">Mensagem</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{resolvedInvitation.message}</p>
+                </div>
+              )}
             </div>
+          )}
 
+          {isInviteMode && (
+            <div className="space-y-3 mb-4">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                size="lg"
+                onClick={() => void handleOAuth('google')}
+                disabled={isSubmitting || !!resolvedInvitation?.alreadyClaimed}
+              >
+                <GoogleLogo size={18} weight="bold" />
+                Continuar com Google
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                size="lg"
+                onClick={() => void handleOAuth('github')}
+                disabled={isSubmitting || !!resolvedInvitation?.alreadyClaimed}
+              >
+                <GithubLogo size={18} weight="bold" />
+                Continuar com GitHub
+              </Button>
+
+              <div className="flex items-center gap-3">
+                <Separator className="flex-1" />
+                <span className="text-xs text-muted-foreground">ou crie uma senha</span>
+                <Separator className="flex-1" />
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {!isInviteMode && (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="reg-org">Nome da organização</Label>
+                  <Input
+                    id="reg-org"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="Minha Imobiliária"
+                    required
+                    autoComplete="organization"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="reg-name">Nome completo</Label>
+                  <Input
+                    id="reg-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Seu nome"
+                    required
+                    autoComplete="name"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="reg-email">E-mail</Label>
+                  <Input
+                    id="reg-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+              </>
+            )}
+
+            {isInviteMode && (
+              <>
             <div className="space-y-1">
-              <Label htmlFor="reg-name">Nome completo</Label>
+              <Label htmlFor="invite-tenant">Tenant</Label>
+              <Input id="invite-tenant" value={orgName} disabled />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="invite-login">Usuário</Label>
               <Input
-                id="reg-name"
+                id="invite-login"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Seu nome"
+                placeholder="Escolha seu usuário"
                 required
-                autoComplete="name"
+                autoComplete="username"
+                disabled={!!resolvedInvitation?.alreadyClaimed}
               />
             </div>
-
             <div className="space-y-1">
-              <Label htmlFor="reg-email">E-mail</Label>
-              <Input
-                id="reg-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                required
-                autoComplete="email"
-              />
+              <Label htmlFor="invite-email">E-mail</Label>
+              <Input id="invite-email" value={email} disabled />
             </div>
+              </>
+            )}
 
             <div className="space-y-1">
               <Label htmlFor="reg-password">Senha</Label>
@@ -156,6 +375,7 @@ export default function Register({ onBackToLogin }: RegisterProps) {
                   required
                   autoComplete="new-password"
                   className="pr-10"
+                  disabled={!!resolvedInvitation?.alreadyClaimed}
                 />
                 <button
                   type="button"
@@ -180,6 +400,7 @@ export default function Register({ onBackToLogin }: RegisterProps) {
                   required
                   autoComplete="new-password"
                   className="pr-10"
+                  disabled={!!resolvedInvitation?.alreadyClaimed}
                 />
                 <button
                   type="button"
@@ -192,10 +413,23 @@ export default function Register({ onBackToLogin }: RegisterProps) {
               </div>
             </div>
 
+            {resolvedInvitation?.alreadyClaimed && (
+              <p className="text-sm text-muted-foreground text-center">
+                Este convite já foi associado a uma conta. Use um provedor social com o mesmo e-mail ou volte para o login.
+              </p>
+            )}
+
             {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
-            <Button type="submit" className="w-full mt-2" size="lg" disabled={isSubmitting}>
-              {isSubmitting ? 'Criando conta...' : 'Criar conta'}
+            <Button
+              type="submit"
+              className="w-full mt-2"
+              size="lg"
+              disabled={isSubmitting || !!resolvedInvitation?.alreadyClaimed}
+            >
+              {isSubmitting
+                ? (isInviteMode ? 'Concluindo convite...' : 'Criando conta...')
+                : (isInviteMode ? 'Criar conta e aceitar convite' : 'Criar conta')}
             </Button>
           </form>
         </CardContent>

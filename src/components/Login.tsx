@@ -14,7 +14,7 @@ interface LoginProps {
 
 export function Login({ onBack }: LoginProps = {}) {
   const { signInWithEmail, signInWithGitHub, signInWithGoogle, signInWithDevCredentials } = useAuth()
-  const [showRegister, setShowRegister] = useState(false)
+  const [showRegister, setShowRegister] = useState(() => new URLSearchParams(window.location.search).has('invite'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -41,6 +41,13 @@ export function Login({ onBack }: LoginProps = {}) {
     if (!isDevMode) return
     void tryDevSignIn()
   }, [isDevMode])
+
+  useEffect(() => {
+    const hasInvite = new URLSearchParams(window.location.search).has('invite')
+    if (hasInvite) {
+      setShowRegister(true)
+    }
+  }, [])
 
   if (isDevMode) {
     return (
@@ -69,7 +76,12 @@ export function Login({ onBack }: LoginProps = {}) {
   }
 
   if (showRegister) {
-    return <Register onBackToLogin={() => setShowRegister(false)} />
+    return <Register onBackToLogin={() => {
+      const nextUrl = new URL(window.location.href)
+      nextUrl.searchParams.delete('invite')
+      window.history.replaceState({}, document.title, `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+      setShowRegister(false)
+    }} />
   }
 
   const handleEmailLogin = async (e: React.FormEvent) => {
