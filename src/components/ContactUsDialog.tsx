@@ -28,7 +28,7 @@ async function readFunctionErrorMessage(error: unknown) {
   return 'Failed to send the message.'
 }
 
-export function ContactUsDialog() {
+export function ContactUsDialog({ fullWidth }: { fullWidth?: boolean } = {}) {
   const { currentUser, currentTenantId } = useAuth()
   const { t } = useLanguage()
   const [open, setOpen] = useState(false)
@@ -105,7 +105,7 @@ export function ContactUsDialog() {
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className={`gap-2${fullWidth ? ' w-full' : ''}`}>
           <ChatCircleDots size={16} weight="duotone" />
           {t.contact_us_dialog.trigger_label}
         </Button>

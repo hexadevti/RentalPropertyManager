@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, Compass, SquaresFour } from '@phosphor-icons/react'
+import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, Compass, SquaresFour, UploadSimple, DownloadSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
@@ -23,7 +23,7 @@ import { getPropertyAvailabilityStatus } from '@/lib/propertyAvailability'
 import ContractDialogForm from '@/components/ContractDialogForm'
 import PropertyMapView from '@/components/PropertyMapView'
 
-export default function PropertiesView() {
+export default function PropertiesView({ readOnly = false }: { readOnly?: boolean }) {
   const { t, language } = useLanguage()
   const { formatCurrency } = useCurrency()
   const [properties, setProperties] = useKV<Property[]>('properties', [])
@@ -31,6 +31,9 @@ export default function PropertiesView() {
   const [owners] = useKV<Owner[]>('owners', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | null>(null)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [csvParsedRows, setCsvParsedRows] = useState<Partial<Property>[]>([])
+  const [csvError, setCsvError] = useState<string | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null)
   const [contractDialogOpen, setContractDialogOpen] = useState(false)
@@ -79,8 +82,108 @@ export default function PropertiesView() {
     ) as PropertyStatus
   }
 
+  const handleDownloadTemplate = () => {
+    const rows = [
+      ['name', 'type', 'capacity', 'pricePerNight', 'pricePerMonth', 'address', 'city', 'description', 'conservationState'],
+      ['Apartamento Vista Mar', 'apartment', '4', '250', '3500', 'Rua das Flores, 123', 'São Paulo', 'Lindo apartamento com vista para o mar', 'Ótimo'],
+    ]
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'template-propriedades.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const parseCSVLine = (line: string, sep: string): string[] => {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+        else inQuotes = !inQuotes
+      } else if (ch === sep && !inQuotes) {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+    result.push(current.trim())
+    return result
+  }
+
+  const handleCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCsvError(null)
+    setCsvParsedRows([])
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const text = (event.target?.result as string).replace(/\r/g, '')
+        const lines = text.split('\n').filter(l => l.trim())
+        if (lines.length < 2) { setCsvError(t.properties_view.import_error_empty); return }
+        const sep = lines[0].includes(';') ? ';' : ','
+        const headers = parseCSVLine(lines[0], sep).map(h => h.toLowerCase().replace(/\s/g, ''))
+        const typeMap: Record<string, PropertyType> = {
+          room: 'room', quarto: 'room',
+          apartment: 'apartment', apartamento: 'apartment',
+          house: 'house', casa: 'house',
+        }
+        const rows: Partial<Property>[] = []
+        for (let i = 1; i < lines.length; i++) {
+          const vals = parseCSVLine(lines[i], sep)
+          const row: Record<string, string> = {}
+          headers.forEach((h, idx) => { row[h] = vals[idx] ?? '' })
+          if (!row.name) continue
+          rows.push({
+            name: row.name,
+            type: typeMap[row.type?.toLowerCase()] ?? 'apartment',
+            capacity: Math.max(1, parseInt(row.capacity) || 1),
+            pricePerNight: parseFloat(row.pricepernight) || 0,
+            pricePerMonth: parseFloat(row.pricepermonth) || 0,
+            address: row.address ?? '',
+            city: row.city ?? '',
+            description: row.description ?? '',
+            conservationState: row.conservationstate ?? '',
+          })
+        }
+        if (rows.length === 0) { setCsvError(t.properties_view.import_error_empty); return }
+        setCsvParsedRows(rows)
+      } catch {
+        setCsvError(t.properties_view.import_error_parse)
+      }
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const handleImportConfirm = () => {
+    const newProperties: Property[] = csvParsedRows.map((row) => ({
+      ...row,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      createdAt: new Date().toISOString(),
+      status: 'available' as const,
+      ownerIds: [],
+      environments: [],
+      furnitureItems: [],
+      inspectionItems: [],
+      description: row.description ?? '',
+    } as Property))
+    setProperties((current) => [...(current ?? []), ...newProperties])
+    toast.success(`${newProperties.length} ${t.properties_view.import_success}`)
+    setIsImportDialogOpen(false)
+    setCsvParsedRows([])
+    setCsvError(null)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (readOnly) return
     
     if (editingProperty) {
       const normalizedFormData = {
@@ -299,6 +402,7 @@ export default function PropertiesView() {
   }
 
   const handleDeleteClick = (property: Property) => {
+    if (readOnly) return
     setPropertyToDelete(property)
     setDeleteDialogOpen(true)
   }
@@ -313,6 +417,7 @@ export default function PropertiesView() {
   }
 
   const handleGenerateContract = (propertyId: string) => {
+    if (readOnly) return
     if (getPropertyStatus(propertyId) !== 'available') {
       toast.error(t.properties_view.contract_unavailable)
       return
@@ -336,6 +441,7 @@ export default function PropertiesView() {
   }
 
   const handleDuplicateProperty = (property: Property) => {
+    if (readOnly) return
     setProperties((current) => {
       const currentList = current || []
       const existingNames = currentList.map((item) => item.name)
@@ -408,13 +514,19 @@ export default function PropertiesView() {
           >
             <Compass size={16} />
           </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus weight="bold" size={16} />
-                {t.properties_view.add_property}
-              </Button>
-            </DialogTrigger>
+          {!readOnly && (
+            <>
+            <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
+              <UploadSimple weight="bold" size={16} />
+              {t.properties_view.import_csv}
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus weight="bold" size={16} />
+                  {t.properties_view.add_property}
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
               <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
@@ -712,9 +824,77 @@ export default function PropertiesView() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+            </Dialog>
+            </>
+          )}
         </div>
       </div>
+
+      <Dialog open={isImportDialogOpen} onOpenChange={(open) => { setIsImportDialogOpen(open); if (!open) { setCsvParsedRows([]); setCsvError(null) } }}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t.properties_view.import_dialog_title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{t.properties_view.import_hint}</p>
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
+              <DownloadSimple weight="bold" size={16} />
+              {t.properties_view.import_download_template}
+            </Button>
+            <div className="space-y-2">
+              <Label>{t.properties_view.import_select_file}</Label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-background file:text-foreground hover:file:bg-accent cursor-pointer"
+                onChange={handleCSVFile}
+              />
+            </div>
+            {csvError && (
+              <p className="text-sm text-destructive">{csvError}</p>
+            )}
+            {csvParsedRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{t.properties_view.import_preview} — {csvParsedRows.length} {t.properties_view.import_rows_found}</p>
+                <div className="border rounded-lg overflow-auto max-h-64">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">{t.properties_view.import_col_name}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.properties_view.import_col_type}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.properties_view.import_col_capacity}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.properties_view.import_col_price_night}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.properties_view.import_col_price_month}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.properties_view.import_col_city}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvParsedRows.map((row, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-3 py-2">{row.name}</td>
+                          <td className="px-3 py-2">{row.type}</td>
+                          <td className="px-3 py-2">{row.capacity}</td>
+                          <td className="px-3 py-2">{row.pricePerNight}</td>
+                          <td className="px-3 py-2">{row.pricePerMonth}</td>
+                          <td className="px-3 py-2">{row.city}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              {t.properties_view.form.cancel}
+            </Button>
+            <Button onClick={handleImportConfirm} disabled={csvParsedRows.length === 0}>
+              {t.properties_view.import_confirm_btn} {csvParsedRows.length > 0 && `(${csvParsedRows.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {viewMode === 'map' && properties && properties.length > 0 && (
         <PropertyMapView properties={properties} getPropertyStatus={getPropertyStatus} focusPropertyId={focusPropertyId} />
@@ -724,10 +904,12 @@ export default function PropertiesView() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <House weight="duotone" size={64} className="text-muted-foreground mb-4" />
-            <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
-              <Plus weight="bold" size={16} />
-              {t.properties_view.add_property}
-            </Button>
+            {!readOnly && (
+              <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
+                <Plus weight="bold" size={16} />
+                {t.properties_view.add_property}
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : viewMode === 'list' ? (
@@ -787,7 +969,7 @@ export default function PropertiesView() {
                       {t.properties_view.show_on_map}
                     </Button>
                   )}
-                  {currentStatus === 'available' && (
+                  {!readOnly && currentStatus === 'available' && (
                     <Button
                       variant="default"
                       size="sm"
@@ -798,25 +980,27 @@ export default function PropertiesView() {
                       {t.properties_view.generate_contract}
                     </Button>
                   )}
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleEdit(property)}>
-                      <Pencil size={14} />
-                      {t.properties_view.edit}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => handleDuplicateProperty(property)}
-                    >
-                      <Plus size={14} />
-                      {t.properties_view.duplicate}
-                    </Button>
-                    <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(property)}>
-                      <Trash size={14} />
-                      {t.properties_view.delete}
-                    </Button>
-                  </div>
+                  {!readOnly && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => handleEdit(property)}>
+                        <Pencil size={14} />
+                        {t.properties_view.edit}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => handleDuplicateProperty(property)}
+                      >
+                        <Plus size={14} />
+                        {t.properties_view.duplicate}
+                      </Button>
+                      <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(property)}>
+                        <Trash size={14} />
+                        {t.properties_view.delete}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

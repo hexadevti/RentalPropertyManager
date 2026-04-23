@@ -97,7 +97,7 @@ export function Login({ onBack }: LoginProps = {}) {
       } else if (msg.includes('Email not confirmed')) {
         setError('Confirme seu e-mail antes de entrar.')
       } else {
-        setError('Não foi possível entrar. Tente novamente.')
+        setError('Nao foi possivel entrar. Tente novamente.')
       }
     } finally {
       setIsSubmitting(false)
@@ -188,7 +188,7 @@ export function Login({ onBack }: LoginProps = {}) {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="********"
                   required
                   autoComplete="current-password"
                   className="pr-10"
@@ -214,16 +214,13 @@ export function Login({ onBack }: LoginProps = {}) {
 
         <CardFooter className="flex-col gap-2 pt-0">
           <p className="text-sm text-muted-foreground text-center">
-            Não tem conta?{' '}
+            Nao tem conta?{' '}
             <button
               className="text-primary font-medium hover:underline"
               onClick={() => setShowRegister(true)}
             >
               Criar conta
             </button>
-          </p>
-          <p className="text-xs text-muted-foreground text-center">
-            Novos cadastros aguardam aprovação de um administrador.
           </p>
           {onBack && (
             <button

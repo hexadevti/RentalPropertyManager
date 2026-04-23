@@ -13,7 +13,7 @@ import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, User, Pencil, Trash, House, EnvelopeSimple, Phone, IdentificationCard } from '@phosphor-icons/react'
+import { Plus, User, Pencil, Trash, House, EnvelopeSimple, Phone, IdentificationCard, UploadSimple, DownloadSimple, ArrowsClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
@@ -27,6 +27,9 @@ export default function OwnersView() {
   const [editingOwner, setEditingOwner] = useState<Owner | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [ownerToDelete, setOwnerToDelete] = useState<Owner | null>(null)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [csvParsedRows, setCsvParsedRows] = useState<Partial<Owner>[]>([])
+  const [csvError, setCsvError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -42,6 +45,106 @@ export default function OwnersView() {
   const [newDocNumber, setNewDocNumber] = useState('')
 
   const labels = t.owners_view
+
+  const handleDownloadTemplate = () => {
+    const rows = [
+      ['name', 'email', 'phone', 'address', 'nationality', 'maritalStatus', 'profession', 'notes', 'documentType', 'documentNumber'],
+      ['Maria Souza', 'maria@email.com', '(11) 98888-0000', 'Av. Paulista, 1000', 'Brasileira', 'Casada', 'Empresária', '', 'CPF', '000.000.000-00'],
+    ]
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'template-proprietarios.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const parseCSVLine = (line: string, sep: string): string[] => {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+        else inQuotes = !inQuotes
+      } else if (ch === sep && !inQuotes) {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+    result.push(current.trim())
+    return result
+  }
+
+  const handleCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCsvError(null)
+    setCsvParsedRows([])
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const text = (event.target?.result as string).replace(/\r/g, '')
+        const lines = text.split('\n').filter(l => l.trim())
+        if (lines.length < 2) { setCsvError(labels.import_error_empty); return }
+        const sep = lines[0].includes(';') ? ';' : ','
+        const headers = parseCSVLine(lines[0], sep).map(h => h.toLowerCase().replace(/\s/g, ''))
+        const rows: Partial<Owner>[] = []
+        for (let i = 1; i < lines.length; i++) {
+          const vals = parseCSVLine(lines[i], sep)
+          const row: Record<string, string> = {}
+          headers.forEach((h, idx) => { row[h] = vals[idx] ?? '' })
+          if (!row.name) continue
+          const documents = row.documenttype && row.documentnumber
+            ? [{ type: row.documenttype, number: row.documentnumber }]
+            : []
+          rows.push({
+            name: row.name,
+            email: row.email ?? '',
+            phone: row.phone ?? '',
+            address: row.address ?? '',
+            nationality: row.nationality ?? '',
+            maritalStatus: row.maritalstatus ?? '',
+            profession: row.profession ?? '',
+            notes: row.notes ?? '',
+            documents,
+          })
+        }
+        if (rows.length === 0) { setCsvError(labels.import_error_empty); return }
+        setCsvParsedRows(rows)
+      } catch {
+        setCsvError(labels.import_error_parse)
+      }
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const handleRefresh = () => {
+    setOwners((current) => [...(current || [])])
+    toast.success(t.common.refreshed_success)
+  }
+
+  const handleImportConfirm = () => {
+    const newOwners: Owner[] = csvParsedRows.map((row) => ({
+      ...row,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      createdAt: new Date().toISOString(),
+      documents: row.documents ?? [],
+      name: row.name ?? '',
+      email: row.email ?? '',
+      phone: row.phone ?? '',
+    } as Owner))
+    setOwners((current) => [...(current ?? []), ...newOwners])
+    toast.success(`${newOwners.length} ${labels.import_success}`)
+    setIsImportDialogOpen(false)
+    setCsvParsedRows([])
+    setCsvError(null)
+  }
 
   const addDocument = () => {
     if (!newDocNumber.trim()) return
@@ -150,7 +253,16 @@ export default function OwnersView() {
           </div>
           <p className="text-sm text-muted-foreground mt-1">{labels.subtitle}</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleRefresh} className="gap-2">
+            <ArrowsClockwise weight="bold" size={16} />
+            {t.common.refresh}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
+            <UploadSimple weight="bold" size={16} />
+            {labels.import_csv}
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus weight="bold" size={16} />
@@ -290,7 +402,72 @@ export default function OwnersView() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      <Dialog open={isImportDialogOpen} onOpenChange={(open) => { setIsImportDialogOpen(open); if (!open) { setCsvParsedRows([]); setCsvError(null) } }}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{labels.import_dialog_title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{labels.import_hint}</p>
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
+              <DownloadSimple weight="bold" size={16} />
+              {labels.import_download_template}
+            </Button>
+            <div className="space-y-2">
+              <Label>{labels.import_select_file}</Label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-background file:text-foreground hover:file:bg-accent cursor-pointer"
+                onChange={handleCSVFile}
+              />
+            </div>
+            {csvError && (
+              <p className="text-sm text-destructive">{csvError}</p>
+            )}
+            {csvParsedRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{labels.import_preview} — {csvParsedRows.length} {labels.import_rows_found}</p>
+                <div className="border rounded-lg overflow-auto max-h-64">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">{labels.import_col_name}</th>
+                        <th className="text-left px-3 py-2 font-medium">{labels.import_col_email}</th>
+                        <th className="text-left px-3 py-2 font-medium">{labels.import_col_phone}</th>
+                        <th className="text-left px-3 py-2 font-medium">{labels.import_col_nationality}</th>
+                        <th className="text-left px-3 py-2 font-medium">{labels.import_col_document}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvParsedRows.map((row, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-3 py-2">{row.name}</td>
+                          <td className="px-3 py-2">{row.email}</td>
+                          <td className="px-3 py-2">{row.phone}</td>
+                          <td className="px-3 py-2">{row.nationality}</td>
+                          <td className="px-3 py-2">{(row.documents ?? [])[0] ? `${(row.documents ?? [])[0].type}: ${(row.documents ?? [])[0].number}` : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              {labels.cancel}
+            </Button>
+            <Button onClick={handleImportConfirm} disabled={csvParsedRows.length === 0}>
+              {labels.import_confirm_btn} {csvParsedRows.length > 0 && `(${csvParsedRows.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {!owners || owners.length === 0 ? (
         <Card className="border-dashed">

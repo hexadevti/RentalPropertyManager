@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { EnvelopeSimple, PaperPlaneTilt } from '@phosphor-icons/react'
 import { toast } from 'sonner'
@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
-import type { UserRole } from '@/types'
+import { deriveUserRoleFromAccessProfileId } from '@/lib/accessControl'
+import type { AccessProfile } from '@/types'
 
 interface InviteTenantUserDialogProps {
   tenantId: string
@@ -26,8 +27,6 @@ interface InviteTenantUserDialogProps {
   emailRequiredMessage: string
   successMessage: string
   errorMessage: string
-  roleAdminLabel: string
-  roleGuestLabel: string
   onInvited?: () => void
 }
 
@@ -63,22 +62,62 @@ export function InviteTenantUserDialog({
   emailRequiredMessage,
   successMessage,
   errorMessage,
-  roleAdminLabel,
-  roleGuestLabel,
   onInvited,
 }: InviteTenantUserDialogProps) {
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<UserRole>('guest')
+  const [accessProfiles, setAccessProfiles] = useState<AccessProfile[]>([])
+  const [selectedAccessProfileId, setSelectedAccessProfileId] = useState('system-guest')
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false)
 
   const reset = () => {
     setEmail('')
-    setRole('guest')
+    setSelectedAccessProfileId('system-guest')
     setMessage('')
     setIsSubmitting(false)
   }
+
+  useEffect(() => {
+    if (!open || !tenantId) return
+
+    let cancelled = false
+    const loadAccessProfiles = async () => {
+      setIsLoadingProfiles(true)
+      const { data, error } = await supabase
+        .from('access_profiles')
+        .select('tenant_id, id, name, description, is_system, created_at, updated_at')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: true })
+
+      if (cancelled) return
+
+      if (error) {
+        toast.error('Nao foi possivel carregar os perfis de acesso.')
+        setAccessProfiles([])
+      } else {
+        const nextProfiles = (data || []) as any[]
+        setAccessProfiles(nextProfiles.map((row) => ({
+          tenantId: row.tenant_id,
+          id: row.id,
+          name: row.name,
+          description: row.description || '',
+          isSystem: !!row.is_system,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        })))
+        if (nextProfiles.length > 0 && !nextProfiles.some((profile) => profile.id === selectedAccessProfileId)) {
+          setSelectedAccessProfileId(nextProfiles[0].id)
+        }
+      }
+
+      setIsLoadingProfiles(false)
+    }
+
+    void loadAccessProfiles()
+    return () => { cancelled = true }
+  }, [open, tenantId, selectedAccessProfileId])
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
@@ -97,6 +136,8 @@ export function InviteTenantUserDialog({
 
     setIsSubmitting(true)
 
+    const role = deriveUserRoleFromAccessProfileId(selectedAccessProfileId)
+
     try {
       const { data, error } = await supabase.functions.invoke<{
         success?: boolean
@@ -107,6 +148,7 @@ export function InviteTenantUserDialog({
           action: 'send',
           tenantId,
           email: email.trim(),
+          accessProfileId: selectedAccessProfileId,
           role,
           message: message.trim(),
           appBaseUrl: window.location.origin,
@@ -160,13 +202,14 @@ export function InviteTenantUserDialog({
 
           <div className="space-y-2">
             <Label htmlFor="invite-role">{roleLabel}</Label>
-            <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
+            <Select value={selectedAccessProfileId} onValueChange={setSelectedAccessProfileId} disabled={isLoadingProfiles}>
               <SelectTrigger id="invite-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="admin">{roleAdminLabel}</SelectItem>
-                <SelectItem value="guest">{roleGuestLabel}</SelectItem>
+                {accessProfiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

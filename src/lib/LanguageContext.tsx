@@ -1,6 +1,7 @@
 import { createContext, useContext, ReactNode } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { translations, Language } from './i18n'
+import { detectRegionalPreferenceDefaults } from '@/lib/regionalPreferences'
 
 type Translations = typeof translations.pt | typeof translations.en
 
@@ -13,9 +14,10 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined)
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useKV<Language>('app-language', 'pt')
+  const regionalDefaults = detectRegionalPreferenceDefaults()
+  const [language, setLanguage] = useKV<Language>('app-language', regionalDefaults.language)
 
-  const currentLang = language || 'pt'
+  const currentLang = language || regionalDefaults.language
 
   const value: LanguageContextType = {
     language: currentLang,

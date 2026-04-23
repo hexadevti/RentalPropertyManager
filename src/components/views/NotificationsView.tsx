@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
@@ -34,9 +35,11 @@ import { DEFAULT_EMAIL_FOOTER, DEFAULT_EMAIL_HEADER } from '@/lib/notifications/
 import { supabase } from '@/lib/supabase'
 import RichTextEditor, { plainTextToHTML, type RichTextEditorHandle } from '@/components/RichTextEditor'
 import { toast } from 'sonner'
+import { TEMPLATE_LANGUAGES } from '@/types'
 import {
   ArrowsClockwise,
   Bell,
+  CaretDown,
   Copy,
   EnvelopeSimple,
   MagnifyingGlass,
@@ -62,6 +65,7 @@ import type {
   ServiceProvider,
   Task,
   TaskAssigneeType,
+  TemplateLanguage,
   UserRole,
 } from '@/types'
 
@@ -103,6 +107,7 @@ type DeliveryRow = {
 type DeliveryStatusFilter = 'all' | 'pending' | 'processing' | 'sent' | 'failed' | 'cancelled'
 type DeliveryChannelFilter = 'all' | 'email' | 'sms' | 'whatsapp'
 type VariableEditorTarget = 'template' | 'master-header' | 'master-footer'
+type MasterTemplateSection = 'header' | 'footer'
 
 type MasterTemplateConfig = {
   channel: NotificationChannel
@@ -209,6 +214,13 @@ export default function NotificationsView() {
   const [editingRule, setEditingRule] = useState<NotificationRuleGroup | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null)
   const [templateSearch, setTemplateSearch] = useState('')
+  const defaultTemplateLanguage = (TEMPLATE_LANGUAGES.some((item) => item.code === language) ? language : 'pt') as TemplateLanguage
+  const [languageFilter, setLanguageFilter] = useState<TemplateLanguage | 'all'>(defaultTemplateLanguage)
+  const [pendingTemplateTranslation, setPendingTemplateTranslation] = useState<{
+    sourceTemplate: NotificationTemplate
+    targetLanguage: TemplateLanguage
+  } | null>(null)
+  const [isTemplateTranslating, setIsTemplateTranslating] = useState(false)
   const [selectedPreviewEventType, setSelectedPreviewEventType] = useState<NotificationEventType>('tasks')
   const [selectedPreviewItemIds, setSelectedPreviewItemIds] = useState<Record<NotificationEventType, string>>({
     appointments: NO_PREVIEW_ITEM_VALUE,
@@ -246,6 +258,8 @@ export default function NotificationsView() {
     channel: 'email',
     eventType: 'general',
     contentType: 'html',
+    language: defaultTemplateLanguage,
+    translationGroupId: '',
     description: '',
     subject: '',
     content: '',
@@ -259,6 +273,9 @@ export default function NotificationsView() {
     footerContent: '',
   })
   const [masterTemplateSaving, setMasterTemplateSaving] = useState(false)
+  const [masterTemplateEditorOpen, setMasterTemplateEditorOpen] = useState(false)
+  const [masterTemplateEditorSection, setMasterTemplateEditorSection] = useState<MasterTemplateSection>('header')
+  const [masterTemplatesOpen, setMasterTemplatesOpen] = useState(false)
 
   const loadRecipients = useCallback(async () => {
     if (!currentTenantId) {
@@ -443,6 +460,8 @@ export default function NotificationsView() {
       channel: 'email',
       eventType: 'general',
       contentType: 'html',
+      language: defaultTemplateLanguage,
+      translationGroupId: '',
       description: '',
       subject: '',
       content: '',
@@ -456,6 +475,44 @@ export default function NotificationsView() {
     sms: filterTemplatesForEventType(templates || [], ruleForm.eventType, 'sms'),
     whatsapp: filterTemplatesForEventType(templates || [], ruleForm.eventType, 'whatsapp'),
   }), [ruleForm.eventType, templates])
+
+  const getLanguageLabel = useCallback((code: TemplateLanguage) => {
+    const found = TEMPLATE_LANGUAGES.find((item) => item.code === code)
+    return found ? found.nativeName : code.toUpperCase()
+  }, [])
+
+  const getLanguagesAvailableForGroup = useCallback((translationGroupId: string): TemplateLanguage[] => (
+    (templates || [])
+      .filter((template) => template.translationGroupId === translationGroupId)
+      .map((template) => template.language)
+  ), [templates])
+
+  const translateTemplateValue = useCallback(async (
+    value: string,
+    fromLanguage: TemplateLanguage,
+    toLanguage: TemplateLanguage
+  ) => {
+    if (!value.trim()) return value
+
+    const { data, error } = await supabase.functions.invoke('ai-assistant', {
+      body: {
+        action: 'translate-template',
+        content: value,
+        fromLanguage,
+        toLanguage,
+      },
+    })
+
+    if (error) {
+      throw new Error(error.message || t.notifications_view.messages.template_translation_error)
+    }
+
+    if (data?.error) {
+      throw new Error(data.error)
+    }
+
+    return String(data?.translatedContent || '')
+  }, [t.notifications_view.messages.template_translation_error])
 
   const notificationGroups = useMemo<NotificationRuleGroup[]>(() => {
     const grouped = new Map<string, NotificationRuleGroup>()
@@ -521,8 +578,11 @@ export default function NotificationsView() {
 
   const filteredTemplates = useMemo(() => {
     const query = templateSearch.trim().toLowerCase()
-    if (!query) return templates || []
-    return (templates || []).filter((template) => (
+    const byLanguage = (templates || []).filter((template) => (
+      languageFilter === 'all' || template.language === languageFilter
+    ))
+    if (!query) return byLanguage
+    return byLanguage.filter((template) => (
       template.name.toLowerCase().includes(query)
       || template.channel.toLowerCase().includes(query)
       || (template.description || '').toLowerCase().includes(query)
@@ -530,7 +590,7 @@ export default function NotificationsView() {
       || (template.contentType || 'html').toLowerCase().includes(query)
       || (template.subject || '').toLowerCase().includes(query)
     ))
-  }, [templateSearch, templates])
+  }, [languageFilter, templateSearch, templates])
 
   const previewAppointmentOptions = useMemo(
     () => (appointments || []).map((appointment) => ({
@@ -579,9 +639,9 @@ export default function NotificationsView() {
   const previewUserOptions = useMemo(
     () => recipientOptions.map((recipient) => ({
       id: recipient.id,
-      label: `${recipient.githubLogin} - ${t.roles[recipient.role]} - ${recipient.status === 'pending' ? t.userManagement.pending : recipient.status === 'approved' ? t.userManagement.approved : t.userManagement.rejected}`,
+      label: `${recipient.githubLogin} - ${t.roles[recipient.role]} - ${recipient.status === 'pending' ? t.userManagement.pending : recipient.status === 'approved' ? t.userManagement.approved : t.userManagement.blocked}`,
     })),
-    [recipientOptions, t.roles, t.userManagement.approved, t.userManagement.pending, t.userManagement.rejected]
+    [recipientOptions, t.roles, t.userManagement.approved, t.userManagement.blocked, t.userManagement.pending]
   )
 
   const selectedPreviewValue = selectedPreviewItemIds[selectedPreviewEventType] || NO_PREVIEW_ITEM_VALUE
@@ -859,7 +919,8 @@ export default function NotificationsView() {
               status: previewUserPayload.status,
               isApproved: previewUserPayload.status === 'approved',
               isPending: previewUserPayload.status === 'pending',
-              isRejected: previewUserPayload.status === 'rejected',
+              isBlocked: previewUserPayload.status === 'blocked',
+              isRejected: false,
             }
           : null,
         changes: previewUserPayload
@@ -950,6 +1011,16 @@ export default function NotificationsView() {
       ? t.notifications_view.template.content_type_html
       : t.notifications_view.template.content_type_text
   }, [t.notifications_view.template.content_type_html, t.notifications_view.template.content_type_text])
+
+  const formatTemplateOptionLabel = useCallback((template: NotificationTemplate) => (
+    `${template.name} (${getLanguageLabel(template.language)})`
+  ), [getLanguageLabel])
+
+  const resolveTemplateLabelById = useCallback((templateId?: string) => {
+    if (!templateId) return t.notifications_view.rule.none
+    const template = (templates || []).find((item) => item.id === templateId)
+    return template ? formatTemplateOptionLabel(template) : t.notifications_view.rule.none
+  }, [formatTemplateOptionLabel, t.notifications_view.rule.none, templates])
 
   const handleRuleEventTypeChange = (eventType: NotificationEventType) => {
     setRuleForm((current) => ({
@@ -1075,6 +1146,14 @@ export default function NotificationsView() {
     })
     setTemplateDialogOpen(true)
   }
+
+  const translationSources = useMemo(() => {
+    if (!editingTemplate || !templateForm.translationGroupId) return []
+    return (templates || []).filter((template) => (
+      template.translationGroupId === templateForm.translationGroupId
+      && template.language !== templateForm.language
+    ))
+  }, [editingTemplate, templateForm.language, templateForm.translationGroupId, templates])
 
   const handleSaveRule = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1247,11 +1326,14 @@ export default function NotificationsView() {
     event.preventDefault()
 
     const now = new Date().toISOString()
+    const nextId = editingTemplate?.id || Date.now().toString()
     const nextTemplate: NotificationTemplate = {
       ...templateForm,
-      id: editingTemplate?.id || Date.now().toString(),
+      id: nextId,
       eventType: templateForm.eventType || 'general',
       contentType: templateForm.contentType || 'html',
+      language: templateForm.language || defaultTemplateLanguage,
+      translationGroupId: templateForm.translationGroupId || editingTemplate?.translationGroupId || nextId,
       content: templateForm.contentType === 'html'
         ? normalizeNotificationEditorContent(templateForm.content, plainTextToHTML)
         : templateForm.content,
@@ -1288,9 +1370,11 @@ export default function NotificationsView() {
   }
 
   const handleDuplicateTemplate = (template: NotificationTemplate) => {
+    const duplicateId = Date.now().toString()
     const duplicatedTemplate: NotificationTemplate = {
       ...template,
-      id: Date.now().toString(),
+      id: duplicateId,
+      translationGroupId: duplicateId,
       name: `${template.name} (${t.notifications_view.template.duplicate_suffix})`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1298,6 +1382,96 @@ export default function NotificationsView() {
 
     setTemplates((currentTemplates) => [...(currentTemplates || []), duplicatedTemplate])
     toast.success(t.notifications_view.messages.template_duplicated)
+  }
+
+  const handleAddTemplateTranslation = (template: NotificationTemplate, targetLanguage: TemplateLanguage) => {
+    const alreadyExists = (templates || []).some((item) => (
+      item.translationGroupId === template.translationGroupId && item.language === targetLanguage
+    ))
+
+    if (alreadyExists) {
+      toast.error(t.notifications_view.messages.template_translation_exists.replace('{language}', getLanguageLabel(targetLanguage)))
+      return
+    }
+
+    const newTemplate: NotificationTemplate = {
+      ...template,
+      id: Date.now().toString(),
+      language: targetLanguage,
+      name: `${template.name} (${getLanguageLabel(targetLanguage)})`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    setTemplates((currentTemplates) => [...(currentTemplates || []), newTemplate])
+    toast.success(t.notifications_view.messages.template_translation_created.replace('{language}', getLanguageLabel(targetLanguage)))
+  }
+
+  const handleAddTemplateTranslationWithAI = async (template: NotificationTemplate, targetLanguage: TemplateLanguage) => {
+    setIsTemplateTranslating(true)
+
+    try {
+      const alreadyExists = (templates || []).some((item) => (
+        item.translationGroupId === template.translationGroupId && item.language === targetLanguage
+      ))
+
+      if (alreadyExists) {
+        toast.error(t.notifications_view.messages.template_translation_exists.replace('{language}', getLanguageLabel(targetLanguage)))
+        setPendingTemplateTranslation(null)
+        return
+      }
+
+      const [content, subject, description] = await Promise.all([
+        translateTemplateValue(template.content, template.language, targetLanguage),
+        template.subject ? translateTemplateValue(template.subject, template.language, targetLanguage) : Promise.resolve(template.subject || ''),
+        template.description ? translateTemplateValue(template.description, template.language, targetLanguage) : Promise.resolve(template.description || ''),
+      ])
+
+      const newTemplate: NotificationTemplate = {
+        ...template,
+        id: Date.now().toString(),
+        language: targetLanguage,
+        name: `${template.name} (${getLanguageLabel(targetLanguage)})`,
+        content,
+        subject,
+        description,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      setTemplates((currentTemplates) => [...(currentTemplates || []), newTemplate])
+      setPendingTemplateTranslation(null)
+      toast.success(t.notifications_view.messages.template_translation_created_ai.replace('{language}', getLanguageLabel(targetLanguage)))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.notifications_view.messages.template_translation_error)
+    } finally {
+      setIsTemplateTranslating(false)
+    }
+  }
+
+  const handleTranslateTemplateFrom = async (sourceTemplate: NotificationTemplate) => {
+    setIsTemplateTranslating(true)
+
+    try {
+      const [content, subject, description] = await Promise.all([
+        translateTemplateValue(sourceTemplate.content, sourceTemplate.language, templateForm.language),
+        sourceTemplate.subject ? translateTemplateValue(sourceTemplate.subject, sourceTemplate.language, templateForm.language) : Promise.resolve(sourceTemplate.subject || ''),
+        sourceTemplate.description ? translateTemplateValue(sourceTemplate.description, sourceTemplate.language, templateForm.language) : Promise.resolve(sourceTemplate.description || ''),
+      ])
+
+      setTemplateForm((current) => ({
+        ...current,
+        content,
+        subject,
+        description,
+      }))
+
+      toast.success(t.notifications_view.messages.template_translation_applied.replace('{language}', getLanguageLabel(sourceTemplate.language)))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.notifications_view.messages.template_translation_error)
+    } finally {
+      setIsTemplateTranslating(false)
+    }
   }
 
   const getEditorHandle = (target: VariableEditorTarget) => {
@@ -1374,6 +1548,37 @@ export default function NotificationsView() {
     if (!masterTemplateForm.footerContent) return ''
     return renderNotificationTemplateContent(masterTemplateForm.footerContent, notificationPreviewContext.notification)
   }, [masterTemplateForm.footerContent, notificationPreviewContext])
+
+  const openMasterTemplateEditor = (section: MasterTemplateSection) => {
+    setMasterTemplateEditorSection(section)
+    setMasterTemplateEditorOpen(true)
+  }
+
+  const masterTemplateCards = useMemo(() => ([
+    {
+      id: 'master-header',
+      section: 'header' as const,
+      title: t.notifications_view.template.master_header_label,
+      previewHtml: masterHeaderPreviewHtml,
+      rawContent: masterTemplateForm.headerContent,
+      target: 'master-header' as const,
+    },
+    {
+      id: 'master-footer',
+      section: 'footer' as const,
+      title: t.notifications_view.template.master_footer_label,
+      previewHtml: masterFooterPreviewHtml,
+      rawContent: masterTemplateForm.footerContent,
+      target: 'master-footer' as const,
+    },
+  ]), [
+    masterFooterPreviewHtml,
+    masterHeaderPreviewHtml,
+    masterTemplateForm.footerContent,
+    masterTemplateForm.headerContent,
+    t.notifications_view.template.master_footer_label,
+    t.notifications_view.template.master_header_label,
+  ])
 
   const handleToggleRuleStatus = (groupId: string, trigger: NotificationTrigger, checked: boolean) => {
     const now = new Date().toISOString()
@@ -1582,9 +1787,9 @@ export default function NotificationsView() {
                     <div className="space-y-3">
                       {ruleGroup.conditions.map((condition) => {
                         const templateSummary = [
-                          condition.emailTemplateId ? `${t.notifications_view.channels.email}: ${(templates || []).find((template) => template.id === condition.emailTemplateId)?.name || t.notifications_view.rule.none}` : '',
-                          condition.smsTemplateId ? `${t.notifications_view.channels.sms}: ${(templates || []).find((template) => template.id === condition.smsTemplateId)?.name || t.notifications_view.rule.none}` : '',
-                          condition.whatsappTemplateId ? `${t.notifications_view.channels.whatsapp}: ${(templates || []).find((template) => template.id === condition.whatsappTemplateId)?.name || t.notifications_view.rule.none}` : '',
+                          condition.emailTemplateId ? `${t.notifications_view.channels.email}: ${resolveTemplateLabelById(condition.emailTemplateId)}` : '',
+                          condition.smsTemplateId ? `${t.notifications_view.channels.sms}: ${resolveTemplateLabelById(condition.smsTemplateId)}` : '',
+                          condition.whatsappTemplateId ? `${t.notifications_view.channels.whatsapp}: ${resolveTemplateLabelById(condition.whatsappTemplateId)}` : '',
                         ].filter(Boolean).join(' | ')
 
                         return (
@@ -1634,115 +1839,113 @@ export default function NotificationsView() {
 
         <TabsContent value="templates" className="mt-6 space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>{t.notifications_view.template.master_title}</CardTitle>
-              <CardDescription>{t.notifications_view.template.master_description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-end gap-3">
-                <div className="max-w-xs flex-1 space-y-1">
-                  <Label>{t.notifications_view.template.master_channel_label}</Label>
-                  <Select
-                    value={masterTemplateChannel}
-                    onValueChange={(value) => setMasterTemplateChannel(value as NotificationChannel)}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="email">{t.notifications_view.channels.email}</SelectItem>
-                      <SelectItem value="sms">{t.notifications_view.channels.sms}</SelectItem>
-                      <SelectItem value="whatsapp">{t.notifications_view.channels.whatsapp}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {masterTemplateChannel === 'email' && (
-                  <Button type="button" variant="outline" onClick={handleLoadDefaultEmailTemplate}>
-                    {t.notifications_view.template.load_default_email}
-                  </Button>
-                )}
+            <button
+              type="button"
+              className="flex w-full items-center justify-between p-6 text-left"
+              onClick={() => setMasterTemplatesOpen((open) => !open)}
+            >
+              <div>
+                <p className="text-lg font-semibold leading-none tracking-tight">{t.notifications_view.template.master_title}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t.notifications_view.template.master_description}</p>
               </div>
-
-              <div className="space-y-2">
-                <Label>{t.notifications_view.template.master_header_label}</Label>
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <Button type="button" variant="outline" size="sm" onClick={() => openVariableHelpFor('master-header')}>
-                      {t.notifications_view.actions.open_variable_help}
+              <CaretDown
+                size={18}
+                className={`shrink-0 text-muted-foreground transition-transform duration-200 ${masterTemplatesOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {masterTemplatesOpen && (
+              <CardContent className="space-y-4 pt-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="max-w-xs flex-1 space-y-1">
+                    <Label>{t.notifications_view.template.master_channel_label}</Label>
+                    <Select
+                      value={masterTemplateChannel}
+                      onValueChange={(value) => setMasterTemplateChannel(value as NotificationChannel)}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="email">{t.notifications_view.channels.email}</SelectItem>
+                        <SelectItem value="sms">{t.notifications_view.channels.sms}</SelectItem>
+                        <SelectItem value="whatsapp">{t.notifications_view.channels.whatsapp}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {masterTemplateChannel === 'email' && (
+                    <Button type="button" variant="outline" onClick={handleLoadDefaultEmailTemplate}>
+                      {t.notifications_view.template.load_default_email}
                     </Button>
-                  </div>
-                  <RichTextEditor
-                    ref={masterHeaderEditorRef}
-                    content={masterTemplateForm.headerContent || '<p></p>'}
-                    onChange={(html) => setMasterTemplateForm((current) => ({ ...current, channel: masterTemplateChannel, headerContent: html }))}
-                    tokenPreviewResolver={(token) => {
-                      const normalizedPath = token.startsWith('notification.')
-                        ? token.slice('notification.'.length)
-                        : token
-                      return getNotificationValueByPath(notificationPreviewContext.notification, normalizedPath)
-                    }}
-                  />
-                  <div className="rounded-md border bg-white p-4 text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
-                    {!masterTemplateForm.headerContent && (
-                      <p className="text-muted-foreground">{t.notifications_view.template.preview_empty}</p>
-                    )}
-                    {masterTemplateForm.headerContent && !masterHeaderPreviewHtml && (
-                      <p className="text-muted-foreground">{t.notifications_view.template.preview_unavailable}</p>
-                    )}
-                    {masterTemplateForm.headerContent && masterHeaderPreviewHtml && (
-                      <div dangerouslySetInnerHTML={{ __html: masterHeaderPreviewHtml }} />
-                    )}
-                  </div>
+                  )}
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>{t.notifications_view.template.master_footer_label}</Label>
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <Button type="button" variant="outline" size="sm" onClick={() => openVariableHelpFor('master-footer')}>
-                      {t.notifications_view.actions.open_variable_help}
-                    </Button>
-                  </div>
-                  <RichTextEditor
-                    ref={masterFooterEditorRef}
-                    content={masterTemplateForm.footerContent || '<p></p>'}
-                    onChange={(html) => setMasterTemplateForm((current) => ({ ...current, channel: masterTemplateChannel, footerContent: html }))}
-                    tokenPreviewResolver={(token) => {
-                      const normalizedPath = token.startsWith('notification.')
-                        ? token.slice('notification.'.length)
-                        : token
-                      return getNotificationValueByPath(notificationPreviewContext.notification, normalizedPath)
-                    }}
-                  />
-                  <div className="rounded-md border bg-white p-4 text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
-                    {!masterTemplateForm.footerContent && (
-                      <p className="text-muted-foreground">{t.notifications_view.template.preview_empty}</p>
-                    )}
-                    {masterTemplateForm.footerContent && !masterFooterPreviewHtml && (
-                      <p className="text-muted-foreground">{t.notifications_view.template.preview_unavailable}</p>
-                    )}
-                    {masterTemplateForm.footerContent && masterFooterPreviewHtml && (
-                      <div dangerouslySetInnerHTML={{ __html: masterFooterPreviewHtml }} />
-                    )}
-                  </div>
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {masterTemplateCards.map((masterCard) => (
+                    <Card key={masterCard.id}>
+                      <CardHeader>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <CardTitle className="text-lg">{masterCard.title}</CardTitle>
+                            <CardDescription>{t.notifications_view.template.master_description}</CardDescription>
+                          </div>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Badge variant="secondary">{t.notifications_view.channels[masterTemplateChannel]}</Badge>
+                            <Badge variant="outline">{t.notifications_view.template.content_type_html}</Badge>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+                          {!masterCard.rawContent && (
+                            <p>{t.notifications_view.template.preview_empty}</p>
+                          )}
+                          {masterCard.rawContent && !masterCard.previewHtml && (
+                            <p>{t.notifications_view.template.preview_unavailable}</p>
+                          )}
+                          {masterCard.rawContent && masterCard.previewHtml && (
+                            <div className="line-clamp-4" dangerouslySetInnerHTML={{ __html: masterCard.previewHtml }} />
+                          )}
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => openVariableHelpFor(masterCard.target)}>
+                            {t.notifications_view.actions.open_variable_help}
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={() => openMasterTemplateEditor(masterCard.section)}>
+                            <Pencil size={16} className="mr-2" />
+                            {t.notifications_view.actions.edit}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button type="button" onClick={() => void handleSaveMasterTemplate()} disabled={masterTemplateSaving}>
-                  {t.notifications_view.template.save_master}
-                </Button>
-              </div>
-            </CardContent>
+              </CardContent>
+            )}
           </Card>
 
-          <div className="relative max-w-md">
-            <MagnifyingGlass size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={templateSearch}
-              onChange={(event) => setTemplateSearch(event.target.value)}
-              placeholder={t.notifications_view.template.search_placeholder}
-              className="pl-9"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="relative max-w-md flex-1">
+              <MagnifyingGlass size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={templateSearch}
+                onChange={(event) => setTemplateSearch(event.target.value)}
+                placeholder={t.notifications_view.template.search_placeholder}
+                className="pl-9"
+              />
+            </div>
+            <div className="w-full sm:w-52">
+              <Select value={languageFilter} onValueChange={(value) => setLanguageFilter(value as TemplateLanguage | 'all')}>
+                <SelectTrigger>
+                  <SelectValue placeholder={t.notifications_view.template.language_filter_label} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t.notifications_view.template.all_languages}</SelectItem>
+                  {TEMPLATE_LANGUAGES.map((templateLanguage) => (
+                    <SelectItem key={templateLanguage.code} value={templateLanguage.code}>
+                      {templateLanguage.nativeName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {filteredTemplates.length === 0 && (
@@ -1765,6 +1968,7 @@ export default function NotificationsView() {
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
                       <Badge variant="secondary">{t.notifications_view.channels[template.channel]}</Badge>
+                      <Badge variant="outline">{getLanguageLabel(template.language)}</Badge>
                       <Badge variant="outline">{resolveTemplateEventTypeLabel(template.eventType)}</Badge>
                       <Badge variant="outline">{resolveTemplateContentTypeLabel(template.contentType)}</Badge>
                     </div>
@@ -1775,6 +1979,35 @@ export default function NotificationsView() {
                     <div className="line-clamp-4" dangerouslySetInnerHTML={{ __html: template.content || '<p></p>' }} />
                   </div>
                   <div className="flex justify-end gap-2">
+                    {(() => {
+                      const usedLanguages = getLanguagesAvailableForGroup(template.translationGroupId)
+                      const availableToAdd = TEMPLATE_LANGUAGES.filter((item) => !usedLanguages.includes(item.code))
+
+                      if (availableToAdd.length === 0) return null
+
+                      return (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button type="button" variant="outline" size="sm">
+                              {t.notifications_view.template.add_translation}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {availableToAdd.map((item) => (
+                              <DropdownMenuItem
+                                key={item.code}
+                                onClick={() => setPendingTemplateTranslation({
+                                  sourceTemplate: template,
+                                  targetLanguage: item.code,
+                                })}
+                              >
+                                {item.nativeName}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )
+                    })()}
                     <Button type="button" variant="outline" size="sm" onClick={() => handleDuplicateTemplate(template)}>
                       <Copy size={16} className="mr-2" />
                       {t.notifications_view.actions.duplicate}
@@ -2034,7 +2267,7 @@ export default function NotificationsView() {
                               <SelectContent>
                                 <SelectItem value={NO_TEMPLATE_VALUE}>{t.notifications_view.rule.no_template}</SelectItem>
                                 {templateOptionsByChannel.email.map((template) => (
-                                  <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                                  <SelectItem key={template.id} value={template.id}>{formatTemplateOptionLabel(template)}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -2054,7 +2287,7 @@ export default function NotificationsView() {
                               <SelectContent>
                                 <SelectItem value={NO_TEMPLATE_VALUE}>{t.notifications_view.rule.no_template}</SelectItem>
                                 {templateOptionsByChannel.sms.map((template) => (
-                                  <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                                  <SelectItem key={template.id} value={template.id}>{formatTemplateOptionLabel(template)}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -2074,7 +2307,7 @@ export default function NotificationsView() {
                               <SelectContent>
                                 <SelectItem value={NO_TEMPLATE_VALUE}>{t.notifications_view.rule.no_template}</SelectItem>
                                 {templateOptionsByChannel.whatsapp.map((template) => (
-                                  <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                                  <SelectItem key={template.id} value={template.id}>{formatTemplateOptionLabel(template)}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -2180,7 +2413,7 @@ export default function NotificationsView() {
           </DialogHeader>
 
           <form onSubmit={handleSaveTemplate} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_220px_220px_220px]">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_180px_180px_180px]">
               <div className="space-y-2">
                 <Label htmlFor="template-name">{t.notifications_view.template.name_label}</Label>
                 <Input
@@ -2220,6 +2453,24 @@ export default function NotificationsView() {
                     <SelectItem value="general">{t.notifications_view.template.event_type_general}</SelectItem>
                     {NOTIFICATION_EVENT_TYPES.map((eventType) => (
                       <SelectItem key={eventType} value={eventType}>{resolveEventTypeLabel(eventType)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="template-language">{t.notifications_view.template.language_label}</Label>
+                <Select
+                  value={templateForm.language}
+                  onValueChange={(value) => setTemplateForm((current) => ({ ...current, language: value as TemplateLanguage }))}
+                >
+                  <SelectTrigger id="template-language">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEMPLATE_LANGUAGES.map((templateLanguage) => (
+                      <SelectItem key={templateLanguage.code} value={templateLanguage.code}>
+                        {templateLanguage.nativeName}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -2310,13 +2561,40 @@ export default function NotificationsView() {
                     </div>
                   </div>
 
-                  <Button
-                    type="button"
-                    className="w-full shrink-0 lg:w-auto"
-                    onClick={() => openVariableHelpFor('template')}
-                  >
-                    {t.notifications_view.actions.open_variable_help}
-                  </Button>
+                  <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row">
+                    {translationSources.length > 0 && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full lg:w-auto"
+                            disabled={isTemplateTranslating}
+                          >
+                            {t.notifications_view.template.translate_from}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {translationSources.map((sourceTemplate) => (
+                            <DropdownMenuItem
+                              key={sourceTemplate.id}
+                              onClick={() => void handleTranslateTemplateFrom(sourceTemplate)}
+                            >
+                              {getLanguageLabel(sourceTemplate.language)}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+
+                    <Button
+                      type="button"
+                      className="w-full shrink-0 lg:w-auto"
+                      onClick={() => openVariableHelpFor('template')}
+                    >
+                      {t.notifications_view.actions.open_variable_help}
+                    </Button>
+                  </div>
                 </div>
 
                 <TabsContent value="template" className="mt-3">
@@ -2367,6 +2645,125 @@ export default function NotificationsView() {
               <Button type="submit">{editingTemplate ? t.common.update : t.common.create}</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={masterTemplateEditorOpen} onOpenChange={setMasterTemplateEditorOpen}>
+        <DialogContent className="w-[min(96vw,1280px)] max-w-none max-h-[96vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {masterTemplateEditorSection === 'header'
+                ? t.notifications_view.template.master_header_label
+                : t.notifications_view.template.master_footer_label}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[180px_minmax(0,360px)]">
+                <div className="space-y-1">
+                  <Label htmlFor="master-preview-event-type">{t.notifications_view.template.preview_event_type_label}</Label>
+                  <Select value={selectedPreviewEventType} onValueChange={(value) => setSelectedPreviewEventType(value as NotificationEventType)}>
+                    <SelectTrigger id="master-preview-event-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {NOTIFICATION_EVENT_TYPES.map((eventType) => (
+                        <SelectItem key={eventType} value={eventType}>{resolveEventTypeLabel(eventType)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="master-preview-item">{t.notifications_view.template.preview_item_label}</Label>
+                  <Select
+                    value={selectedPreviewValue}
+                    onValueChange={(value) => setSelectedPreviewItemIds((current) => ({ ...current, [selectedPreviewEventType]: value }))}
+                  >
+                    <SelectTrigger id="master-preview-item">
+                      <SelectValue placeholder={t.notifications_view.template.preview_item_placeholder} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_PREVIEW_ITEM_VALUE}>
+                        {selectedPreviewEventType === 'user-access'
+                          ? t.notifications_view.template.preview_user_none
+                          : t.notifications_view.template.preview_item_none}
+                      </SelectItem>
+                      {(previewOptionsByEventType[selectedPreviewEventType] || []).map((option) => (
+                        <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                className="w-full shrink-0 lg:w-auto"
+                onClick={() => openVariableHelpFor(masterTemplateEditorSection === 'header' ? 'master-header' : 'master-footer')}
+              >
+                {t.notifications_view.actions.open_variable_help}
+              </Button>
+            </div>
+
+            <div className="h-[50vh]">
+              {masterTemplateEditorSection === 'header' ? (
+                <RichTextEditor
+                  ref={masterHeaderEditorRef}
+                  content={masterTemplateForm.headerContent || '<p></p>'}
+                  onChange={(html) => setMasterTemplateForm((current) => ({ ...current, channel: masterTemplateChannel, headerContent: html }))}
+                  tokenPreviewResolver={(token) => {
+                    const normalizedPath = token.startsWith('notification.')
+                      ? token.slice('notification.'.length)
+                      : token
+                    return getNotificationValueByPath(notificationPreviewContext.notification, normalizedPath)
+                  }}
+                />
+              ) : (
+                <RichTextEditor
+                  ref={masterFooterEditorRef}
+                  content={masterTemplateForm.footerContent || '<p></p>'}
+                  onChange={(html) => setMasterTemplateForm((current) => ({ ...current, channel: masterTemplateChannel, footerContent: html }))}
+                  tokenPreviewResolver={(token) => {
+                    const normalizedPath = token.startsWith('notification.')
+                      ? token.slice('notification.'.length)
+                      : token
+                    return getNotificationValueByPath(notificationPreviewContext.notification, normalizedPath)
+                  }}
+                />
+              )}
+            </div>
+
+            <div className="h-[50vh] overflow-auto rounded-md border bg-white p-4 text-sm leading-relaxed text-foreground [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_u]:underline [&_[style*='text-align:center']]:text-center [&_[style*='text-align:right']]:text-right [&_[style*='text-align:justify']]:text-justify">
+              {masterTemplateEditorSection === 'header' && !masterTemplateForm.headerContent && (
+                <p className="text-muted-foreground">{t.notifications_view.template.preview_empty}</p>
+              )}
+              {masterTemplateEditorSection === 'header' && masterTemplateForm.headerContent && !masterHeaderPreviewHtml && (
+                <p className="text-muted-foreground">{t.notifications_view.template.preview_unavailable}</p>
+              )}
+              {masterTemplateEditorSection === 'header' && masterTemplateForm.headerContent && masterHeaderPreviewHtml && (
+                <div dangerouslySetInnerHTML={{ __html: masterHeaderPreviewHtml }} />
+              )}
+              {masterTemplateEditorSection === 'footer' && !masterTemplateForm.footerContent && (
+                <p className="text-muted-foreground">{t.notifications_view.template.preview_empty}</p>
+              )}
+              {masterTemplateEditorSection === 'footer' && masterTemplateForm.footerContent && !masterFooterPreviewHtml && (
+                <p className="text-muted-foreground">{t.notifications_view.template.preview_unavailable}</p>
+              )}
+              {masterTemplateEditorSection === 'footer' && masterTemplateForm.footerContent && masterFooterPreviewHtml && (
+                <div dangerouslySetInnerHTML={{ __html: masterFooterPreviewHtml }} />
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setMasterTemplateEditorOpen(false)}>
+                {t.notifications_view.actions.cancel}
+              </Button>
+              <Button type="button" onClick={() => void handleSaveMasterTemplate()} disabled={masterTemplateSaving}>
+                {t.notifications_view.template.save_master}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2468,6 +2865,59 @@ export default function NotificationsView() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {pendingTemplateTranslation && (
+        <Dialog open onOpenChange={(open) => {
+          if (!open && !isTemplateTranslating) {
+            setPendingTemplateTranslation(null)
+          }
+        }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {t.notifications_view.template.translation_create_title.replace(
+                  '{language}',
+                  getLanguageLabel(pendingTemplateTranslation.targetLanguage)
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {t.notifications_view.template.translation_create_description.replace(
+                '{language}',
+                getLanguageLabel(pendingTemplateTranslation.sourceTemplate.language)
+              )}
+            </p>
+            <div className="mt-2 flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isTemplateTranslating}
+                onClick={() => {
+                  handleAddTemplateTranslation(
+                    pendingTemplateTranslation.sourceTemplate,
+                    pendingTemplateTranslation.targetLanguage
+                  )
+                  setPendingTemplateTranslation(null)
+                }}
+              >
+                {t.notifications_view.template.translation_copy_content}
+              </Button>
+              <Button
+                type="button"
+                disabled={isTemplateTranslating}
+                onClick={() => void handleAddTemplateTranslationWithAI(
+                  pendingTemplateTranslation.sourceTemplate,
+                  pendingTemplateTranslation.targetLanguage
+                )}
+              >
+                {isTemplateTranslating
+                  ? t.notifications_view.template.translation_with_ai_loading
+                  : t.notifications_view.template.translation_with_ai}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

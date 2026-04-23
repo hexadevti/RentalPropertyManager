@@ -20,6 +20,7 @@ type BugReportDialogProps = {
   activeTab: string
   activeTabLabel: string
   tabTitleMap: Record<string, string>
+  fullWidth?: boolean
 }
 
 type RecordOption = {
@@ -42,7 +43,7 @@ function isUuid(value: string | null | undefined) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
-export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugReportDialogProps) {
+export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap, fullWidth }: BugReportDialogProps) {
   const { currentUser, currentTenantId } = useAuth()
   const { t } = useLanguage()
   const [properties] = useKV<Property[]>('properties', [])
@@ -216,7 +217,7 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className={`gap-2${fullWidth ? ' w-full' : ''}`}>
           <Bug size={16} weight="duotone" />
           {t.bug_report_dialog.trigger_label}
         </Button>

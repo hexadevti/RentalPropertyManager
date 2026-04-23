@@ -3,8 +3,9 @@ import { useKV } from '@/lib/useSupabaseKV'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogTrigger } from '@/components/ui/dialog'
-import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise, Users } from '@phosphor-icons/react'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise, Users, UploadSimple, DownloadSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Guest, Contract } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -22,9 +23,108 @@ export default function GuestsView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [csvParsedRows, setCsvParsedRows] = useState<Partial<Guest>[]>([])
+  const [csvError, setCsvError] = useState<string | null>(null)
 
   const resetForm = () => {
     setEditingGuest(null)
+  }
+
+  const handleDownloadTemplate = () => {
+    const rows = [
+      ['name', 'email', 'phone', 'address', 'nationality', 'maritalStatus', 'profession', 'dateOfBirth', 'notes', 'documentType', 'documentNumber'],
+      ['João Silva', 'joao@email.com', '(11) 99999-0000', 'Rua das Flores, 123', 'Brasileiro', 'Solteiro', 'Engenheiro', '1990-05-20', '', 'CPF', '000.000.000-00'],
+    ]
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'template-hospedes.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const parseCSVLine = (line: string, sep: string): string[] => {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+        else inQuotes = !inQuotes
+      } else if (ch === sep && !inQuotes) {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+    result.push(current.trim())
+    return result
+  }
+
+  const handleCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCsvError(null)
+    setCsvParsedRows([])
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const text = (event.target?.result as string).replace(/\r/g, '')
+        const lines = text.split('\n').filter(l => l.trim())
+        if (lines.length < 2) { setCsvError(t.guests_view.import_error_empty); return }
+        const sep = lines[0].includes(';') ? ';' : ','
+        const headers = parseCSVLine(lines[0], sep).map(h => h.toLowerCase().replace(/\s/g, ''))
+        const rows: Partial<Guest>[] = []
+        for (let i = 1; i < lines.length; i++) {
+          const vals = parseCSVLine(lines[i], sep)
+          const row: Record<string, string> = {}
+          headers.forEach((h, idx) => { row[h] = vals[idx] ?? '' })
+          if (!row.name) continue
+          const documents = row.documenttype && row.documentnumber
+            ? [{ type: row.documenttype, number: row.documentnumber }]
+            : []
+          rows.push({
+            name: row.name,
+            email: row.email ?? '',
+            phone: row.phone ?? '',
+            address: row.address ?? '',
+            nationality: row.nationality ?? '',
+            maritalStatus: row.maritalstatus ?? '',
+            profession: row.profession ?? '',
+            dateOfBirth: row.dateofbirth ?? '',
+            notes: row.notes ?? '',
+            documents,
+          })
+        }
+        if (rows.length === 0) { setCsvError(t.guests_view.import_error_empty); return }
+        setCsvParsedRows(rows)
+      } catch {
+        setCsvError(t.guests_view.import_error_parse)
+      }
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const handleImportConfirm = () => {
+    const newGuests: Guest[] = csvParsedRows.map((row) => ({
+      ...row,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      createdAt: new Date().toISOString(),
+      documents: row.documents ?? [],
+      name: row.name ?? '',
+      email: row.email ?? '',
+      phone: row.phone ?? '',
+    } as Guest))
+    setGuests((current) => [...(current ?? []), ...newGuests])
+    toast.success(`${newGuests.length} ${t.guests_view.import_success}`)
+    setIsImportDialogOpen(false)
+    setCsvParsedRows([])
+    setCsvError(null)
   }
 
   const handleEdit = (guest: Guest) => {
@@ -66,6 +166,10 @@ export default function GuestsView() {
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
             {t.common.refresh}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
+            <UploadSimple weight="bold" size={16} />
+            {t.guests_view.import_csv}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
@@ -213,6 +317,70 @@ export default function GuestsView() {
         }}
         editingGuest={editingGuest}
       />
+
+      <Dialog open={isImportDialogOpen} onOpenChange={(open) => { setIsImportDialogOpen(open); if (!open) { setCsvParsedRows([]); setCsvError(null) } }}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t.guests_view.import_dialog_title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{t.guests_view.import_hint}</p>
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
+              <DownloadSimple weight="bold" size={16} />
+              {t.guests_view.import_download_template}
+            </Button>
+            <div className="space-y-2">
+              <Label>{t.guests_view.import_select_file}</Label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-background file:text-foreground hover:file:bg-accent cursor-pointer"
+                onChange={handleCSVFile}
+              />
+            </div>
+            {csvError && (
+              <p className="text-sm text-destructive">{csvError}</p>
+            )}
+            {csvParsedRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{t.guests_view.import_preview} — {csvParsedRows.length} {t.guests_view.import_rows_found}</p>
+                <div className="border rounded-lg overflow-auto max-h-64">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">{t.guests_view.import_col_name}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.guests_view.import_col_email}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.guests_view.import_col_phone}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.guests_view.import_col_nationality}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.guests_view.import_col_document}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvParsedRows.map((row, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-3 py-2">{row.name}</td>
+                          <td className="px-3 py-2">{row.email}</td>
+                          <td className="px-3 py-2">{row.phone}</td>
+                          <td className="px-3 py-2">{row.nationality}</td>
+                          <td className="px-3 py-2">{(row.documents ?? [])[0] ? `${(row.documents ?? [])[0].type}: ${(row.documents ?? [])[0].number}` : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              {t.guests_view.form.cancel}
+            </Button>
+            <Button onClick={handleImportConfirm} disabled={csvParsedRows.length === 0}>
+              {t.guests_view.import_confirm_btn} {csvParsedRows.length > 0 && `(${csvParsedRows.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

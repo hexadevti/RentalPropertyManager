@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 import { useKV } from '@/lib/useSupabaseKV'
 import helpContent from '@/docs/contract-templates.md?raw'
 import formHelpContent from '@/docs/form-template.md?raw'
@@ -7,13 +8,14 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Pencil, Trash, Copy, MagnifyingGlass, Question } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Contract, ContractTemplate, Guest, Owner, Property, TemplateType } from '@/types'
+import { Contract, ContractTemplate, Guest, Owner, Property, TEMPLATE_LANGUAGES, TemplateLanguage, TemplateType } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
@@ -86,7 +88,7 @@ function isHTML(content: string) {
 }
 
 export default function ContractTemplatesView() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { formatCurrency } = useCurrency()
   const { formatDate } = useDateFormat()
   const [templates, setTemplates] = useKV<ContractTemplate[]>('contract-templates', [])
@@ -96,8 +98,11 @@ export default function ContractTemplatesView() {
   const [owners] = useKV<Owner[]>('owners', [])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [helpDialogOpen, setHelpDialogOpen] = useState(false)
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [pendingTranslation, setPendingTranslation] = useState<{ sourceTemplate: ContractTemplate; targetLanguage: TemplateLanguage } | null>(null)
   const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [languageFilter, setLanguageFilter] = useState<TemplateLanguage | 'all'>(language === 'en' ? 'en' : 'pt')
   const [selectedPreviewContractId, setSelectedPreviewContractId] = useState(NO_PREVIEW_CONTRACT_VALUE)
   const [editorTab, setEditorTab] = useState<'template' | 'preview'>('template')
   const [xpathInput, setXpathInput] = useState('')
@@ -107,6 +112,8 @@ export default function ContractTemplatesView() {
   const [formData, setFormData] = useState({
     name: '',
     type: 'monthly' as TemplateType,
+    language: (language === 'en' ? 'en' : 'pt') as TemplateLanguage,
+    translationGroupId: '',
     content: '',
   })
 
@@ -114,11 +121,87 @@ export default function ContractTemplatesView() {
     setFormData({
       name: '',
       type: 'monthly' as TemplateType,
+      language: (language === 'en' ? 'en' : 'pt') as TemplateLanguage,
+      translationGroupId: '',
       content: '',
     })
     setEditingTemplate(null)
     setEditorTab('template')
     setXpathTableFilter('')
+  }
+
+  const getLanguageLabel = (code: TemplateLanguage) => {
+    const found = TEMPLATE_LANGUAGES.find((l) => l.code === code)
+    return found ? found.nativeName : code.toUpperCase()
+  }
+
+  const getLanguagesAvailableForGroup = (translationGroupId: string): TemplateLanguage[] =>
+    (templates || [])
+      .filter((t) => t.translationGroupId === translationGroupId)
+      .map((t) => t.language)
+
+  const handleAddTranslation = (template: ContractTemplate, targetLanguage: TemplateLanguage) => {
+    const alreadyExists = (templates || []).some(
+      (item) => item.translationGroupId === template.translationGroupId && item.language === targetLanguage
+    )
+    if (alreadyExists) {
+      toast.error(`Já existe uma tradução em ${getLanguageLabel(targetLanguage)}`)
+      return
+    }
+    const newTemplate: ContractTemplate = {
+      ...template,
+      id: Date.now().toString(),
+      language: targetLanguage,
+      name: `${template.name} (${getLanguageLabel(targetLanguage)})`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    setTemplates((current) => [...(current || []), newTemplate])
+    toast.success(`Tradução criada em ${getLanguageLabel(targetLanguage)}`)
+  }
+
+  const handleAddTranslationWithAI = async (sourceTemplate: ContractTemplate, targetLanguage: TemplateLanguage) => {
+    setIsTranslating(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: {
+          action: 'translate-template',
+          content: sourceTemplate.content,
+          fromLanguage: sourceTemplate.language,
+          toLanguage: targetLanguage,
+        },
+      })
+
+      if (error) throw new Error(error.message || 'Falha ao traduzir')
+      if (data?.error) throw new Error(data.error)
+      if (!data?.translatedContent) throw new Error('A IA não retornou conteúdo traduzido')
+
+      const alreadyExists = (templates || []).some(
+        (item) => item.translationGroupId === sourceTemplate.translationGroupId && item.language === targetLanguage
+      )
+      if (alreadyExists) {
+        toast.error(`Já existe uma tradução em ${getLanguageLabel(targetLanguage)}`)
+        setPendingTranslation(null)
+        return
+      }
+
+      const newTemplate: ContractTemplate = {
+        ...sourceTemplate,
+        id: Date.now().toString(),
+        language: targetLanguage,
+        name: `${sourceTemplate.name} (${getLanguageLabel(targetLanguage)})`,
+        content: data.translatedContent,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      setTemplates((current) => [...(current || []), newTemplate])
+      setPendingTranslation(null)
+      toast.success(`Tradução em ${getLanguageLabel(targetLanguage)} criada com IA`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao traduzir template')
+    } finally {
+      setIsTranslating(false)
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -144,6 +227,7 @@ export default function ContractTemplatesView() {
       const newTemplate: ContractTemplate = {
         id: Date.now().toString(),
         ...formData,
+        translationGroupId: formData.translationGroupId || Date.now().toString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
@@ -169,6 +253,8 @@ export default function ContractTemplatesView() {
     setFormData({
       name: template.name,
       type: template.type,
+      language: template.language,
+      translationGroupId: template.translationGroupId,
       content: plainTextToHTML(template.content),
     })
     setDialogOpen(true)
@@ -191,6 +277,42 @@ export default function ContractTemplatesView() {
     }
     setTemplates((currentTemplates) => [...(currentTemplates || []), newTemplate])
     toast.success('Template duplicado com sucesso')
+  }
+
+
+  const translationSources = useMemo(() => {
+    if (!editingTemplate || !formData.translationGroupId) return []
+    return (templates || []).filter(
+      (t) => t.translationGroupId === formData.translationGroupId && t.language !== formData.language
+    )
+  }, [templates, editingTemplate, formData.translationGroupId, formData.language])
+
+  const handleTranslateFrom = async (sourceTemplate: ContractTemplate) => {
+    setIsTranslating(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Sessão inválida')
+
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: {
+          action: 'translate-template',
+          content: sourceTemplate.content,
+          fromLanguage: sourceTemplate.language,
+          toLanguage: formData.language,
+        },
+      })
+
+      if (error) throw new Error(error.message || 'Falha ao traduzir')
+      if (data?.error) throw new Error(data.error)
+      if (!data?.translatedContent) throw new Error('A IA não retornou conteúdo traduzido')
+
+      setFormData((current) => ({ ...current, content: data.translatedContent }))
+      toast.success(`Tradução de ${getLanguageLabel(sourceTemplate.language)} aplicada`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao traduzir template')
+    } finally {
+      setIsTranslating(false)
+    }
   }
 
   const handleInsertVariable = (token: string) => {
@@ -242,10 +364,13 @@ export default function ContractTemplatesView() {
     }, 80)
   }
 
-  const filteredTemplates = (templates || []).filter((template) =>
-    template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    template.type.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredTemplates = (templates || []).filter((template) => {
+    const matchesSearch =
+      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.type.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesLanguage = languageFilter === 'all' || template.language === languageFilter
+    return matchesSearch && matchesLanguage
+  })
 
   const helpContractOptions = useMemo(
     () => (contracts || []).map((contract) => {
@@ -445,6 +570,24 @@ export default function ContractTemplatesView() {
                               </SelectContent>
                             </Select>
                           </div>
+                          <div className="space-y-1 w-40 shrink-0">
+                            <Label htmlFor="language">Idioma</Label>
+                            <Select
+                              value={formData.language}
+                              onValueChange={(value) => setFormData({ ...formData, language: value as TemplateLanguage })}
+                            >
+                              <SelectTrigger id="language">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TEMPLATE_LANGUAGES.map((lang) => (
+                                  <SelectItem key={lang.code} value={lang.code}>
+                                    {lang.nativeName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <div className="space-y-1 w-[360px] max-w-[45vw] min-w-0">
                             <Label htmlFor="preview-contract">Contrato base para preview</Label>
                             <Select value={selectedPreviewContractId} onValueChange={setSelectedPreviewContractId}>
@@ -469,6 +612,30 @@ export default function ContractTemplatesView() {
                               <TabsTrigger value="preview">Preview</TabsTrigger>
                             </TabsList>
                           </div>
+                          {translationSources.length > 0 && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="shrink-0"
+                                  disabled={isTranslating}
+                                >
+                                  {isTranslating ? 'Traduzindo...' : 'Traduzir de...'}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {translationSources.map((src) => (
+                                  <DropdownMenuItem
+                                    key={src.id}
+                                    onClick={() => void handleTranslateFrom(src)}
+                                  >
+                                    {getLanguageLabel(src.language)}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                           <DialogTrigger asChild>
                             <Button
                               type="button"
@@ -631,6 +798,24 @@ export default function ContractTemplatesView() {
             className="pl-10"
           />
         </div>
+        <div className="w-full sm:w-48 shrink-0">
+          <Select
+            value={languageFilter}
+            onValueChange={(value) => setLanguageFilter(value as TemplateLanguage | 'all')}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Idioma" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os idiomas</SelectItem>
+              {TEMPLATE_LANGUAGES.map((lang) => (
+                <SelectItem key={lang.code} value={lang.code}>
+                  {lang.nativeName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {filteredTemplates.length === 0 && !searchQuery && (
@@ -665,10 +850,13 @@ export default function ContractTemplatesView() {
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <CardTitle className="text-xl">{template.name}</CardTitle>
                     <Badge className={getTypeBadgeClass(template.type)}>
                       {getTypeLabel(template.type)}
+                    </Badge>
+                    <Badge variant="outline">
+                      {getLanguageLabel(template.language)}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
@@ -678,7 +866,31 @@ export default function ContractTemplatesView() {
                     }
                   </p>
                 </div>
-                <div className="flex gap-2 ml-4">
+                <div className="flex gap-2 ml-4 items-center">
+                  {(() => {
+                    const usedLanguages = getLanguagesAvailableForGroup(template.translationGroupId)
+                    const availableToAdd = TEMPLATE_LANGUAGES.filter((l) => !usedLanguages.includes(l.code))
+                    if (availableToAdd.length === 0) return null
+                    return (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="gap-1 text-xs">
+                            + Tradução
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {availableToAdd.map((lang) => (
+                            <DropdownMenuItem
+                              key={lang.code}
+                              onClick={() => setPendingTranslation({ sourceTemplate: template, targetLanguage: lang.code })}
+                            >
+                              {lang.nativeName}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )
+                  })()}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -717,6 +929,39 @@ export default function ContractTemplatesView() {
           </Card>
         ))}
       </div>
+
+      {pendingTranslation && (
+        <Dialog open onOpenChange={(open) => { if (!open && !isTranslating) setPendingTranslation(null) }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                Criar tradução em {getLanguageLabel(pendingTranslation.targetLanguage)}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Como deseja criar a tradução a partir de {getLanguageLabel(pendingTranslation.sourceTemplate.language)}?
+            </p>
+            <div className="flex flex-col gap-2 mt-2">
+              <Button
+                variant="outline"
+                disabled={isTranslating}
+                onClick={() => {
+                  handleAddTranslation(pendingTranslation.sourceTemplate, pendingTranslation.targetLanguage)
+                  setPendingTranslation(null)
+                }}
+              >
+                Copiar conteúdo
+              </Button>
+              <Button
+                disabled={isTranslating}
+                onClick={() => void handleAddTranslationWithAI(pendingTranslation.sourceTemplate, pendingTranslation.targetLanguage)}
+              >
+                {isTranslating ? 'Traduzindo...' : 'Traduzir com IA'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

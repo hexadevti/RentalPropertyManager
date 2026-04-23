@@ -263,7 +263,7 @@ export default function Register({ onBackToLogin }: RegisterProps) {
           <CardDescription>
             {isInviteMode
               ? 'Conclua seu acesso ao tenant convidado'
-              : 'Preencha os dados para solicitar acesso'}
+              : 'Preencha os dados para criar sua conta'}
           </CardDescription>
         </CardHeader>
 

@@ -1,12 +1,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { XCircle, LockKey } from '@phosphor-icons/react'
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
+import { useState } from 'react'
 
-export function Rejected() {
-  const { currentUser } = useAuth()
+export function Blocked() {
+  const { currentUser, signOut } = useAuth()
   const { t } = useLanguage()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+    try {
+      await signOut()
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/20 to-destructive/10 flex items-center justify-center p-6">
@@ -22,14 +34,14 @@ export function Rejected() {
           </div>
           <div className="space-y-2">
             <CardTitle className="text-3xl font-bold tracking-tight">
-              {t.rejected?.title || 'Acesso Negado'}
+              {t.blocked?.title || 'Acesso Bloqueado'}
             </CardTitle>
             <CardDescription className="text-base">
-              {t.rejected?.subtitle || 'Sua solicitação de acesso foi rejeitada'}
+              {t.blocked?.subtitle || 'Seu acesso ao sistema foi bloqueado'}
             </CardDescription>
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-8">
           <div className="flex items-center justify-center gap-4 p-6 bg-muted/50 rounded-lg border">
             <Avatar className="h-16 w-16 border-2 border-destructive">
@@ -53,18 +65,26 @@ export function Rejected() {
               <LockKey size={24} weight="duotone" className="text-destructive mt-1 flex-shrink-0" />
               <div className="text-left flex-1">
                 <p className="font-medium text-foreground mb-1">
-                  {t.rejected?.message || 'Solicitação Rejeitada'}
+                  {t.blocked?.message || 'Acesso Bloqueado'}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {t.rejected?.description || 'Sua solicitação de acesso ao sistema foi negada. Se você acredita que isso é um erro, entre em contato com o administrador do sistema.'}
+                  {t.blocked?.description || 'Seu acesso ao sistema foi bloqueado. Se você acredita que isso é um erro, entre em contato com o administrador do sistema.'}
                 </p>
               </div>
             </div>
 
             <div className="text-sm text-muted-foreground space-y-1 pt-4">
               <p>
-                {t.rejected?.contact || 'Para mais informações, entre em contato com o administrador do sistema.'}
+                {t.blocked?.contact || 'Para mais informações, entre em contato com o administrador do sistema.'}
               </p>
+            </div>
+
+            <div className="pt-2">
+              <Button variant="outline" onClick={() => void handleSignOut()} disabled={isSigningOut}>
+                {isSigningOut
+                  ? (t.pendingApproval?.signing_out || 'Saindo...')
+                  : (t.pendingApproval?.sign_out || 'Sair')}
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -72,3 +92,5 @@ export function Rejected() {
     </div>
   )
 }
+
+export const Rejected = Blocked

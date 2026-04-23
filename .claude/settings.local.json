@@ -10,7 +10,13 @@
       "Bash(node -e \"const icons = require\\('c:/Users/lucia/repos/RentalPropertyManager/node_modules/@phosphor-icons/react'\\); console.log\\(Object.keys\\(icons\\).filter\\(k => !k.startsWith\\('_'\\)\\).slice\\(0,5\\)\\); console.log\\('total:', Object.keys\\(icons\\).length\\)\")",
       "Bash(wrangler whoami *)",
       "Bash(npx wrangler *)",
-      "Bash(./node_modules/.bin/wrangler --version)"
+      "Bash(./node_modules/.bin/wrangler --version)",
+      "Bash(node -e \"const icons = require\\('c:/Users/lucia/repos/RentalPropertyManager/node_modules/@phosphor-icons/react'\\); console.log\\('Translate' in icons\\)\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(grep -E \"\\\\.sql$\")",
+      "Bash(npx supabase *)",
+      "Bash(supabase --version)",
+      "Bash(grep -n \"return$\\\\|^  \\)\\\\|^}\" c:\\\\Users\\\\lucia\\\\repos\\\\RentalPropertyManager\\\\src\\\\components\\\\views\\\\FinancesView.tsx)"
     ]
   }
 }

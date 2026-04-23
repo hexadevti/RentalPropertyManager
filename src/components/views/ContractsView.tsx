@@ -10,9 +10,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye, ClipboardText } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye, ClipboardText, UploadSimple, DownloadSimple, Warning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Contract, Guest, Inspection, Property, ContractStatus, RentalType, ContractTemplate, Owner } from '@/types'
+import { Contract, Guest, Inspection, Property, ContractStatus, RentalType, ContractTemplate, Owner, TEMPLATE_LANGUAGES, TemplateLanguage } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
@@ -40,11 +40,31 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
   const [statusFilter, setStatusFilter] = useState<ContractStatus | 'all'>('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+
+  interface ParsedContractRow {
+    guestName: string
+    guestId: string
+    propertyNames: string[]
+    propertyIds: string[]
+    rentalType: RentalType
+    startDate: string
+    endDate: string
+    monthlyAmount: number
+    paymentDueDay: number
+    notes: string
+    guestWarning: boolean
+    propertyWarning: boolean
+  }
+
+  const [csvParsedRows, setCsvParsedRows] = useState<ParsedContractRow[]>([])
+  const [csvError, setCsvError] = useState<string | null>(null)
   const [guestDialogOpen, setGuestDialogOpen] = useState(false)
   const [localGuests, setLocalGuests] = useState<Guest[]>([])
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
   const [selectedContractForPDF, setSelectedContractForPDF] = useState<Contract | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+  const [pdfLanguageFilter, setPdfLanguageFilter] = useState<TemplateLanguage | 'all'>('all')
 
   useEffect(() => {
     setLocalGuests(guests || [])
@@ -63,6 +83,127 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
     notes: '',
     templateId: '',
   })
+
+  const handleDownloadTemplate = () => {
+    const rows = [
+      ['guestName', 'propertyNames', 'rentalType', 'startDate', 'endDate', 'monthlyAmount', 'paymentDueDay', 'notes'],
+      ['João Silva', 'Apartamento Vista Mar', 'monthly', '2026-01-01', '2026-12-31', '2500.00', '5', ''],
+      ['Maria Souza', 'Casa da Praia|Quarto 01', 'short-term', '2026-02-10', '2026-02-20', '800.00', '1', 'Temporada de verão'],
+    ]
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'template-contratos.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const parseCSVLine = (line: string, sep: string): string[] => {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+        else inQuotes = !inQuotes
+      } else if (ch === sep && !inQuotes) {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+    result.push(current.trim())
+    return result
+  }
+
+  const parseDate = (raw: string): string => {
+    const ddmmyyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+    return new Date().toISOString().split('T')[0]
+  }
+
+  const handleCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCsvError(null)
+    setCsvParsedRows([])
+    const file = e.target.files?.[0]
+    if (!file) return
+    const allGuests = guests || []
+    const allProperties = properties || []
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const text = (event.target?.result as string).replace(/\r/g, '')
+        const lines = text.split('\n').filter(l => l.trim())
+        if (lines.length < 2) { setCsvError(t.contracts_view.import_error_empty); return }
+        const sep = lines[0].includes(';') ? ';' : ','
+        const headers = parseCSVLine(lines[0], sep).map(h => h.toLowerCase().replace(/\s/g, ''))
+        const typeMap: Record<string, RentalType> = {
+          monthly: 'monthly', mensal: 'monthly',
+          'short-term': 'short-term', temporada: 'short-term', shortterm: 'short-term',
+        }
+        const rows: ParsedContractRow[] = []
+        for (let i = 1; i < lines.length; i++) {
+          const vals = parseCSVLine(lines[i], sep)
+          const row: Record<string, string> = {}
+          headers.forEach((h, idx) => { row[h] = vals[idx] ?? '' })
+          if (!row.guestname && !row.startdate) continue
+          const guestMatch = allGuests.find(g =>
+            g.name.toLowerCase() === (row.guestname ?? '').toLowerCase() ||
+            g.email.toLowerCase() === (row.guestname ?? '').toLowerCase()
+          )
+          const propNames = (row.propertynames ?? '').split('|').map(s => s.trim()).filter(Boolean)
+          const matchedProps = propNames.map(name =>
+            allProperties.find(p => p.name.toLowerCase() === name.toLowerCase())
+          )
+          rows.push({
+            guestName: row.guestname ?? '',
+            guestId: guestMatch?.id ?? '',
+            propertyNames: propNames,
+            propertyIds: matchedProps.filter(Boolean).map(p => p!.id),
+            rentalType: typeMap[row.rentaltype?.toLowerCase()] ?? 'monthly',
+            startDate: parseDate(row.startdate ?? ''),
+            endDate: parseDate(row.enddate ?? ''),
+            monthlyAmount: parseFloat((row.monthlyamount ?? '').replace(',', '.')) || 0,
+            paymentDueDay: parseInt(row.paymentdueday ?? '') || 5,
+            notes: row.notes ?? '',
+            guestWarning: !guestMatch,
+            propertyWarning: matchedProps.some(p => !p),
+          })
+        }
+        if (rows.length === 0) { setCsvError(t.contracts_view.import_error_empty); return }
+        setCsvParsedRows(rows)
+      } catch {
+        setCsvError(t.contracts_view.import_error_parse)
+      }
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const handleImportConfirm = () => {
+    const newContracts: Contract[] = csvParsedRows.map((row) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      createdAt: new Date().toISOString(),
+      guestId: row.guestId,
+      propertyIds: row.propertyIds,
+      rentalType: row.rentalType,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      paymentDueDay: row.paymentDueDay,
+      monthlyAmount: row.monthlyAmount,
+      notes: row.notes,
+      status: calculateStatus(row.startDate, row.endDate),
+    } as Contract))
+    setContracts((current) => [...(current ?? []), ...newContracts])
+    toast.success(`${newContracts.length} ${t.contracts_view.import_success}`)
+    setIsImportDialogOpen(false)
+    setCsvParsedRows([])
+    setCsvError(null)
+  }
 
   const resetForm = () => {
     setFormData({
@@ -212,8 +353,8 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
 
   const handleGeneratePDF = (contract: Contract) => {
     setSelectedContractForPDF(contract)
-    // Pre-select the saved template if it exists
     setSelectedTemplateId(contract.templateId || '')
+    setPdfLanguageFilter(language === 'en' ? 'en' : 'pt')
     setPdfDialogOpen(true)
   }
 
@@ -277,13 +418,15 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
     }
   }
 
-  const getMatchingTemplates = (rentalType: RentalType) => {
-    const typeMap: Record<RentalType, string> = {
-      'monthly': 'monthly',
-      'short-term': 'short-term',
-    }
-    return (templates || []).filter(t => t.type === typeMap[rentalType])
+  const getMatchingTemplates = (rentalType: RentalType, langFilter: TemplateLanguage | 'all' = 'all') => {
+    return (templates || []).filter((t) =>
+      t.type === rentalType &&
+      (langFilter === 'all' || t.language === langFilter)
+    )
   }
+
+  const getLanguageLabel = (code: TemplateLanguage) =>
+    TEMPLATE_LANGUAGES.find((l) => l.code === code)?.nativeName ?? code.toUpperCase()
 
   const getContractInspections = (contractId: string) =>
     (inspections || []).filter((i) => i.contractId === contractId)
@@ -301,6 +444,10 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
             {t.common.refresh}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
+            <UploadSimple weight="bold" size={16} />
+            {t.contracts_view.import_csv}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
@@ -692,6 +839,29 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
           </DialogHeader>
           <div className="space-y-4">
             <div>
+              <Label htmlFor="pdf-language">Idioma do template</Label>
+              <Select
+                value={pdfLanguageFilter}
+                onValueChange={(value) => {
+                  setPdfLanguageFilter(value as TemplateLanguage | 'all')
+                  setSelectedTemplateId('')
+                }}
+              >
+                <SelectTrigger id="pdf-language">
+                  <SelectValue placeholder="Todos os idiomas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os idiomas</SelectItem>
+                  {TEMPLATE_LANGUAGES.map((lang) => (
+                    <SelectItem key={lang.code} value={lang.code}>
+                      {lang.nativeName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
               <Label htmlFor="pdf-template">Selecione o Template</Label>
               <Select
                 value={selectedTemplateId}
@@ -701,14 +871,15 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                   <SelectValue placeholder="Escolha um template..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {selectedContractForPDF && getMatchingTemplates(selectedContractForPDF.rentalType).length === 0 ? (
+                  {selectedContractForPDF && getMatchingTemplates(selectedContractForPDF.rentalType, pdfLanguageFilter).length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
-                      Nenhum template disponível para este tipo de contrato
+                      Nenhum template disponível para este idioma e tipo de contrato
                     </div>
                   ) : (
-                    selectedContractForPDF && getMatchingTemplates(selectedContractForPDF.rentalType).map(template => (
+                    selectedContractForPDF && getMatchingTemplates(selectedContractForPDF.rentalType, pdfLanguageFilter).map(template => (
                       <SelectItem key={template.id} value={template.id}>
-                        {template.name}
+                        <span>{template.name}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">({getLanguageLabel(template.language)})</span>
                       </SelectItem>
                     ))
                   )}
@@ -735,6 +906,86 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                 Baixar PDF
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isImportDialogOpen} onOpenChange={(open) => { setIsImportDialogOpen(open); if (!open) { setCsvParsedRows([]); setCsvError(null) } }}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t.contracts_view.import_dialog_title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{t.contracts_view.import_hint}</p>
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
+              <DownloadSimple weight="bold" size={16} />
+              {t.contracts_view.import_download_template}
+            </Button>
+            <div className="space-y-2">
+              <Label>{t.contracts_view.import_select_file}</Label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-background file:text-foreground hover:file:bg-accent cursor-pointer"
+                onChange={handleCSVFile}
+              />
+            </div>
+            {csvError && <p className="text-sm text-destructive">{csvError}</p>}
+            {csvParsedRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{t.contracts_view.import_preview} — {csvParsedRows.length} {t.contracts_view.import_rows_found}</p>
+                <div className="border rounded-lg overflow-auto max-h-72">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">{t.contracts_view.import_col_guest}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.contracts_view.import_col_properties}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.contracts_view.import_col_type}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.contracts_view.import_col_period}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.contracts_view.import_col_amount}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvParsedRows.map((row, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              {row.guestWarning && <Warning size={14} className="text-amber-500 shrink-0" />}
+                              <span className={row.guestWarning ? 'text-amber-600' : ''}>{row.guestName || '—'}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1">
+                              {row.propertyWarning && <Warning size={14} className="text-amber-500 shrink-0" />}
+                              <span className={row.propertyWarning ? 'text-amber-600' : ''}>{row.propertyNames.join(', ') || '—'}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <Badge variant="outline">{t.contracts_view.rental_type[row.rentalType]}</Badge>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">{row.startDate} → {row.endDate}</td>
+                          <td className="px-3 py-2 font-medium">{formatCurrency(row.monthlyAmount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {csvParsedRows.some(r => r.guestWarning || r.propertyWarning) && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <Warning size={12} />
+                    Linhas em amarelo indicam hóspede ou propriedade não encontrados — serão importados sem vínculo.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              {t.contracts_view.cancel}
+            </Button>
+            <Button onClick={handleImportConfirm} disabled={csvParsedRows.length === 0}>
+              {t.contracts_view.import_confirm_btn} {csvParsedRows.length > 0 && `(${csvParsedRows.length})`}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

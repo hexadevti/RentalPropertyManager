@@ -106,14 +106,9 @@ Deno.serve(async (req) => {
     const userJwt = authorization.replace(/^Bearer\s+/i, '').trim()
 
     const body = await req.json().catch(() => null)
-    const question = String(body?.question || '').trim()
-    const history = Array.isArray(body?.history) ? (body.history as ChatMessage[]).slice(-8) : []
     const requestedModel = String(body?.model || '').trim()
     const configuredDefaultModel = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini'
     const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : configuredDefaultModel
-
-    if (!question) return jsonResponse({ error: 'Question is required' }, 400)
-    if (question.length > 1200) return jsonResponse({ error: 'Question is too long' }, 400)
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey)
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -166,6 +161,91 @@ Deno.serve(async (req) => {
     if (!tenantId) {
       return jsonResponse({ error: 'Tenant context was not found for the current user' }, 400)
     }
+
+    const action = String(body?.action || '').trim()
+
+    // ── translate-template action ─────────────────────────────────────────────
+    if (action === 'translate-template') {
+      const contentToTranslate = String(body?.content || '').trim()
+      const fromLang = String(body?.fromLanguage || '').trim()
+      const toLang = String(body?.toLanguage || '').trim()
+
+      if (!contentToTranslate) return jsonResponse({ error: 'content is required' }, 400)
+      if (!fromLang || !toLang) return jsonResponse({ error: 'fromLanguage and toLanguage are required' }, 400)
+      if (fromLang === toLang) return jsonResponse({ error: 'Source and target languages must differ' }, 400)
+
+      const translationInstructions = [
+        `You are a professional translator. Translate the template content from language "${fromLang}" to language "${toLang}".`,
+        'Rules:',
+        '1. If the content contains HTML tags or attributes, preserve them exactly as-is.',
+        '2. Preserve ALL {{...}} template tokens exactly as-is — do not translate or modify their content.',
+        '3. Return ONLY the translated content. No explanations, no markdown code blocks, no extra text.',
+        '4. Maintain the same structure, formatting, and layout of the original content.',
+        '5. Translate all visible human-readable text to the target language.',
+      ].join('\n')
+
+      const translationInput = `Translate this template content:\n\n${contentToTranslate}`
+
+      const translationResponse = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${openAiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          instructions: translationInstructions,
+          input: translationInput,
+          max_output_tokens: 8000,
+        }),
+      })
+
+      const translationText = await translationResponse.text()
+      let translationData: any = null
+      try {
+        translationData = translationText ? JSON.parse(translationText) : null
+      } catch {
+        translationData = { raw: translationText }
+      }
+
+      if (!translationResponse.ok) {
+        console.error('OpenAI translation error', translationData)
+        return jsonResponse({ error: translationData?.error?.message || 'Failed to translate template', model }, 500)
+      }
+
+      const inputTokens  = translationData?.usage?.input_tokens  ?? 0
+      const outputTokens = translationData?.usage?.output_tokens ?? 0
+      const totalTokens  = translationData?.usage?.total_tokens  ?? (inputTokens + outputTokens)
+      const costUsd      = estimateCost(model, inputTokens, outputTokens)
+
+      adminClient.from('ai_usage_logs').insert({
+        id:                 crypto.randomUUID(),
+        tenant_id:          tenantId,
+        auth_user_id:       authUserId,
+        user_login:         profile?.github_login ?? '',
+        model,
+        question_chars:     contentToTranslate.length,
+        input_tokens:       inputTokens,
+        output_tokens:      outputTokens,
+        total_tokens:       totalTokens,
+        estimated_cost_usd: costUsd,
+      }).then(({ error }: { error: { message: string } | null }) => {
+        if (error) console.warn('ai_usage_logs insert failed:', error.message)
+      })
+
+      return jsonResponse({
+        translatedContent: extractOutputText(translationData) || '',
+        model,
+        usage: { inputTokens, outputTokens, totalTokens, costUsd },
+      })
+    }
+
+    // ── chat action (default) ─────────────────────────────────────────────────
+    const question = String(body?.question || '').trim()
+    const history = Array.isArray(body?.history) ? (body.history as ChatMessage[]).slice(-8) : []
+
+    if (!question) return jsonResponse({ error: 'Question is required' }, 400)
+    if (question.length > 1200) return jsonResponse({ error: 'Question is too long' }, 400)
 
     const contextTables: TableResult[] = []
 
@@ -260,7 +340,6 @@ Deno.serve(async (req) => {
     const totalTokens  = responseData?.usage?.total_tokens  ?? (inputTokens + outputTokens)
     const costUsd      = estimateCost(model, inputTokens, outputTokens)
 
-    // Log usage asynchronously — don't block the response on it
     adminClient.from('ai_usage_logs').insert({
       id:                 crypto.randomUUID(),
       tenant_id:          tenantId,

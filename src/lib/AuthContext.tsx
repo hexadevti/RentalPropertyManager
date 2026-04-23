@@ -3,7 +3,9 @@ import type { EmailOtpType } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { setSupabaseAuthState } from '@/lib/supabaseAuthState'
 import { logAppAudit } from '@/lib/appAudit'
-import type { UserProfile, UserRole, UserStatus } from '@/types'
+import { deriveUserRoleFromAccessProfileId, hasRequiredAccessLevel, normalizeAccessLevel, resolveDefaultAccessProfileId } from '@/lib/accessControl'
+import { ACCESS_ROLES } from '@/types'
+import type { AccessLevel, AccessProfile, AccessRoleId, UserProfile, UserRole, UserStatus } from '@/types'
 
 interface AuthContextType {
   currentUser: AppUser | null
@@ -17,14 +19,17 @@ interface AuthContextType {
   isGuest: boolean
   isApproved: boolean
   isPending: boolean
-  isRejected: boolean
+  isBlocked: boolean
+  accessProfile: AccessProfile | null
+  accessLevels: Partial<Record<AccessRoleId, AccessLevel>>
   hasRole: (role: UserRole) => boolean
-  updateUserRole: (login: string, role: UserRole) => Promise<void>
+  hasAccess: (roleId: AccessRoleId, requiredLevel?: AccessLevel) => boolean
+  updateUserRole: (login: string, role: UserRole, accessProfileId?: string | null) => Promise<void>
   updateUserStatus: (login: string, status: UserStatus) => Promise<void>
   updateUserProfile: (login: string, updates: { githubLogin?: string; email?: string; avatarUrl?: string }) => Promise<void>
   renameTenant: (name: string) => Promise<void>
   setSessionTenant: (tenantId: string) => Promise<void>
-  createUser: (login: string, email: string, role: UserRole) => Promise<void>
+  createUser: (login: string, email: string, role: UserRole, accessProfileId?: string | null) => Promise<void>
   deleteUser: (login: string) => Promise<void>
   getAllProfiles: () => UserProfile[]
   signInWithEmail: (email: string, password: string) => Promise<void>
@@ -69,6 +74,7 @@ function profileFromRow(row: any): UserProfile {
     status: row.status,
     email: row.email,
     avatarUrl: row.avatar_url,
+    accessProfileId: row.access_profile_id || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -84,6 +90,35 @@ function buildDevUser(email: string, userId?: string): AppUser {
     email,
     avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(login)}&background=random`,
     isOwner: false,
+  }
+}
+
+function buildFullWriteAccessLevels(): Partial<Record<AccessRoleId, AccessLevel>> {
+  return ACCESS_ROLES.reduce((acc, role) => {
+    acc[role.id] = 'write'
+    return acc
+  }, {} as Partial<Record<AccessRoleId, AccessLevel>>)
+}
+
+function buildLegacyAccessLevels(role: UserRole): Partial<Record<AccessRoleId, AccessLevel>> {
+  if (role === 'admin') {
+    return buildFullWriteAccessLevels()
+  }
+
+  return {
+    properties: 'read',
+    owners: 'read',
+    calendar: 'read',
+    tasks: 'read',
+    reports: 'read',
+    guests: 'read',
+    contracts: 'read',
+    documents: 'read',
+    inspections: 'read',
+    templates: 'read',
+    notifications: 'read',
+    providers: 'read',
+    appointments: 'read',
   }
 }
 
@@ -166,6 +201,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [tenantName, setTenantName] = useState<string | null>(null)
   const [tenantProfiles, setTenantProfiles] = useState<UserProfile[]>([])
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  const [accessProfile, setAccessProfile] = useState<AccessProfile | null>(null)
+  const [accessLevels, setAccessLevels] = useState<Partial<Record<AccessRoleId, AccessLevel>>>({})
   const [isLoading, setIsLoading] = useState(true)
   const loggedLoginSessionRef = useRef<string | null>(null)
 
@@ -174,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId: currentUser?.id ?? null,
       tenantId: currentTenantId,
       isAuthenticated: !!currentUser,
-      isApproved: userProfile?.status === 'approved',
+      isApproved: !!userProfile && userProfile.status !== 'blocked',
       isLoading,
     })
   }, [currentUser, currentTenantId, userProfile, isLoading])
@@ -260,6 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const recoverTenantAdminAccess = useCallback(async (profileRow: any) => {
     if (!profileRow?.tenant_id || !profileRow?.auth_user_id) return profileRow
+    if (profileRow.status === 'blocked') return profileRow
 
     // Recovery path: if a tenant has no approved admin, allow the first authenticated
     // profile in that tenant to bootstrap admin access and avoid approval deadlocks.
@@ -286,7 +324,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: recovered, error: recoverError } = await supabase
       .from('user_profiles')
-      .update({ role: 'admin', status: 'approved', updated_at: new Date().toISOString() })
+      .update({
+        role: 'admin',
+        access_profile_id: resolveDefaultAccessProfileId('admin'),
+        status: 'approved',
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', profileRow.id)
       .eq('auth_user_id', profileRow.auth_user_id)
       .select()
@@ -301,6 +344,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (profileRow.auth_user_id !== authUserId) return profileRow
     return profileRow
   }, [])
+
+  const loadAccessProfile = useCallback(async (tenantId: string, accessProfileId?: string | null) => {
+    if (!tenantId) {
+      setAccessProfile(null)
+      setAccessLevels({})
+      return
+    }
+
+    if (isPlatformAdmin) {
+      setAccessProfile(null)
+      setAccessLevels({})
+      return
+    }
+
+    const resolvedProfileId = accessProfileId || resolveDefaultAccessProfileId((userProfile?.role || 'guest') as UserRole)
+
+    const [{ data: profileRow, error: profileError }, { data: permissionRows, error: permissionsError }] = await Promise.all([
+      supabase
+        .from('access_profiles')
+        .select('tenant_id, id, name, description, is_system, created_at, updated_at')
+        .eq('tenant_id', tenantId)
+        .eq('id', resolvedProfileId)
+        .maybeSingle(),
+      supabase
+        .from('access_profile_roles')
+        .select('tenant_id, access_profile_id, access_role_id, access_level, created_at, updated_at')
+        .eq('tenant_id', tenantId)
+        .eq('access_profile_id', resolvedProfileId),
+    ])
+
+    const shouldUseLegacyFallback = !!profileError || !!permissionsError
+
+    if (shouldUseLegacyFallback) {
+      const fallbackRole = (userProfile?.role || 'guest') as UserRole
+      console.warn('Access profile schema unavailable; falling back to legacy role-based access.', {
+        profileError: profileError?.message || null,
+        permissionsError: permissionsError?.message || null,
+        fallbackRole,
+      })
+      setAccessProfile(null)
+      setAccessLevels(buildLegacyAccessLevels(fallbackRole))
+      return
+    }
+
+    setAccessProfile(profileRow ? {
+      tenantId: profileRow.tenant_id,
+      id: profileRow.id,
+      name: profileRow.name,
+      description: profileRow.description || '',
+      isSystem: profileRow.is_system,
+      createdAt: profileRow.created_at,
+      updatedAt: profileRow.updated_at,
+    } : null)
+
+    const nextAccessLevels = (permissionRows || []).reduce((acc, row: any) => {
+      acc[row.access_role_id as AccessRoleId] = normalizeAccessLevel(row.access_level)
+      return acc
+    }, {} as Partial<Record<AccessRoleId, AccessLevel>>)
+
+    if (Object.keys(nextAccessLevels).length === 0) {
+      setAccessLevels(buildLegacyAccessLevels((userProfile?.role || 'guest') as UserRole))
+    } else {
+      setAccessLevels(nextAccessLevels)
+    }
+  }, [isPlatformAdmin, userProfile?.role])
 
   const loadOrCreateProfile = useCallback(async (supabaseUser: any) => {
     const appUser = toAppUser(supabaseUser)
@@ -327,6 +435,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? await loadPlatformSessionTenant(supabaseUser.id, unlockedExisting.tenant_id)
         : unlockedExisting.tenant_id
       await applySessionTenant(tenantForSession)
+      await loadAccessProfile(unlockedExisting.tenant_id, unlockedExisting.access_profile_id || null)
       localStorage.setItem('platform-session-tenant', tenantForSession)
       return
     }
@@ -362,6 +471,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ? await loadPlatformSessionTenant(supabaseUser.id, unlockedClaimed.tenant_id)
             : unlockedClaimed.tenant_id
           await applySessionTenant(tenantForSession)
+          await loadAccessProfile(unlockedClaimed.tenant_id, unlockedClaimed.access_profile_id || null)
           localStorage.setItem('platform-session-tenant', tenantForSession)
           return
         }
@@ -396,7 +506,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           tenant_id: tenant.id,
           github_login: loginAttempt,
           role: 'guest',
-          status: 'pending',
+          access_profile_id: resolveDefaultAccessProfileId('guest'),
+          status: 'approved',
           email: supabaseUser.email || appUser.email,
           avatar_url: appUser.avatarUrl,
           created_at: now,
@@ -418,8 +529,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setUserProfile(profileFromRow(newProfile))
     await applySessionTenant(tenant.id)
+    await loadAccessProfile(tenant.id, newProfile.access_profile_id || null)
     setTenantName(tenant.name)
-  }, [recoverTenantAdminAccess, ensureSelfApprovedAccess, checkPlatformAdmin, applySessionTenant, loadPlatformSessionTenant])
+  }, [recoverTenantAdminAccess, ensureSelfApprovedAccess, checkPlatformAdmin, applySessionTenant, loadPlatformSessionTenant, loadAccessProfile])
 
   const clearAuthState = useCallback(() => {
     setCurrentUser(null)
@@ -428,6 +540,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTenantName(null)
     setTenantProfiles([])
     setIsPlatformAdmin(false)
+    setAccessProfile(null)
+    setAccessLevels({})
   }, [])
 
   const getOAuthRedirectTo = useCallback(() => {
@@ -497,6 +611,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const devUser = JSON.parse(devUserJson)
             const mockProfile: UserProfile = {
               githubLogin: devUser.login, role: 'admin', status: 'approved',
+              accessProfileId: resolveDefaultAccessProfileId('admin'),
               email: devUser.email, avatarUrl: devUser.avatarUrl,
               createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
             }
@@ -505,6 +620,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setTenantName('Dev Organization')
             setUserProfile(mockProfile)
             setTenantProfiles([mockProfile])
+            setAccessProfile({
+              id: resolveDefaultAccessProfileId('admin'),
+              tenantId,
+              name: 'Administrador',
+              description: 'Acesso completo ao sistema.',
+              isSystem: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            })
+            setAccessLevels(buildFullWriteAccessLevels())
             setIsLoading(false)
           }
           return
@@ -582,11 +707,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasRole = (role: UserRole) => userProfile?.role === role
 
-  const updateUserRole = async (login: string, role: UserRole) => {
+  const hasAccess = (roleId: AccessRoleId, requiredLevel: AccessLevel = 'read') => {
+    if (isPlatformAdmin) return true
+    return hasRequiredAccessLevel(accessLevels[roleId], requiredLevel)
+  }
+
+  const updateUserRole = async (login: string, role: UserRole, accessProfileId?: string | null) => {
     if (!currentTenantId) return
+    const resolvedAccessProfileId = accessProfileId || resolveDefaultAccessProfileId(role)
     const { error } = await supabase
       .from('user_profiles')
-      .update({ role, updated_at: new Date().toISOString() })
+      .update({
+        role,
+        access_profile_id: resolvedAccessProfileId,
+        updated_at: new Date().toISOString(),
+      })
       .eq('tenant_id', currentTenantId)
       .eq('github_login', login)
     if (error) throw error
@@ -689,17 +824,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('platform-session-tenant', tenantId)
   }
 
-  const createUser = async (login: string, email: string, role: UserRole) => {
+  const createUser = async (login: string, email: string, role: UserRole, accessProfileId?: string | null) => {
     if (!currentTenantId) {
       throw new Error('Tenant context is not loaded. Please sign in again and retry.')
     }
+    const resolvedRole = accessProfileId ? deriveUserRoleFromAccessProfileId(accessProfileId) : role
+    const resolvedAccessProfileId = accessProfileId || resolveDefaultAccessProfileId(resolvedRole)
     const { data, error } = await supabase
       .from('user_profiles')
       .insert({
         tenant_id: currentTenantId,
         github_login: login,
-        role,
-        status: 'pending',
+        role: resolvedRole,
+        access_profile_id: resolvedAccessProfileId,
+        status: 'approved',
         email,
         avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(login)}&background=random`,
       })
@@ -773,6 +911,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const mockUser = buildDevUser(email, userId)
     const mockProfile: UserProfile = {
       githubLogin: mockUser.login, role: 'admin', status: 'approved',
+      accessProfileId: resolveDefaultAccessProfileId('admin'),
       email, avatarUrl: mockUser.avatarUrl,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     }
@@ -781,6 +920,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTenantName('Dev Organization')
     setUserProfile(mockProfile)
     setTenantProfiles([mockProfile])
+    setAccessProfile({
+      id: resolveDefaultAccessProfileId('admin'),
+      tenantId,
+      name: 'Administrador',
+      description: 'Acesso completo ao sistema.',
+      isSystem: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    setAccessLevels(buildFullWriteAccessLevels())
     localStorage.setItem('dev-mode-user', JSON.stringify(mockUser))
   }
 
@@ -817,12 +966,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
     isAuthenticated: !!currentUser,
     isPlatformAdmin,
+    accessProfile,
+    accessLevels,
     hasRole,
+    hasAccess,
     isAdmin: userProfile?.role === 'admin',
     isGuest: userProfile?.role === 'guest',
-    isApproved: userProfile?.status === 'approved',
+    isApproved: !!userProfile && userProfile.status !== 'blocked',
     isPending: userProfile?.status === 'pending',
-    isRejected: userProfile?.status === 'rejected',
+    isBlocked: userProfile?.status === 'blocked',
     updateUserRole,
     updateUserStatus,
     updateUserProfile,

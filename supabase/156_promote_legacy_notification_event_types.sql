@@ -344,6 +344,8 @@ begin
     channel,
     event_type,
     content_type,
+    language,
+    translation_group_id,
     description,
     subject,
     content,
@@ -357,6 +359,8 @@ begin
     template_defaults.channel,
     template_defaults.event_type,
     template_defaults.content_type,
+    'en',
+    template_defaults.id,
     template_defaults.description,
     template_defaults.subject,
     template_defaults.content,
@@ -658,7 +662,7 @@ begin
     '["admin"]'::jsonb,
     '[]'::jsonb,
     rule_defaults.days_before,
-    true,
+    rule_defaults.event_type = 'user-access',
     v_now,
     v_now
   from (

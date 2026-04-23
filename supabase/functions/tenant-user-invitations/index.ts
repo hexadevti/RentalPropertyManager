@@ -11,6 +11,7 @@ type SendInviteBody = {
   tenantId?: string
   email?: string
   login?: string
+  accessProfileId?: string
   role?: 'admin' | 'guest'
   message?: string
   appBaseUrl?: string
@@ -79,6 +80,10 @@ function renderTemplate(template: string, context: Record<string, unknown>) {
 
 function formatSaoPauloDateTime(value: string) {
   return new Date(value).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+}
+
+function deriveRoleFromAccessProfileId(accessProfileId: string | null | undefined) {
+  return accessProfileId === 'system-administrator' ? 'admin' : 'guest'
 }
 
 Deno.serve(async (req) => {
@@ -272,7 +277,8 @@ Deno.serve(async (req) => {
     const tenantId = String(body?.tenantId || '').trim()
     const email = String(body?.email || '').trim().toLowerCase()
     const login = String(body?.login || '').trim()
-    const requestedRole = (body as SendInviteBody | null)?.role === 'admin' ? 'admin' : 'guest'
+    const requestedAccessProfileId = String((body as SendInviteBody | null)?.accessProfileId || '').trim() || 'system-guest'
+    const requestedRole = deriveRoleFromAccessProfileId(requestedAccessProfileId)
     const message = String(body?.message || '').trim()
     const appBaseUrl = String(body?.appBaseUrl || '').trim()
 
@@ -318,9 +324,22 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Tenant not found' }, 404)
     }
 
+    const { data: requestedAccessProfile } = action === 'send'
+      ? await adminClient
+          .from('access_profiles')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('id', requestedAccessProfileId)
+          .maybeSingle()
+      : { data: null }
+
+    if (action === 'send' && !requestedAccessProfile) {
+      return jsonResponse({ error: 'Access profile not found for this tenant' }, 404)
+    }
+
     const { data: existingProfile } = await adminClient
       .from('user_profiles')
-      .select('id, auth_user_id, avatar_url, status, role')
+      .select('id, auth_user_id, avatar_url, status, role, access_profile_id')
       .eq('tenant_id', tenantId)
       .ilike('email', email)
       .maybeSingle()
@@ -329,7 +348,7 @@ Deno.serve(async (req) => {
 
     const role = action === 'send'
       ? requestedRole
-      : (existingProfile?.role === 'admin' ? 'admin' : 'guest')
+      : deriveRoleFromAccessProfileId(existingProfile?.access_profile_id || (existingProfile?.role === 'admin' ? 'system-administrator' : 'system-guest'))
 
     if (action === 'send-password-reset' && !existingProfile?.auth_user_id) {
       return jsonResponse({ error: 'This user must already have an active account before password reset can be sent' }, 409)
@@ -351,6 +370,7 @@ Deno.serve(async (req) => {
         .update({
           github_login: profileLogin,
           role,
+          access_profile_id: requestedAccessProfileId,
           status: 'approved',
           email,
           avatar_url: avatarUrl,
@@ -368,6 +388,7 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           github_login: profileLogin,
           role,
+          access_profile_id: requestedAccessProfileId,
           status: 'approved',
           email,
           avatar_url: avatarUrl,
@@ -467,6 +488,7 @@ Deno.serve(async (req) => {
         status: existingProfile?.status || 'approved',
         isApproved: true,
         isPending: false,
+        isBlocked: false,
         isRejected: false,
       },
       changes: {

@@ -1,5 +1,3 @@
-export const DEFAULT_PHONE_MASK = '(xx) xxxxx-xxxx'
-
 export function onlyPhoneDigits(value: string) {
   return value.replace(/\D/g, '')
 }
@@ -40,16 +38,21 @@ export function chooseMaskForValue(value: string, masks: string[]) {
   const ordered = sanitizeMasks(masks).sort((a, b) => countMaskDigits(a) - countMaskDigits(b))
   return ordered.find((mask) => countMaskDigits(mask) >= digitsLength)
     || ordered[ordered.length - 1]
-    || DEFAULT_PHONE_MASK
+    || ''
 }
 
 export function isValidPhoneByMasks(value: string, masks: string[]) {
+  const validMasks = sanitizeMasks(masks)
   const digitsLength = onlyPhoneDigits(value).length
   if (digitsLength === 0) return true
+  if (validMasks.length === 0) return true
 
-  return sanitizeMasks(masks).some((mask) => countMaskDigits(mask) === digitsLength)
+  return validMasks.some((mask) => countMaskDigits(mask) === digitsLength)
 }
 
 export function formatPhoneByMasks(value: string, masks: string[]) {
-  return applyPhoneMask(value, chooseMaskForValue(value, masks))
+  const validMasks = sanitizeMasks(masks)
+  if (validMasks.length === 0) return value
+
+  return applyPhoneMask(value, chooseMaskForValue(value, validMasks))
 }

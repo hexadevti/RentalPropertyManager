@@ -20,11 +20,9 @@
   - Add at least:
     - `http://localhost:5000`
     - `http://localhost:5000/`
-    - `http://localhost:5001`
-    - `http://localhost:5001/`
 7. In Supabase Dashboard, set Site URL:
    - Authentication -> URL Configuration -> Site URL
-   - Example (dev): `http://localhost:5001`
+   - Example (dev): `http://localhost:5000`
 
 ## 2) Configure environment variables
 
@@ -33,13 +31,15 @@ Create a `.env.local` file in project root:
 ```env
 VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
-VITE_AUTH_REDIRECT_URL=http://localhost:5001/
+VITE_AUTH_REDIRECT_URL=http://localhost:5000/
 ```
 
 If GitHub returns 404 after login, this is almost always a provider/callback mismatch:
 - GitHub OAuth App callback must be exactly:
   - `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`
-- Supabase Redirect URLs must include the exact frontend origin used by Vite (`5000` or `5001`).
+- Supabase Redirect URLs must include the exact frontend origin used by Vite:
+  - `http://localhost:5000`
+  - `http://localhost:5000/`
 
 ## 3) Export old Spark KV data (optional)
 

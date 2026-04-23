@@ -38,6 +38,11 @@ describe('phoneFormat', () => {
     expect(isValidPhoneByMasks('123', masks)).toBe(false)
   })
 
+  it('allows free typing when no masks are configured', () => {
+    expect(isValidPhoneByMasks('+55 11 99876-1234', [])).toBe(true)
+    expect(formatPhoneByMasks('+55 11 99876-1234', [])).toBe('+55 11 99876-1234')
+  })
+
   it('formats using the best available mask', () => {
     expect(formatPhoneByMasks('1132654321', ['(xx) xxxxx-xxxx', '(xx) xxxx-xxxx'])).toBe('(11) 3265-4321')
   })

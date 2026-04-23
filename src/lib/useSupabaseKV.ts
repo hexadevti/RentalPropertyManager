@@ -31,6 +31,7 @@ const COLLECTION_KEYS = new Set([
 function isSettingKey(key: string) {
   return key === 'app-language'
     || key === 'app-currency'
+    || key === 'app-date-format'
     || key === 'app-decimal-separator'
     || key === 'app-phone-mask'
     || key === 'app-phone-masks'
@@ -339,7 +340,8 @@ async function loadProperties() {
     capacity: property.capacity,
     pricePerNight: property.price_per_night,
     pricePerMonth: property.price_per_month,
-    status: property.status,
+    // Property availability is derived from active contracts, not persisted.
+    status: 'available',
     address: property.address || undefined,
     city: property.city || undefined,
     conservationState: property.conservation_state || undefined,
@@ -613,6 +615,8 @@ async function loadTemplates() {
     id: template.id,
     name: template.name,
     type: template.type,
+    language: template.language || 'pt',
+    translationGroupId: template.translation_group_id || template.id,
     content: template.content,
     createdAt: template.created_at,
     updatedAt: template.updated_at,
@@ -637,6 +641,8 @@ async function loadNotificationTemplates() {
     channel: template.channel,
     eventType: template.event_type || 'general',
     contentType: template.content_type || 'html',
+    language: template.language || 'pt',
+    translationGroupId: template.translation_group_id || template.id,
     description: template.description || undefined,
     subject: template.subject || undefined,
     content: template.content,
@@ -942,7 +948,6 @@ async function persistProperties(value: any[]) {
     capacity: property.capacity,
     price_per_night: property.pricePerNight,
     price_per_month: property.pricePerMonth,
-    status: property.status,
     address: property.address || null,
     city: property.city || null,
     conservation_state: property.conservationState || null,
@@ -1259,6 +1264,8 @@ async function persistTemplates(value: any[]) {
     id: template.id,
     name: template.name,
     type: template.type,
+    language: template.language || 'pt',
+    translation_group_id: template.translationGroupId || template.id,
     content: template.content,
     created_at: template.createdAt,
     updated_at: template.updatedAt,
@@ -1276,6 +1283,8 @@ async function persistNotificationTemplates(value: any[]) {
     channel: template.channel,
     event_type: template.eventType || 'general',
     content_type: template.contentType || 'html',
+    language: template.language || 'pt',
+    translation_group_id: template.translationGroupId || template.id,
     description: template.description || null,
     subject: template.subject || null,
     content: template.content,
