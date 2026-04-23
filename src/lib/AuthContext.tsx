@@ -30,6 +30,7 @@ interface AuthContextType {
   signInWithGitHub: () => Promise<void>
   signInWithGoogle: () => Promise<void>
   signUp: (orgName: string, name: string, email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>
+  updatePassword: (password: string) => Promise<void>
   signInWithDevCredentials: (email: string, userId?: string) => Promise<void>
   signOut: () => Promise<void>
 }
@@ -700,7 +701,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name, org_name: orgName } },
+      options: { data: { full_name: name, user_name: name, org_name: orgName } },
     })
     if (error) throw error
     if (!data.user) {
@@ -719,6 +720,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The trigger (116_create_profile_on_auth_signup.sql) will create the profile
     // when the user clicks the confirmation link and a session is established.
     return { needsEmailConfirmation: true }
+  }
+
+  const updatePassword = async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) throw error
   }
 
   const signInWithDevCredentials = async (email: string, userId?: string) => {
@@ -788,6 +794,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithGitHub,
     signInWithGoogle,
     signUp,
+    updatePassword,
     signInWithDevCredentials,
     signOut,
   }

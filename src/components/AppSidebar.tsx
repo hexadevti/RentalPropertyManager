@@ -253,56 +253,85 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsC
   }
 
   return (
-    <aside className={cn(
-      "group/sidebar fixed left-0 top-0 z-50 border-r border-border bg-card/50 backdrop-blur-sm flex flex-col h-screen",
-      "w-20 hover:w-64 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-      sidebarExpanded && "w-64"
-    )}>
-      <div className="border-b border-border h-20 px-3 flex items-center overflow-hidden">
-        {/* Closed: circular icon only */}
-        <img
-          src={logo1}
-          alt="RPM GO"
-          className={cn(
-            "h-12 w-auto shrink-0 object-contain transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/sidebar:hidden",
-            sidebarExpanded && "hidden"
-          )}
-        />
-        {/* Open: full logo filling the available space */}
-        <img
-          src={logoFull}
-          alt="RPM GO"
-          className={cn(
-            "hidden group-hover/sidebar:block w-full h-full object-contain object-center py-2 px-1",
-            sidebarExpanded && "block"
-          )}
-        />
-      </div>
-
-      <ScrollArea className={cn(
-        "min-h-0 flex-1 px-2 py-4 transition-all duration-300 ease-out group-hover/sidebar:px-3",
-        sidebarExpanded && "px-3"
+    <>
+      <aside className={cn(
+        "group/sidebar fixed left-0 top-0 z-50 hidden h-screen flex-col border-r border-border bg-card/50 backdrop-blur-sm md:flex",
+        "w-20 hover:w-64 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        sidebarExpanded && "w-64"
       )}>
-        <nav className="space-y-1">
-          {pinnedMenuItems.length > 0 && (
-            <>
-              {pinnedMenuItems.map(item => (
-                <div key={item.id} className="relative">
-                  {renderMenuItem(item, true)}
-                </div>
-              ))}
-              {unpinnedMenuItems.length > 0 && (
-                <div className="h-px bg-border my-3" />
-              )}
-            </>
-          )}
-          {unpinnedMenuItems.map(item => (
-            <div key={item.id} className="relative">
-              {renderMenuItem(item, false)}
-            </div>
-          ))}
-        </nav>
-      </ScrollArea>
-    </aside>
+        <div className="border-b border-border h-20 px-3 flex items-center overflow-hidden">
+          <img
+            src={logo1}
+            alt="RPM GO"
+            className={cn(
+              "h-12 w-auto shrink-0 object-contain transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/sidebar:hidden",
+              sidebarExpanded && "hidden"
+            )}
+          />
+          <img
+            src={logoFull}
+            alt="RPM GO"
+            className={cn(
+              "hidden group-hover/sidebar:block w-full h-full object-contain object-center py-2 px-1",
+              sidebarExpanded && "block"
+            )}
+          />
+        </div>
+
+        <ScrollArea className={cn(
+          "min-h-0 flex-1 px-2 py-4 transition-all duration-300 ease-out group-hover/sidebar:px-3",
+          sidebarExpanded && "px-3"
+        )}>
+          <nav className="space-y-1">
+            {pinnedMenuItems.length > 0 && (
+              <>
+                {pinnedMenuItems.map(item => (
+                  <div key={item.id} className="relative">
+                    {renderMenuItem(item, true)}
+                  </div>
+                ))}
+                {unpinnedMenuItems.length > 0 && (
+                  <div className="h-px bg-border my-3" />
+                )}
+              </>
+            )}
+            {unpinnedMenuItems.map(item => (
+              <div key={item.id} className="relative">
+                {renderMenuItem(item, false)}
+              </div>
+            ))}
+          </nav>
+        </ScrollArea>
+      </aside>
+
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 px-2 py-2 backdrop-blur md:hidden">
+        <ScrollArea className="w-full whitespace-nowrap">
+          <div className="flex min-w-max items-center gap-1">
+            {visibleItems.map((item) => {
+              const Icon = item.icon
+              const label = t.tabs[item.value as keyof typeof t.tabs] || item.value
+              const isActive = activeTab === item.value
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onTabChange(item.value)}
+                  className={cn(
+                    "flex min-w-[72px] flex-col items-center gap-1 rounded-lg px-3 py-2 text-[11px] font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  <Icon size={18} weight={isActive ? "fill" : "duotone"} />
+                  <span className="max-w-[78px] truncate">{label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      </nav>
+    </>
   )
 }

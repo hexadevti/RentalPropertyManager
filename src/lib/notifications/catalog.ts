@@ -39,6 +39,8 @@ export const NOTIFICATION_EVENT_TYPE_TRIGGERS: Record<NotificationEventType, Not
     'user-created',
     'user-role-changed',
     'user-access-approved',
+    'user-access-invite',
+    'user-password-reset',
     'user-access-rejected',
   ],
 }

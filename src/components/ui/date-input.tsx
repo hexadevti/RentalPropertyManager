@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarBlank } from '@phosphor-icons/react'
+import { CalendarBlank, X } from '@phosphor-icons/react'
 import { ptBR, enUS } from 'date-fns/locale'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,22 @@ interface DateInputProps {
   required?: boolean
   className?: string
   disabled?: boolean
+}
+
+function applyDateMask(rawValue: string, pattern: string) {
+  const digits = rawValue.replace(/\D/g, '').slice(0, 8)
+
+  if (pattern === 'yyyy-MM-dd') {
+    const year = digits.slice(0, 4)
+    const month = digits.slice(4, 6)
+    const day = digits.slice(6, 8)
+    return [year, month, day].filter(Boolean).join('-')
+  }
+
+  const first = digits.slice(0, 2)
+  const second = digits.slice(2, 4)
+  const year = digits.slice(4, 8)
+  return [first, second, year].filter(Boolean).join('/')
 }
 
 export function DateInput({ id, value, onChange, required, className, disabled }: DateInputProps) {
@@ -83,6 +99,12 @@ export function DateInput({ id, value, onChange, required, className, disabled }
     setCalendarOpen(false)
   }
 
+  const handleClear = () => {
+    onChange('')
+    setDisplayValue('')
+    setCalendarOpen(false)
+  }
+
   return (
     <div className={`flex items-center gap-2 ${className || ''}`}>
       <Input
@@ -90,7 +112,7 @@ export function DateInput({ id, value, onChange, required, className, disabled }
         type="text"
         inputMode="numeric"
         value={displayValue}
-        onChange={(e) => setDisplayValue(e.target.value)}
+        onChange={(e) => setDisplayValue(applyDateMask(e.target.value, config.pattern))}
         onBlur={commitValue}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
@@ -106,19 +128,33 @@ export function DateInput({ id, value, onChange, required, className, disabled }
         disabled={disabled}
       />
 
+      {!!displayValue && !disabled && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="shrink-0"
+          onClick={handleClear}
+          aria-label="Clear date"
+        >
+          <X size={16} />
+        </Button>
+      )}
+
       <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"
             variant="outline"
             size="icon"
+            className="shrink-0"
             disabled={disabled}
             aria-label="Open calendar"
           >
             <CalendarBlank size={16} />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
+        <PopoverContent className="w-auto max-w-[calc(100vw-2rem)] p-0" align="end">
           <Calendar
             mode="single"
             selected={selectedDate}
@@ -126,6 +162,7 @@ export function DateInput({ id, value, onChange, required, className, disabled }
             month={visibleMonth}
             onMonthChange={setVisibleMonth}
             locale={calendarLocale}
+            className="mx-auto w-fit"
             initialFocus
           />
         </PopoverContent>

@@ -387,7 +387,7 @@ export default function DocumentsView() {
           </div>
           <p className="text-sm text-muted-foreground mt-1">{labels.subtitle}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
             {labels.refresh}
@@ -527,7 +527,7 @@ export default function DocumentsView() {
         </div>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px] lg:grid-cols-[minmax(0,1fr)_260px]">
         <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={labels.search} />
         <Select value={relationFilter} onValueChange={(value) => setRelationFilter(value as DocumentRelationType | 'all')}>
           <SelectTrigger>
@@ -585,11 +585,11 @@ export default function DocumentsView() {
                   <p className="text-sm text-muted-foreground line-clamp-2">{document.notes}</p>
                 )}
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 gap-2"
+                    className="min-w-0 flex-1 gap-2"
                     disabled={!document.filePath || viewingId === document.id}
                     onClick={() => handleView(document)}
                   >
@@ -599,7 +599,7 @@ export default function DocumentsView() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 gap-2"
+                    className="min-w-0 flex-1 gap-2"
                     disabled={!document.filePath || downloadingId === document.id}
                     onClick={() => handleDownload(document)}
                   >
@@ -609,7 +609,7 @@ export default function DocumentsView() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-2 text-destructive hover:text-destructive"
+                    className="w-full gap-2 text-destructive hover:text-destructive sm:w-auto"
                     onClick={() => handleDelete(document)}
                   >
                     <Trash size={16} />

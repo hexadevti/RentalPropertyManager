@@ -237,6 +237,8 @@ export type NotificationTrigger =
   | 'user-created'
   | 'user-role-changed'
   | 'user-access-approved'
+  | 'user-access-invite'
+  | 'user-password-reset'
   | 'user-access-rejected'
 
 export type NotificationEventType = 'appointments' | 'contracts' | 'tasks' | 'inspections' | 'bugs' | 'user-access'
@@ -269,6 +271,7 @@ export interface NotificationRule {
   recipientRoles: UserRole[]
   recipientUserIds: string[]
   sendToTaskAssignee?: boolean
+  sendToEventRecipient?: boolean
   daysBefore?: number
   isActive: boolean
   createdAt: string
@@ -336,6 +339,27 @@ export interface ContactMessage {
   status: ContactMessageStatus
   adminNotes?: string
   emailSentAt?: string
+  deliveryError?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type TenantUserInvitationStatus = 'pending' | 'accepted' | 'revoked' | 'expired'
+
+export interface TenantUserInvitation {
+  id: string
+  tenantId: string
+  invitedProfileId?: string
+  invitedByAuthUserId?: string
+  claimedAuthUserId?: string
+  email: string
+  login?: string
+  role: UserRole
+  message?: string
+  status: TenantUserInvitationStatus
+  sentAt?: string
+  acceptedAt?: string
+  expiresAt: string
   deliveryError?: string
   createdAt: string
   updatedAt: string
