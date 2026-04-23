@@ -1,4 +1,4 @@
-export type PropertyType = 'room' | 'apartment' | 'house'
+export type PropertyType = 'room' | 'apartment' | 'house' | 'parking'
 export type RentalDuration = 'short-term' | 'long-term'
 export type PropertyStatus = 'available' | 'occupied' | 'maintenance'
 export type TransactionType = 'income' | 'expense'
@@ -63,6 +63,18 @@ export interface Property {
   inspectionItems?: string[]
   description: string
   ownerIds: string[]
+  photos?: PropertyPhoto[]
+  createdAt: string
+}
+
+export interface PropertyPhoto {
+  id: string
+  fileName: string
+  filePath: string
+  fileSize?: number
+  mimeType?: string
+  isCover: boolean
+  sortOrder: number
   createdAt: string
 }
 

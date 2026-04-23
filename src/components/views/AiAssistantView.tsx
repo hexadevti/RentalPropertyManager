@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Brain, PaperPlaneTilt, Sparkle, Trash, WarningCircle } from '@phosphor-icons/react'
 import helpContent from '@/docs/ai-assistant.md?raw'
 import { HelpButton } from '@/components/HelpButton'
@@ -27,8 +28,8 @@ type AssistantResponse = {
     outputTokens: number
     totalTokens: number
     costUsd: number
+    iterations?: number
   }
-  contextSummary?: Array<{ name: string; countLoaded: number; error?: string }>
 }
 
 type ModelOption = {
@@ -39,8 +40,7 @@ type ModelOption = {
 
 // Module-level state — survives component unmount/remount during tab navigation
 let _messages: AssistantMessage[] = []
-let _contextSummary: AssistantResponse['contextSummary'] = []
-let _selectedModel = 'gpt-4o-mini'
+let _selectedModel = 'claude-sonnet-4-6'
 let _lastUsage: AssistantResponse['usage'] | null = null
 let _lastModelUsed = ''
 
@@ -52,9 +52,9 @@ const SUGGESTIONS = [
 ]
 
 const MODEL_OPTIONS: ModelOption[] = [
-  { value: 'gpt-4o-mini', label: 'gpt-4o-mini', description: 'Mais econÃ´mico para uso do dia a dia' },
-  { value: 'gpt-4o', label: 'gpt-4o', description: 'Mais capacidade de raciocÃ­nio e resposta' },
-  { value: 'gpt-5', label: 'gpt-5', description: 'Modelo mais avanÃ§ado, com custo maior' },
+  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', description: 'Equilíbrio ideal entre capacidade e custo — recomendado' },
+  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', description: 'Mais econômico, respostas rápidas para perguntas simples' },
+  { value: 'claude-opus-4-7', label: 'Claude Opus 4.7', description: 'Máxima capacidade de raciocínio, custo mais elevado' },
 ]
 
 function formatUsdCost(value: number | undefined) {
@@ -86,7 +86,6 @@ export default function AiAssistantView() {
   const [question, setQuestion] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [selectedModel, setSelectedModel] = useState(_selectedModel)
-  const [lastContextSummary, setLastContextSummary] = useState<AssistantResponse['contextSummary']>(_contextSummary)
   const [lastUsage, setLastUsage] = useState<AssistantResponse['usage'] | null>(_lastUsage)
   const [lastModelUsed, setLastModelUsed] = useState(_lastModelUsed)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -133,9 +132,6 @@ export default function AiAssistantView() {
       if (data?.error) throw new Error(data.error)
 
       const answer = data?.answer || 'Não consegui gerar uma resposta para essa pergunta.'
-      const summary = data?.contextSummary || []
-      setLastContextSummary(summary)
-      _contextSummary = summary
       setLastUsage(data?.usage || null)
       _lastUsage = data?.usage || null
       setLastModelUsed(data?.model || selectedModel)
@@ -179,11 +175,9 @@ export default function AiAssistantView() {
 
   const handleClear = () => {
     _messages = []
-    _contextSummary = []
     _lastUsage = null
     _lastModelUsed = ''
     setMessages([])
-    setLastContextSummary([])
     setLastUsage(null)
     setLastModelUsed('')
   }
@@ -200,7 +194,7 @@ export default function AiAssistantView() {
             </div>
           </div>
           <p className="text-muted-foreground mt-1">
-            Faça perguntas sobre seus cadastros. O contexto é montado com os dados do tenant atual.
+            Faça perguntas sobre seus cadastros. O assistente consulta o banco dinamicamente conforme necessário.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -232,7 +226,7 @@ export default function AiAssistantView() {
           )}
           <Badge variant="outline" className="w-fit gap-1.5">
             <Sparkle size={14} weight="fill" />
-            ChatGPT via Supabase Edge Function
+            Claude via Supabase Edge Function
           </Badge>
         </div>
       </div>
@@ -242,7 +236,7 @@ export default function AiAssistantView() {
           <CardHeader>
             <CardTitle>Chat</CardTitle>
             <CardDescription>
-              O assistente responde com base em propriedades, contratos, hóspedes, finanças, tarefas, documentos, vistorias e agenda.
+              O assistente consulta o banco dinamicamente: propriedades, contratos, hóspedes, finanças, tarefas, documentos, vistorias e agenda.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex h-[676px] flex-col gap-4">
@@ -274,6 +268,7 @@ export default function AiAssistantView() {
                       >
                         {message.role === 'user' ? message.content : (
                           <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
                             components={{
                               p:      ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                               strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
@@ -288,6 +283,20 @@ export default function AiAssistantView() {
                               pre:    ({ children }) => <pre className="mb-2 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs">{children}</pre>,
                               blockquote: ({ children }) => <blockquote className="mb-2 border-l-2 border-border pl-3 text-muted-foreground">{children}</blockquote>,
                               hr:     () => <hr className="my-2 border-border" />,
+                              table: ({ children }) => (
+                                <div className="mb-3 overflow-x-auto rounded-lg border border-border">
+                                  <table className="w-full border-collapse text-sm">{children}</table>
+                                </div>
+                              ),
+                              thead: ({ children }) => <thead className="bg-muted/70">{children}</thead>,
+                              tbody: ({ children }) => <tbody className="divide-y divide-border">{children}</tbody>,
+                              tr: ({ children }) => <tr className="hover:bg-muted/30 transition-colors">{children}</tr>,
+                              th: ({ children }) => (
+                                <th className="border-b border-border px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-foreground">
+                                  {children}
+                                </th>
+                              ),
+                              td: ({ children }) => <td className="px-4 py-2.5 align-top text-sm text-foreground/80">{children}</td>,
                             }}
                           >
                             {message.content}
@@ -394,25 +403,21 @@ export default function AiAssistantView() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <WarningCircle size={18} weight="duotone" />
-                Contexto carregado
+                Consultas realizadas
               </CardTitle>
               <CardDescription>
-                A função limita o volume de dados enviado para manter a resposta rápida.
+                O assistente consulta o banco dinamicamente — cada iteração representa uma rodada de tool use.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
-              {lastContextSummary && lastContextSummary.length > 0 ? (
-                lastContextSummary.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-                    <span className="font-medium">{item.name}</span>
-                    <Badge variant={item.error ? 'destructive' : 'secondary'}>
-                      {item.error ? 'erro' : item.countLoaded}
-                    </Badge>
-                  </div>
-                ))
+              {lastUsage?.iterations != null ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
+                  <span className="font-medium">Iterações de consulta</span>
+                  <Badge variant="secondary">{lastUsage.iterations}</Badge>
+                </div>
               ) : (
                 <p className="text-muted-foreground">
-                  Envie uma pergunta para ver quais cadastros foram usados no contexto.
+                  Envie uma pergunta para ver quantas consultas foram realizadas.
                 </p>
               )}
             </CardContent>

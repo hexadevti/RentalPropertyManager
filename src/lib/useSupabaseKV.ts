@@ -271,6 +271,7 @@ async function loadProperties() {
     { data: propertyEnvironments, error: environmentsError },
     { data: propertyFurniture, error: furnitureError },
     { data: propertyInspectionItems, error: inspectionItemsError },
+    { data: propertyPhotos, error: propertyPhotosError },
   ] = await Promise.all([
     supabase
       .from('properties')
@@ -299,6 +300,13 @@ async function loadProperties() {
       .eq('tenant_id', tenantId)
       .order('property_id', { ascending: true })
       .order('item_order', { ascending: true }),
+    supabase
+      .from('property_photos')
+      .select('id, property_id, file_name, file_path, file_size, mime_type, is_cover, sort_order, created_at')
+      .eq('tenant_id', tenantId)
+      .order('property_id', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
   ])
 
   if (propertiesError) throw propertiesError
@@ -306,6 +314,7 @@ async function loadProperties() {
   if (environmentsError) throw environmentsError
   if (furnitureError) throw furnitureError
   if (inspectionItemsError) throw inspectionItemsError
+  if (propertyPhotosError) throw propertyPhotosError
 
   const ownerMap = new Map<string, string[]>()
   for (const row of propertyOwners || []) {
@@ -333,6 +342,31 @@ async function loadProperties() {
     inspectionItemsMap.set(row.property_id, currentItems)
   }
 
+  const photosMap = new Map<string, {
+    id: string
+    fileName: string
+    filePath: string
+    fileSize?: number
+    mimeType?: string
+    isCover: boolean
+    sortOrder: number
+    createdAt: string
+  }[]>()
+  for (const row of propertyPhotos || []) {
+    const currentItems = photosMap.get(row.property_id) || []
+    currentItems.push({
+      id: row.id,
+      fileName: row.file_name,
+      filePath: row.file_path,
+      fileSize: row.file_size || undefined,
+      mimeType: row.mime_type || undefined,
+      isCover: Boolean(row.is_cover),
+      sortOrder: row.sort_order ?? 0,
+      createdAt: row.created_at,
+    })
+    photosMap.set(row.property_id, currentItems)
+  }
+
   return (properties || []).map((property) => ({
     id: property.id,
     name: property.name,
@@ -350,6 +384,7 @@ async function loadProperties() {
     inspectionItems: inspectionItemsMap.get(property.id) || [],
     description: property.description,
     ownerIds: ownerMap.get(property.id) || [],
+    photos: photosMap.get(property.id) || [],
     createdAt: property.created_at,
   }))
 }
@@ -1044,6 +1079,33 @@ async function persistProperties(value: any[]) {
 
   if (propertyInspectionItems.length > 0) {
     const { error } = await supabase.from('property_inspection_items').insert(propertyInspectionItems)
+    if (error) throw error
+  }
+
+  const { error: deletePhotosError } = await supabase
+    .from('property_photos')
+    .delete()
+    .eq('tenant_id', tenantId)
+
+  if (deletePhotosError) throw deletePhotosError
+
+  const propertyPhotos = value.flatMap((property) =>
+    (property.photos || []).map((photo: any, index: number) => ({
+      tenant_id: tenantId,
+      id: photo.id,
+      property_id: property.id,
+      file_name: photo.fileName,
+      file_path: photo.filePath,
+      file_size: photo.fileSize || null,
+      mime_type: photo.mimeType || null,
+      is_cover: Boolean(photo.isCover),
+      sort_order: Number.isFinite(photo.sortOrder) ? photo.sortOrder : index,
+      created_at: photo.createdAt,
+    }))
+  )
+
+  if (propertyPhotos.length > 0) {
+    const { error } = await supabase.from('property_photos').insert(propertyPhotos)
     if (error) throw error
   }
 }

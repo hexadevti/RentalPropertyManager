@@ -124,15 +124,17 @@ export function buildTransactionSummary(contextTables: TableResult[]) {
 }
 
 export const MODEL_PRICING: Record<string, [number, number]> = {
+  // Claude models (input $/1M, output $/1M)
+  'claude-sonnet-4-6': [3.0, 15.0],
+  'claude-opus-4-7': [15.0, 75.0],
+  'claude-haiku-4-5-20251001': [0.8, 4.0],
+  // Legacy OpenAI (kept for backwards-compat with ai_usage_logs)
   'gpt-4o': [2.5, 10.0],
   'gpt-4o-mini': [0.15, 0.6],
-  'gpt-4-turbo': [10.0, 30.0],
-  'gpt-4': [30.0, 60.0],
-  'gpt-3.5-turbo': [0.5, 1.5],
   'gpt-5': [15.0, 60.0],
 }
 
 export function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
-  const [inputRate, outputRate] = MODEL_PRICING[model] ?? [15.0, 60.0]
+  const [inputRate, outputRate] = MODEL_PRICING[model] ?? [3.0, 15.0]
   return (inputTokens / 1_000_000) * inputRate + (outputTokens / 1_000_000) * outputRate
 }
