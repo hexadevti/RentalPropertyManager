@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import type { EmailOtpType } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { setSupabaseAuthState } from '@/lib/supabaseAuthState'
 import { logAppAudit } from '@/lib/appAudit'
@@ -97,16 +98,42 @@ function hasAuthCallbackParams() {
 
   return (
     searchParams.has('code')
+    || searchParams.has('token_hash')
+    || searchParams.has('type')
     || searchParams.has('error')
     || hashParams.has('access_token')
     || hashParams.has('refresh_token')
+    || hashParams.has('token_hash')
+    || hashParams.has('type')
     || hashParams.has('error')
   )
 }
 
+async function consumeAuthCallbackSession() {
+  const searchParams = new URLSearchParams(window.location.search)
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const authCode = searchParams.get('code')
+  const tokenHash = searchParams.get('token_hash') || hashParams.get('token_hash')
+  const otpType = searchParams.get('type') || hashParams.get('type')
+
+  if (authCode) {
+    const { error } = await supabase.auth.exchangeCodeForSession(authCode)
+    if (error) throw error
+    return
+  }
+
+  if (tokenHash && otpType) {
+    const { error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: otpType as EmailOtpType,
+    })
+    if (error) throw error
+  }
+}
+
 function cleanupAuthCallbackUrl() {
   const url = new URL(window.location.href)
-  const authSearchKeys = ['code', 'error', 'error_code', 'error_description', 'state']
+  const authSearchKeys = ['code', 'token_hash', 'type', 'error', 'error_code', 'error_description', 'state']
   let changed = false
 
   for (const key of authSearchKeys) {
@@ -116,7 +143,13 @@ function cleanupAuthCallbackUrl() {
     }
   }
 
-  if (url.hash.includes('access_token') || url.hash.includes('refresh_token') || url.hash.includes('error=')) {
+  if (
+    url.hash.includes('access_token')
+    || url.hash.includes('refresh_token')
+    || url.hash.includes('token_hash=')
+    || url.hash.includes('type=')
+    || url.hash.includes('error=')
+  ) {
     url.hash = ''
     changed = true
   }
@@ -478,6 +511,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const startedFromAuthCallback = hasAuthCallbackParams()
+        if (startedFromAuthCallback) {
+          try {
+            await consumeAuthCallbackSession()
+          } catch (callbackError) {
+            console.error('Failed to consume Supabase auth callback:', callbackError)
+          }
+        }
+
         const { data, error } = await supabase.auth.getSession()
         if (error) {
           console.error('Failed to restore Supabase session:', error)

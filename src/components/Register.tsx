@@ -123,19 +123,42 @@ export default function Register({ onBackToLogin }: RegisterProps) {
 
     setIsSubmitting(true)
     try {
-      const result = await signUp(orgName.trim(), name.trim(), email.trim(), password)
-      setNeedsEmailConfirmation(result.needsEmailConfirmation)
-      setSuccess(true)
+      if (isInviteMode && resolvedInvitation) {
+        const { data, error: fnError } = await supabase.functions.invoke<{
+          success?: boolean
+          email?: string
+          error?: string
+        }>('tenant-user-invitations', {
+          body: { action: 'claim-invite', token: invitationToken, login: name.trim(), password },
+        })
+
+        if (fnError) throw new Error(await readFunctionErrorMessage(fnError))
+        if (data?.error) throw new Error(data.error)
+
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: resolvedInvitation.email,
+          password,
+        })
+        if (signInError) throw signInError
+
+        setSuccess(true)
+      } else {
+        const result = await signUp(orgName.trim(), name.trim(), email.trim(), password)
+        setNeedsEmailConfirmation(result.needsEmailConfirmation)
+        setSuccess(true)
+      }
     } catch (err: any) {
       const msg = err?.message || ''
-      if (msg.includes('already registered') || msg.includes('User already registered')) {
-        setError('Este e-mail já está cadastrado.')
+      if (msg.includes('already registered') || msg.includes('User already registered') || msg.includes('already exists')) {
+        setError('Este e-mail já está cadastrado. Use uma das opções de login acima.')
+      } else if (msg.includes('no longer available') || msg.includes('expired')) {
+        setError('Este convite não está mais disponível.')
       } else if (msg.includes('invalid email') || msg.includes('Invalid email')) {
         setError('E-mail inválido.')
-      } else if (msg.includes('Password should be')) {
+      } else if (msg.includes('Password should be') || msg.includes('at least 6')) {
         setError('A senha deve ter pelo menos 6 caracteres.')
       } else {
-        setError('Não foi possível criar a conta. Tente novamente.')
+        setError(msg || 'Não foi possível criar a conta. Tente novamente.')
       }
     } finally {
       setIsSubmitting(false)

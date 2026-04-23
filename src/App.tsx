@@ -87,6 +87,33 @@ function AuthCallbackPage() {
     window.location.replace(destination.toString())
   }, [isApproved, isAuthenticated, isLoading, isPasswordRecoveryMode, isPending, isRejected])
 
+  if (isPasswordRecoveryMode && isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="space-y-1">
+            <p className="text-lg font-semibold">{t.appName}</p>
+            <p className="text-muted-foreground">Validando link de redefinição...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isPasswordRecoveryMode && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-2xl border bg-card p-6 text-center shadow-lg">
+          <h1 className="text-xl font-semibold text-foreground">Link inválido ou expirado</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Não foi possível criar a sessão de recuperação. Solicite um novo e-mail de redefinição de senha.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (isPasswordRecoveryMode) {
     return <PasswordRecoveryForm />
   }

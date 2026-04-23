@@ -30,6 +30,13 @@ type ResolveInviteBody = {
   token?: string
 }
 
+type ClaimInviteBody = {
+  action: 'claim-invite'
+  token?: string
+  login?: string
+  password?: string
+}
+
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -91,7 +98,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
     }
 
-    const body = await req.json().catch(() => null) as SendInviteBody | SendPasswordResetBody | ResolveInviteBody | null
+    const body = await req.json().catch(() => null) as SendInviteBody | SendPasswordResetBody | ResolveInviteBody | ClaimInviteBody | null
     const action = body?.action
 
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -157,6 +164,84 @@ Deno.serve(async (req) => {
           alreadyClaimed: !!claimedProfile?.auth_user_id,
         },
       })
+    }
+
+    if (action === 'claim-invite') {
+      const token = String((body as ClaimInviteBody | null)?.token || '').trim()
+      const claimLogin = String((body as ClaimInviteBody | null)?.login || '').trim()
+      const claimPassword = String((body as ClaimInviteBody | null)?.password || '').trim()
+
+      if (!token) return jsonResponse({ error: 'token is required' }, 400)
+      if (claimPassword.length < 6) return jsonResponse({ error: 'password must be at least 6 characters' }, 400)
+
+      const { data: invitation, error: invitationError } = await adminClient
+        .from('tenant_user_invitations')
+        .select('id, tenant_id, email, login, status, expires_at, invited_profile_id')
+        .eq('invitation_token', token)
+        .maybeSingle()
+
+      if (invitationError || !invitation) {
+        return jsonResponse({ error: 'Invitation not found' }, 404)
+      }
+
+      const inviteExpiresAt = invitation.expires_at ? new Date(invitation.expires_at).toISOString() : null
+      const isExpired = !inviteExpiresAt || new Date(inviteExpiresAt).getTime() < Date.now()
+
+      if (invitation.status !== 'pending' || isExpired) {
+        if (invitation.status === 'pending' && isExpired) {
+          await adminClient.from('tenant_user_invitations').update({ status: 'expired' }).eq('id', invitation.id)
+        }
+        return jsonResponse({ error: 'Invitation is no longer available' }, 410)
+      }
+
+      if (!invitation.invited_profile_id) {
+        return jsonResponse({ error: 'Invitation profile not found' }, 404)
+      }
+
+      const { data: invitedProfile } = await adminClient
+        .from('user_profiles')
+        .select('id, auth_user_id')
+        .eq('id', invitation.invited_profile_id)
+        .maybeSingle()
+
+      if (invitedProfile?.auth_user_id) {
+        return jsonResponse({ error: 'This invitation has already been claimed. Please sign in instead.' }, 409)
+      }
+
+      // Use admin API to create the auth user — bypasses client-side rate limits on /auth/v1/signup.
+      const resolvedLogin = claimLogin || invitation.login || invitation.email.split('@')[0]
+      const { data: newUserData, error: createUserError } = await adminClient.auth.admin.createUser({
+        email: invitation.email,
+        password: claimPassword,
+        email_confirm: true,
+        user_metadata: { user_name: resolvedLogin },
+      })
+
+      if (createUserError) {
+        const alreadyExists = createUserError.message?.toLowerCase().includes('already')
+        if (alreadyExists) {
+          return jsonResponse({ error: 'An account with this email already exists. Please sign in instead.' }, 409)
+        }
+        return jsonResponse({ error: createUserError.message || 'Failed to create account' }, 500)
+      }
+
+      if (!newUserData?.user) {
+        return jsonResponse({ error: 'Failed to create account' }, 500)
+      }
+
+      // The DB trigger (116) already set auth_user_id on the invited profile.
+      // Update the login to the user's chosen name.
+      await adminClient
+        .from('user_profiles')
+        .update({ github_login: resolvedLogin, updated_at: new Date().toISOString() })
+        .eq('id', invitation.invited_profile_id)
+
+      await adminClient
+        .from('tenant_user_invitations')
+        .update({ status: 'accepted' })
+        .eq('id', invitation.id)
+
+      return jsonResponse({ success: true, email: invitation.email })
     }
 
     if (action !== 'send' && action !== 'send-password-reset') {
@@ -413,7 +498,7 @@ Deno.serve(async (req) => {
 
       const resetUrl = recoveryLinkData.properties.action_link
       eventTrigger = 'user-password-reset'
-      eventKey = `user-password-reset:${tenantId}:${email}:${new Date().toISOString()}`
+      eventKey = `user-password-reset:${tenantId}:${email}:${new Date().toISOString().slice(0, 16)}`
       eventPayload = {
         ...eventPayload,
         passwordReset: {
