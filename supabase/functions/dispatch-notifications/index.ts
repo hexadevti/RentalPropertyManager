@@ -293,6 +293,76 @@ function prepareDeliveryForDispatch(delivery: DeliveryRow, masterTemplate: Maste
   }
 }
 
+// ── WhatsApp via Twilio ───────────────────────────────────────────────────────
+// Required env vars:
+//   TWILIO_ACCOUNT_SID      — Account SID from twilio.com/console
+//   TWILIO_AUTH_TOKEN       — Auth Token from twilio.com/console
+//   TWILIO_WHATSAPP_FROM    — Sender number, e.g. "whatsapp:+14155238886" (sandbox)
+//                             or your approved Twilio WhatsApp number in production
+//
+// Falls back to WHATSAPP_WEBHOOK_URL if Twilio credentials are not configured.
+
+const WHATSAPP_MAX_TEXT_LENGTH = 1600 // Twilio WhatsApp message limit
+
+function normalizeWhatsAppNumber(raw: string): string {
+  const digits = raw.replace(/[^\d+]/g, '')
+  return digits.startsWith('+') ? digits : `+${digits}`
+}
+
+async function sendWhatsApp(delivery: PreparedDelivery): Promise<DispatchResult> {
+  const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
+  const authToken = Deno.env.get('TWILIO_AUTH_TOKEN')
+  const fromNumber = Deno.env.get('TWILIO_WHATSAPP_FROM')
+
+  // Fall back to generic webhook if Twilio is not configured
+  if (!accountSid || !authToken || !fromNumber) {
+    return sendViaWebhook(delivery, 'WHATSAPP_WEBHOOK_URL', 'WHATSAPP_WEBHOOK_TOKEN', 'whatsapp-webhook')
+  }
+
+  const toRaw = normalizeWhatsAppNumber(delivery.recipient_destination)
+  if (!toRaw || toRaw.length < 8) {
+    return { success: false, provider: 'twilio-whatsapp', error: `Invalid WhatsApp number: ${delivery.recipient_destination}` }
+  }
+
+  // Twilio requires "whatsapp:" prefix for both From and To
+  const to = toRaw.startsWith('whatsapp:') ? toRaw : `whatsapp:${toRaw}`
+  const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`
+  const body = delivery.rendered_message_text.slice(0, WHATSAPP_MAX_TEXT_LENGTH)
+
+  // Twilio Messages API uses form-encoded body, Basic auth
+  const credentials = btoa(`${accountSid}:${authToken}`)
+  const formBody = new URLSearchParams({ From: from, To: to, Body: body })
+
+  const response = await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: formBody.toString(),
+    }
+  )
+
+  const responseText = await response.text()
+  let responseData: any = null
+  try { responseData = responseText ? JSON.parse(responseText) : null } catch { responseData = { raw: responseText } }
+
+  if (!response.ok) {
+    const error = responseData?.message || responseData?.error_message || `Twilio error ${response.status} (code ${responseData?.code ?? '?'})`
+    return { success: false, provider: 'twilio-whatsapp', error }
+  }
+
+  return {
+    success: true,
+    provider: 'twilio-whatsapp',
+    providerMessageId: responseData?.sid,
+  }
+}
+
+// ── Channel dispatcher ────────────────────────────────────────────────────────
+
 async function dispatchByChannel(delivery: PreparedDelivery): Promise<DispatchResult> {
   const forcedEmail = getForcedEmailDestination()
   if (forcedEmail) {
@@ -307,7 +377,7 @@ async function dispatchByChannel(delivery: PreparedDelivery): Promise<DispatchRe
     return sendViaWebhook(delivery, 'SMS_WEBHOOK_URL', 'SMS_WEBHOOK_TOKEN', 'sms-webhook')
   }
 
-  return sendViaWebhook(delivery, 'WHATSAPP_WEBHOOK_URL', 'WHATSAPP_WEBHOOK_TOKEN', 'whatsapp-webhook')
+  return sendWhatsApp(delivery)
 }
 
 Deno.serve(async (req) => {

@@ -52,6 +52,7 @@ type TenantProfile = {
   accessProfileName?: string | null
   email: string
   avatarUrl: string
+  phone?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -88,6 +89,8 @@ export default function UsersPermissionsView() {
   const [draftLogin, setDraftLogin] = useState('')
   const [draftEmail, setDraftEmail] = useState('')
   const [draftAvatar, setDraftAvatar] = useState('')
+  const [draftPhone, setDraftPhone] = useState('')
+  const [draftPhoneError, setDraftPhoneError] = useState<string | null>(null)
   const [draftRole, setDraftRole] = useState<UserRole>('guest')
   const [draftAccessProfileId, setDraftAccessProfileId] = useState<string>('')
   const [draftStatus, setDraftStatus] = useState<UserStatus>('pending')
@@ -219,6 +222,7 @@ export default function UsersPermissionsView() {
         accessProfileId: row.access_profile_id || null,
         email: row.email,
         avatarUrl: row.avatar_url,
+        phone: row.phone || null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       })))
@@ -407,6 +411,8 @@ export default function UsersPermissionsView() {
     setDraftLogin(profile.githubLogin)
     setDraftEmail(profile.email)
     setDraftAvatar(profile.avatarUrl)
+    setDraftPhone(profile.phone || '')
+    setDraftPhoneError(null)
     setDraftRole(deriveUserRoleFromAccessProfileId(profile.accessProfileId || resolveDefaultAccessProfileId(profile.role)))
     setDraftAccessProfileId(profile.accessProfileId || resolveDefaultAccessProfileId(profile.role))
     setDraftStatus(profile.status)
@@ -447,6 +453,8 @@ export default function UsersPermissionsView() {
     }
   }
 
+  const E164_REGEX = /^\+[1-9]\d{6,14}$/
+
   const handleSaveProfile = async () => {
     if (!editingLogin || !selectedProfile) return
     if (!draftLogin.trim()) {
@@ -457,6 +465,12 @@ export default function UsersPermissionsView() {
       toast.error(t.users_permissions_view.profile_email_required)
       return
     }
+    const phoneValue = draftPhone.trim()
+    if (phoneValue && !E164_REGEX.test(phoneValue)) {
+      setDraftPhoneError(t.users_permissions_view.phone_invalid)
+      return
+    }
+    setDraftPhoneError(null)
 
     if (moveTenantId !== selectedTenantId) {
       setIsMoveConfirmOpen(true)
@@ -488,6 +502,7 @@ export default function UsersPermissionsView() {
         github_login: draftLogin.trim(),
         email: draftEmail.trim(),
         avatar_url: draftAvatar.trim(),
+        phone: draftPhone.trim() || null,
         updated_at: new Date().toISOString(),
       }
 
@@ -1049,6 +1064,21 @@ export default function UsersPermissionsView() {
                 onChange={(event) => setDraftAvatar(event.target.value)}
                 placeholder={t.users_permissions_view.avatar_url_placeholder}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="profile-phone">{t.users_permissions_view.phone}</Label>
+              <Input
+                id="profile-phone"
+                type="tel"
+                value={draftPhone}
+                onChange={(event) => { setDraftPhone(event.target.value); setDraftPhoneError(null) }}
+                placeholder={t.users_permissions_view.phone_placeholder}
+                className={`font-mono ${draftPhoneError ? 'border-destructive' : ''}`}
+              />
+              {draftPhoneError
+                ? <p className="text-xs text-destructive">{draftPhoneError}</p>
+                : <p className="text-xs text-muted-foreground">{t.users_permissions_view.phone_hint}</p>
+              }
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
