@@ -47,6 +47,15 @@ export interface Owner {
   createdAt: string
 }
 
+export type ICalProvider = 'airbnb' | 'booking' | 'vrbo' | 'expedia' | 'other'
+
+export interface PropertyICalFeed {
+  id: string
+  provider: ICalProvider
+  label: string
+  url: string
+}
+
 export interface Property {
   id: string
   name: string
@@ -64,6 +73,7 @@ export interface Property {
   description: string
   ownerIds: string[]
   photos?: PropertyPhoto[]
+  icalFeeds?: PropertyICalFeed[]
   createdAt: string
 }
 
@@ -150,6 +160,7 @@ export interface Contract {
   status: ContractStatus
   notes?: string
   templateId?: string
+  icalUid?: string
   createdAt: string
 }
 

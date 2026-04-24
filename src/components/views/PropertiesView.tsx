@@ -3,7 +3,7 @@ import type { ClipboardEvent, DragEvent } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthContext'
-import { Property, PropertyPhoto, PropertyType, PropertyStatus, Contract, Owner } from '@/types'
+import { Property, PropertyPhoto, PropertyICalFeed, ICalProvider, PropertyType, PropertyStatus, Contract, Owner } from '@/types'
 import helpContent from '@/docs/properties.md?raw'
 import formHelpContent from '@/docs/form-property.md?raw'
 import { HelpButton } from '@/components/HelpButton'
@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, Compass, SquaresFour, UploadSimple, DownloadSimple, Image as ImageIcon, Star, Car } from '@phosphor-icons/react'
+import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, Compass, SquaresFour, UploadSimple, DownloadSimple, Image as ImageIcon, Star, Car, CalendarBlank, Copy, LinkSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
@@ -105,7 +105,9 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
     description: '',
     ownerIds: [] as string[],
     photos: [] as PropertyPhoto[],
+    icalFeeds: [] as PropertyICalFeed[],
   })
+  const [icalFeedDraft, setICalFeedDraft] = useState({ provider: 'airbnb' as ICalProvider, label: '', url: '' })
 
   const supportsEnvironments = formData.type === 'house' || formData.type === 'apartment'
 
@@ -469,6 +471,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
       description: '',
       ownerIds: [],
       photos: [],
+      icalFeeds: [],
     })
     setPhotoDrafts([])
     setIsDraggingPhoto(false)
@@ -478,6 +481,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
     setEditingFurnitureIndex(null)
     setInspectionItemInput('')
     setEditingInspectionItemIndex(null)
+    setICalFeedDraft({ provider: 'airbnb', label: '', url: '' })
     setEditingProperty(null)
     setIsDialogOpen(false)
   }
@@ -499,6 +503,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
       description: property.description,
       ownerIds: property.ownerIds || [],
       photos: property.photos || [],
+      icalFeeds: property.icalFeeds || [],
     })
     void loadExistingPhotoDrafts(property.photos || [])
     setEnvironmentInput('')
@@ -635,6 +640,38 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
       setInspectionItemInput('')
       setEditingInspectionItemIndex(null)
     }
+  }
+
+  const icalExportUrl = (propertyId: string) =>
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ical-export?propertyId=${propertyId}`
+
+  const handleAddICalFeed = () => {
+    if (!icalFeedDraft.url.trim()) return
+    const newFeed: PropertyICalFeed = {
+      id: createId(),
+      provider: icalFeedDraft.provider,
+      label: icalFeedDraft.label.trim(),
+      url: icalFeedDraft.url.trim(),
+    }
+    setFormData(prev => ({ ...prev, icalFeeds: [...prev.icalFeeds, newFeed] }))
+    setICalFeedDraft({ provider: 'airbnb', label: '', url: '' })
+  }
+
+  const handleRemoveICalFeed = (id: string) => {
+    setFormData(prev => ({ ...prev, icalFeeds: prev.icalFeeds.filter(f => f.id !== id) }))
+  }
+
+  const handleCopyICalUrl = (url: string) => {
+    navigator.clipboard.writeText(url)
+    toast.success(t.properties_view.ical_export_copied)
+  }
+
+  const ICAL_PROVIDER_LABELS: Record<ICalProvider, string> = {
+    airbnb: t.properties_view.ical_provider_airbnb,
+    booking: t.properties_view.ical_provider_booking,
+    vrbo: t.properties_view.ical_provider_vrbo,
+    expedia: t.properties_view.ical_provider_expedia,
+    other: t.properties_view.ical_provider_other,
   }
 
   const handleOwnerToggle = (ownerId: string) => {
@@ -795,14 +832,15 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
                   {t.properties_view.add_property}
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-              <DialogHeader>
-              <DialogTitle className="flex items-center gap-1">
-                {editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}
-                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Propriedade" />
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden w-[720px] min-w-[480px] max-w-[92vw] h-[88vh] min-h-[400px] resize-x">
+              <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+                <DialogTitle className="flex items-center gap-1">
+                  {editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}
+                  <HelpButton content={formHelpContent} title="Ajuda — Formulário de Propriedade" />
+                </DialogTitle>
+              </DialogHeader>
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="name">{t.properties_view.form.name}</Label>
@@ -975,7 +1013,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
 
                     <div className="space-y-2">
                       <p className="text-sm font-medium">{t.properties_view.form.photos_gallery}</p>
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 140px), 260px))' }}>
                         {photoDrafts.map((photo) => (
                           <div key={photo.id} className="overflow-hidden rounded-xl border bg-card">
                             {photo.previewUrl ? (
@@ -1189,7 +1227,94 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
                 )}
               </div>
 
-              <DialogFooter>
+              {/* iCal Integrations */}
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <div className="flex items-center gap-2">
+                  <CalendarBlank size={16} className="text-primary" />
+                  <p className="text-sm font-medium">{t.properties_view.ical_section_title}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">{t.properties_view.ical_section_description}</p>
+
+                {/* Export link — only shown when editing an existing property */}
+                {editingProperty && (
+                  <div className="space-y-1.5 rounded-md bg-muted/40 p-3">
+                    <p className="text-xs font-medium">{t.properties_view.ical_export_title}</p>
+                    <p className="text-xs text-muted-foreground">{t.properties_view.ical_export_description}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <code className="flex-1 truncate rounded bg-muted px-2 py-1 text-xs font-mono">
+                        {icalExportUrl(editingProperty.id)}
+                      </code>
+                      <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5"
+                        onClick={() => handleCopyICalUrl(icalExportUrl(editingProperty.id))}>
+                        <Copy size={13} />
+                        {t.properties_view.ical_export_copy}
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" className="shrink-0 gap-1.5"
+                        onClick={() => window.open(icalExportUrl(editingProperty.id), '_blank')}>
+                        <LinkSimple size={13} />
+                        {t.properties_view.ical_export_open}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* External feeds list */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">{t.properties_view.ical_feeds_title}</p>
+                  {formData.icalFeeds.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">{t.properties_view.ical_feeds_empty}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {formData.icalFeeds.map((feed) => (
+                        <div key={feed.id} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
+                          <CalendarBlank size={14} className="text-muted-foreground shrink-0" />
+                          <span className="font-medium shrink-0">{ICAL_PROVIDER_LABELS[feed.provider]}</span>
+                          {feed.label && <span className="text-muted-foreground shrink-0">· {feed.label}</span>}
+                          <span className="flex-1 truncate text-xs text-muted-foreground font-mono">{feed.url}</span>
+                          <Button type="button" variant="ghost" size="sm" className="shrink-0 h-6 w-6 p-0"
+                            onClick={() => handleCopyICalUrl(feed.url)}>
+                            <Copy size={13} />
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" className="shrink-0 h-6 w-6 p-0 text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveICalFeed(feed.id)}>
+                            <Trash size={13} />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Add feed form */}
+                <div className="grid gap-2 sm:grid-cols-[140px_1fr_auto]">
+                  <Select value={icalFeedDraft.provider} onValueChange={(v) => setICalFeedDraft(prev => ({ ...prev, provider: v as ICalProvider }))}>
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="airbnb">{t.properties_view.ical_provider_airbnb}</SelectItem>
+                      <SelectItem value="booking">{t.properties_view.ical_provider_booking}</SelectItem>
+                      <SelectItem value="vrbo">{t.properties_view.ical_provider_vrbo}</SelectItem>
+                      <SelectItem value="expedia">{t.properties_view.ical_provider_expedia}</SelectItem>
+                      <SelectItem value="other">{t.properties_view.ical_provider_other}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    className="h-8 text-sm"
+                    placeholder={t.properties_view.ical_feed_url_placeholder}
+                    value={icalFeedDraft.url}
+                    onChange={(e) => setICalFeedDraft(prev => ({ ...prev, url: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddICalFeed() } }}
+                  />
+                  <Button type="button" size="sm" className="h-8 shrink-0" onClick={handleAddICalFeed} disabled={!icalFeedDraft.url.trim()}>
+                    <Plus size={14} weight="bold" />
+                    {t.properties_view.ical_feed_add}
+                  </Button>
+                </div>
+              </div>
+
+              </div>
+              <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
                 <Button type="button" variant="outline" onClick={resetForm}>
                   {t.properties_view.form.cancel}
                 </Button>
@@ -1377,6 +1502,16 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
                         {t.properties_view.show_on_map}
                       </Button>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2"
+                      onClick={() => handleCopyICalUrl(icalExportUrl(property.id))}
+                      title={icalExportUrl(property.id)}
+                    >
+                      <CalendarBlank size={14} />
+                      {t.properties_view.ical_export_copy}
+                    </Button>
                     {!readOnly && currentStatus === 'available' && (
                       <Button
                         variant="default"

@@ -1565,6 +1565,14 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
   const layoutVariantLabel = t.properties_view.ad_layout_types?.[layoutVariant]
     || LAYOUT_VARIANT_LABELS[layoutVariant][isEnglish ? 'en' : 'pt']
   const selectedSlot = leafBoxes.find((slot) => slot.id === selectedSlotId) || leafBoxes[0] || null
+  const hasPricingBox = useMemo(
+    () => renderedLayout.boxes.some(({ node }) => node.assignment === 'pricing'),
+    [renderedLayout.boxes],
+  )
+  const hasContactBox = useMemo(
+    () => renderedLayout.boxes.some(({ node }) => node.assignment === 'contact'),
+    [renderedLayout.boxes],
+  )
   const slotOptions = useMemo(
     () => (Object.keys(SLOT_CONTENT_LABELS) as SlotContentType[]).map((value) => ({
       value,
@@ -1916,16 +1924,28 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
     try {
       const { data, error } = await supabase.functions.invoke<{ copy?: GeneratedAdCopy; error?: string }>('generate-property-ad', {
         body: {
+          hasContactBox,
+          hasPricingBox,
+          includeContactInAi: !hasContactBox,
+          includePricingInAi: !hasPricingBox,
           property,
           language,
-          ownerContact,
+          ownerContact: normalizedOwnerContact,
         },
       })
 
       if (error) throw error
       if (data?.error) throw new Error(data.error)
 
-      setAdCopy(data?.copy || null)
+      const nextCopy = data?.copy || null
+      if (nextCopy && hasContactBox) {
+        nextCopy.cta = ''
+      }
+      if (nextCopy && hasPricingBox && nextCopy.sections) {
+        nextCopy.sections.pricingBody = ''
+        nextCopy.sections.pricingTitle = ''
+      }
+      setAdCopy(nextCopy)
       setIsGenerated(true)
     } catch (error: any) {
       setAdCopy(null)

@@ -10,9 +10,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye, ClipboardText, UploadSimple, DownloadSimple, Warning } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye, ClipboardText, UploadSimple, DownloadSimple, Warning, ArrowsCounterClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Contract, Guest, Inspection, Property, ContractStatus, RentalType, ContractTemplate, Owner, TEMPLATE_LANGUAGES, TemplateLanguage } from '@/types'
+import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
@@ -65,6 +66,26 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
   const [selectedContractForPDF, setSelectedContractForPDF] = useState<Contract | null>(null)
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [pdfLanguageFilter, setPdfLanguageFilter] = useState<TemplateLanguage | 'all'>('all')
+
+  type SyncEvent = {
+    uid: string
+    propertyId: string
+    propertyName: string
+    provider: string
+    feedLabel: string
+    summary: string
+    startDate: string
+    endDate: string
+    status: 'new' | 'duplicate'
+  }
+  type FetchError = { propertyName: string; feedLabel: string; error: string }
+
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false)
+  const [syncLoading, setSyncLoading] = useState(false)
+  const [syncEvents, setSyncEvents] = useState<SyncEvent[]>([])
+  const [syncErrors, setSyncErrors] = useState<FetchError[]>([])
+  const [syncSelected, setSyncSelected] = useState<Set<string>>(new Set())
+  const [syncImporting, setSyncImporting] = useState(false)
 
   useEffect(() => {
     setLocalGuests(guests || [])
@@ -418,6 +439,76 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
     }
   }
 
+  const handleOpenSync = async () => {
+    setSyncEvents([])
+    setSyncErrors([])
+    setSyncSelected(new Set())
+    setSyncDialogOpen(true)
+    setSyncLoading(true)
+    try {
+      const { data, error } = await supabase.functions.invoke<{ events: SyncEvent[]; fetchErrors: FetchError[] }>('ical-sync', { body: {} })
+      if (error) throw new Error(error.message)
+      const events = data?.events ?? []
+      const newUids = events.filter(e => e.status === 'new').map(e => e.uid)
+      setSyncEvents(events)
+      setSyncErrors(data?.fetchErrors ?? [])
+      setSyncSelected(new Set(newUids))
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Erro ao buscar feeds iCal')
+      setSyncDialogOpen(false)
+    } finally {
+      setSyncLoading(false)
+    }
+  }
+
+  const handleSyncImport = async () => {
+    const toImport = syncEvents.filter(e => syncSelected.has(e.uid) && e.status === 'new')
+    if (toImport.length === 0) return
+    setSyncImporting(true)
+    try {
+      const newGuests: Guest[] = []
+      const newContracts: Contract[] = []
+      const now = new Date().toISOString()
+
+      for (const ev of toImport) {
+        const guestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        newGuests.push({
+          id: guestId,
+          name: ev.summary,
+          email: '',
+          phone: '',
+          documents: [],
+          createdAt: now,
+        })
+        newContracts.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          guestId,
+          propertyIds: [ev.propertyId],
+          rentalType: 'short-term',
+          startDate: ev.startDate,
+          endDate: ev.endDate,
+          paymentDueDay: 1,
+          monthlyAmount: 0,
+          status: 'active',
+          notes: `[${ev.feedLabel}]`,
+          icalUid: ev.uid,
+          createdAt: now,
+        })
+        // small delay to ensure unique ids
+        await new Promise(r => setTimeout(r, 1))
+      }
+
+      setGuests(current => [...(current ?? []), ...newGuests])
+      setContracts(current => [...(current ?? []), ...newContracts])
+      toast.success(`${toImport.length} ${t.contracts_view.ical_sync_success}`)
+      setSyncDialogOpen(false)
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Erro ao importar reservas')
+    } finally {
+      setSyncImporting(false)
+    }
+  }
+
   const getMatchingTemplates = (rentalType: RentalType, langFilter: TemplateLanguage | 'all' = 'all') => {
     return (templates || []).filter((t) =>
       t.type === rentalType &&
@@ -444,6 +535,10 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
             {t.common.refresh}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => void handleOpenSync()}>
+            <ArrowsCounterClockwise weight="bold" size={16} />
+            {t.contracts_view.ical_sync_btn}
           </Button>
           <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
             <UploadSimple weight="bold" size={16} />
@@ -985,6 +1080,122 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
             </Button>
             <Button onClick={handleImportConfirm} disabled={csvParsedRows.length === 0}>
               {t.contracts_view.import_confirm_btn} {csvParsedRows.length > 0 && `(${csvParsedRows.length})`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* iCal Sync Dialog */}
+      <Dialog open={syncDialogOpen} onOpenChange={(open) => { if (!syncImporting) setSyncDialogOpen(open) }}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowsCounterClockwise size={18} />
+              {t.contracts_view.ical_sync_dialog_title}
+            </DialogTitle>
+          </DialogHeader>
+
+          {syncLoading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground">
+              <ArrowsCounterClockwise size={32} className="animate-spin" />
+              <p className="text-sm">{t.contracts_view.ical_sync_loading}</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Fetch errors */}
+              {syncErrors.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-1">
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                    <Warning size={14} /> {t.contracts_view.ical_sync_errors}
+                  </p>
+                  {syncErrors.map((e, i) => (
+                    <p key={i} className="text-xs text-amber-600 dark:text-amber-500">
+                      {e.propertyName} · {e.feedLabel}: {e.error}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {syncEvents.length === 0 && !syncLoading ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {t.contracts_view.ical_sync_no_feeds}
+                </p>
+              ) : syncEvents.filter(e => e.status === 'new').length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  {t.contracts_view.ical_sync_no_new}
+                </p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">
+                      {syncEvents.filter(e => e.status === 'new').length} {t.contracts_view.ical_sync_new_events}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="ghost" size="sm"
+                        onClick={() => setSyncSelected(new Set(syncEvents.filter(e => e.status === 'new').map(e => e.uid)))}>
+                        {t.contracts_view.ical_sync_select_all}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm"
+                        onClick={() => setSyncSelected(new Set())}>
+                        {t.contracts_view.ical_sync_deselect_all}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="border rounded-lg overflow-auto max-h-72">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 w-8"></th>
+                          <th className="text-left px-3 py-2 font-medium">{t.contracts_view.ical_sync_col_property}</th>
+                          <th className="text-left px-3 py-2 font-medium">{t.contracts_view.ical_sync_col_platform}</th>
+                          <th className="text-left px-3 py-2 font-medium">{t.contracts_view.ical_sync_col_guest}</th>
+                          <th className="text-left px-3 py-2 font-medium">{t.contracts_view.ical_sync_col_period}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {syncEvents.filter(e => e.status === 'new').map(ev => (
+                          <tr key={ev.uid} className="border-t hover:bg-muted/30 cursor-pointer"
+                            onClick={() => setSyncSelected(prev => {
+                              const next = new Set(prev)
+                              next.has(ev.uid) ? next.delete(ev.uid) : next.add(ev.uid)
+                              return next
+                            })}>
+                            <td className="px-3 py-2">
+                              <input type="checkbox" readOnly checked={syncSelected.has(ev.uid)} className="cursor-pointer" />
+                            </td>
+                            <td className="px-3 py-2 font-medium">{ev.propertyName}</td>
+                            <td className="px-3 py-2">
+                              <Badge variant="outline" className="text-xs">{ev.feedLabel}</Badge>
+                            </td>
+                            <td className="px-3 py-2">{ev.summary}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-xs">{ev.startDate} → {ev.endDate}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Already imported */}
+              {syncEvents.filter(e => e.status === 'duplicate').length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {syncEvents.filter(e => e.status === 'duplicate').length} {t.contracts_view.ical_sync_duplicate_events}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setSyncDialogOpen(false)} disabled={syncImporting}>
+              {t.contracts_view.cancel}
+            </Button>
+            <Button
+              onClick={() => void handleSyncImport()}
+              disabled={syncLoading || syncImporting || syncSelected.size === 0}
+            >
+              {syncImporting ? <ArrowsCounterClockwise size={14} className="animate-spin mr-2" /> : null}
+              {t.contracts_view.ical_sync_import_btn} {syncSelected.size > 0 && `(${syncSelected.size})`}
             </Button>
           </div>
         </DialogContent>

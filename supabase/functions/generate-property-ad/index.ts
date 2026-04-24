@@ -81,6 +81,10 @@ Deno.serve(async (req) => {
     const property = (body?.property ?? null) as PropertyInput | null
     const language = resolveLanguage(String(body?.language ?? '').trim())
     const ownerContact = String(body?.ownerContact ?? '').trim()
+    const hasContactBox = Boolean(body?.hasContactBox)
+    const hasPricingBox = Boolean(body?.hasPricingBox)
+    const includeContactInAi = body?.includeContactInAi === undefined ? !hasContactBox : Boolean(body?.includeContactInAi)
+    const includePricingInAi = body?.includePricingInAi === undefined ? !hasPricingBox : Boolean(body?.includePricingInAi)
     const requestedModel = String(body?.model ?? '').trim()
     const configuredDefaultModel = Deno.env.get('ANTHROPIC_MODEL') ?? DEFAULT_MODEL
     const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : configuredDefaultModel
@@ -157,6 +161,12 @@ Deno.serve(async (req) => {
         photoCount: property.photos?.length ?? 0,
       },
       ownerContact: ownerContact || null,
+      visualStructure: {
+        hasContactBox,
+        hasPricingBox,
+        includeContactInAi,
+        includePricingInAi,
+      },
     }
 
     const writingLanguageInstruction = language === 'en'
@@ -166,6 +176,18 @@ Deno.serve(async (req) => {
     const ownerContactInstruction = language === 'en'
       ? 'If ownerContact is provided, you may naturally incorporate it into the CTA or contact-oriented phrasing, but do not invent extra contact details.'
       : 'Se ownerContact vier preenchido, você pode incorporá-lo de forma natural no CTA ou em trechos orientados a contato, sem inventar dados adicionais.'
+
+    const pricingAndContactInstruction = language === 'en'
+      ? [
+          !includePricingInAi ? 'A dedicated pricing box already exists in the layout, so do not repeat prices, rate tables, pricing summaries, or pricing-focused marketing inside the AI content box.' : '',
+          !includeContactInAi ? 'A dedicated contact box already exists in the layout, so do not repeat contact details, direct contact calls, or contact-focused CTA inside the AI content box.' : '',
+          !includePricingInAi && !includeContactInAi ? 'Focus the AI content on positioning, lifestyle, location, atmosphere, highlights, and persuasive presentation.' : '',
+        ].filter(Boolean).join(' ')
+      : [
+          !includePricingInAi ? 'Ja existe um quadro exclusivo de valores no layout, entao nao repita precos, tabelas, resumos de valores ou argumentos centrados em preco dentro do quadro de conteudo por IA.' : '',
+          !includeContactInAi ? 'Ja existe um quadro exclusivo de contato no layout, entao nao repita dados de contato, chamadas de contato direto ou CTA de contato dentro do quadro de conteudo por IA.' : '',
+          !includePricingInAi && !includeContactInAi ? 'Concentre o conteudo de IA em posicionamento, estilo de vida, localizacao, atmosfera, destaques e apresentacao persuasiva.' : '',
+        ].filter(Boolean).join(' ')
 
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -184,6 +206,7 @@ Deno.serve(async (req) => {
           'Não invente informações que não estejam no payload.',
           'Use apenas os dados fornecidos.',
           ownerContactInstruction,
+          pricingAndContactInstruction,
           'Retorne somente JSON válido, sem markdown.',
           'Formato exato esperado:',
           '{"headline":"","subheadline":"","description":"","highlights":["","",""],"cta":"","toneTag":"","marketingFrames":[{"eyebrow":"","title":"","body":"","style":"accent"}],"sections":{"locationTitle":"","locationBody":"","lifestyleTitle":"","lifestyleBody":"","pricingTitle":"","pricingBody":""}}',

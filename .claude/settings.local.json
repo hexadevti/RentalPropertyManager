@@ -16,7 +16,9 @@
       "Bash(grep -E \"\\\\.sql$\")",
       "Bash(npx supabase *)",
       "Bash(supabase --version)",
-      "Bash(grep -n \"return$\\\\|^  \\)\\\\|^}\" c:\\\\Users\\\\lucia\\\\repos\\\\RentalPropertyManager\\\\src\\\\components\\\\views\\\\FinancesView.tsx)"
+      "Bash(grep -n \"return$\\\\|^  \\)\\\\|^}\" c:\\\\Users\\\\lucia\\\\repos\\\\RentalPropertyManager\\\\src\\\\components\\\\views\\\\FinancesView.tsx)",
+      "Bash(xargs -I{} basename {})",
+      "Bash(xargs grep *)"
     ]
   }
 }

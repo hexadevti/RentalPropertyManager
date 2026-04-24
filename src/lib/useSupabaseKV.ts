@@ -316,6 +316,12 @@ async function loadProperties() {
   if (inspectionItemsError) throw inspectionItemsError
   if (propertyPhotosError) throw propertyPhotosError
 
+  // Load iCal feeds separately — table may not exist yet if migration 173 hasn't been applied
+  const { data: propertyICalFeeds } = await supabase
+    .from('property_ical_feeds')
+    .select('id, property_id, provider, label, url')
+    .eq('tenant_id', tenantId)
+
   const ownerMap = new Map<string, string[]>()
   for (const row of propertyOwners || []) {
     ownerMap.set(row.property_id, [...(ownerMap.get(row.property_id) || []), row.owner_id])
@@ -340,6 +346,13 @@ async function loadProperties() {
     const currentItems = inspectionItemsMap.get(row.property_id) || []
     currentItems.push(row.item_name)
     inspectionItemsMap.set(row.property_id, currentItems)
+  }
+
+  const icalFeedsMap = new Map<string, { id: string; provider: string; label: string; url: string }[]>()
+  for (const row of propertyICalFeeds || []) {
+    const current = icalFeedsMap.get(row.property_id) || []
+    current.push({ id: row.id, provider: row.provider, label: row.label, url: row.url })
+    icalFeedsMap.set(row.property_id, current)
   }
 
   const photosMap = new Map<string, {
@@ -385,6 +398,7 @@ async function loadProperties() {
     description: property.description,
     ownerIds: ownerMap.get(property.id) || [],
     photos: photosMap.get(property.id) || [],
+    icalFeeds: icalFeedsMap.get(property.id) || [],
     createdAt: property.created_at,
   }))
 }
@@ -520,6 +534,7 @@ async function loadContracts() {
     status: contract.status,
     notes: contract.notes || undefined,
     templateId: contract.template_id || undefined,
+    icalUid: contract.ical_uid || undefined,
     createdAt: contract.created_at,
   }))
 }
@@ -1082,6 +1097,32 @@ async function persistProperties(value: any[]) {
     if (error) throw error
   }
 
+  // Save iCal feeds — table may not exist yet if migration 173 hasn't been applied
+  const icalFeedRows = value.flatMap((property) =>
+    (property.icalFeeds || []).map((feed: any) => ({
+      id: feed.id,
+      tenant_id: tenantId,
+      property_id: property.id,
+      provider: feed.provider,
+      label: feed.label || '',
+      url: feed.url,
+    }))
+  )
+
+  const { error: deleteICalFeedsError } = await supabase
+    .from('property_ical_feeds')
+    .delete()
+    .eq('tenant_id', tenantId)
+
+  if (deleteICalFeedsError) {
+    console.error('property_ical_feeds table not available (migration 173 not applied?):', deleteICalFeedsError.message)
+  } else if (icalFeedRows.length > 0) {
+    const { error: insertICalFeedsError } = await supabase.from('property_ical_feeds').insert(icalFeedRows)
+    if (insertICalFeedsError) {
+      console.error('Failed to save iCal feeds:', insertICalFeedsError.message)
+    }
+  }
+
   const { error: deletePhotosError } = await supabase
     .from('property_photos')
     .delete()
@@ -1212,6 +1253,7 @@ async function persistContracts(value: any[]) {
     status: contract.status,
     notes: contract.notes || null,
     template_id: contract.templateId || null,
+    ical_uid: contract.icalUid || null,
     created_at: contract.createdAt,
   })))
 
