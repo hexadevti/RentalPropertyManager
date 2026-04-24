@@ -22,9 +22,9 @@ export const ErrorFallback = ({ error, resetErrorBoundary }) => {
           </Alert>
 
           <div className="bg-card border rounded-lg p-5 space-y-4">
-            <h3 className="font-semibold text-foreground">How to fix in Spark</h3>
+            <h3 className="font-semibold text-foreground">How to fix</h3>
             <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-              <li>Open your Spark project settings.</li>
+              <li>Open your project settings.</li>
               <li>Go to Secrets (or Environment Variables, depending on UI version).</li>
               <li>Add VITE_SUPABASE_URL with your Supabase project URL.</li>
               <li>Add VITE_SUPABASE_ANON_KEY with your Supabase anon key.</li>
@@ -59,7 +59,7 @@ VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY`}
           <AlertTriangleIcon />
           <AlertTitle>This app has encountered a runtime error</AlertTitle>
           <AlertDescription>
-            Something unexpected happened while running the application. The error details are shown below. Contact the spark author and let them know about this issue.
+            Something unexpected happened while running the application. The error details are shown below. Contact the rpm author and let them know about this issue.
           </AlertDescription>
         </Alert>
         

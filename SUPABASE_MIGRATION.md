@@ -46,10 +46,10 @@ If GitHub returns 404 after login, this is almost always a provider/callback mis
 If you still have access to Spark KV, run this in browser console once and copy the output JSON:
 
 ```javascript
-const keys = await spark.kv.keys()
+const keys = await rpm.kv.keys()
 const payload = {}
 for (const key of keys) {
-  payload[key] = await spark.kv.get(key)
+  payload[key] = await rpm.kv.get(key)
 }
 console.log(JSON.stringify(payload, null, 2))
 ```
@@ -81,4 +81,4 @@ The legacy `public.app_kv` table is only used as an optional migration source.
 - Existing component logic using `useKV` does not need to be rewritten.
 - Domain tables now use per-user ownership with RLS based on `auth.uid()`.
 - `user_profiles` allows self-access and admin moderation; all other business tables are isolated per authenticated user.
-- The app now uses Supabase Auth with explicit login via GitHub OAuth instead of `spark.user()`.
+- The app now uses Supabase Auth with explicit login via GitHub OAuth instead of `rpm.user()`.

@@ -308,7 +308,7 @@ function AppContent() {
   }
 
   return (
-    <div id="spark-app" className={`min-h-screen bg-background ${resolvedTheme === 'dark' ? 'dark-theme' : ''}`}>
+    <div id="rpm-app" className={`min-h-screen bg-background ${resolvedTheme === 'dark' ? 'dark-theme' : ''}`}>
       <Toaster />
       
       <AppSidebar

@@ -239,7 +239,7 @@ Análises completas com gráficos visuais:
 ## 📁 Estrutura do Projeto
 
 ```
-/workspaces/spark-template
+/workspaces/rental-property-manager
 ├── src/
 │   ├── components/
 │   │   ├── ui/                        # Componentes shadcn/ui

@@ -41,7 +41,7 @@ O Rental Property Manager inclui um sistema completo de autenticação baseado n
 
 ### Autenticação Automática
 1. O usuário acessa o aplicativo
-2. Sistema busca informações do usuário logado via `spark.user()`
+2. Sistema busca informações do usuário logado via `rpm.user()`
 3. Cria ou recupera perfil do usuário no banco de dados local
 4. Se for o owner: atribui role `admin` com status `approved`
 5. Se não for owner: atribui role `guest` com status `pending`
@@ -67,7 +67,7 @@ Administradores podem criar usuários manualmente:
 - Administradores podem alterar status (aprovar/rejeitar)
 - Administradores podem excluir usuários
 - Usuários não podem alterar seus próprios perfis
-- Todas as alterações são persistidas localmente usando `spark.kv`
+- Todas as alterações são persistidas localmente usando `rpm.kv`
 
 ## Componentes Principais
 
@@ -190,7 +190,7 @@ import { Restricted } from '@/components/Restricted'
 ```
 
 ## Persistência
-- Perfis são armazenados em `user-profiles` usando `spark.kv`
+- Perfis são armazenados em `user-profiles` usando `rpm.kv`
 - Dados persistem entre sessões
 - Sincronização automática entre componentes via context
 
@@ -198,14 +198,14 @@ import { Restricted } from '@/components/Restricted'
 
 ### Primeiro Acesso (Owner)
 ```
-Acessa App → spark.user() → isOwner: true → Cria perfil
+Acessa App → rpm.user() → isOwner: true → Cria perfil
   ↓
 role: 'admin', status: 'approved' → Acesso Total Liberado
 ```
 
 ### Primeiro Acesso (Não-Owner)
 ```
-Acessa App → spark.user() → isOwner: false → Cria perfil
+Acessa App → rpm.user() → isOwner: false → Cria perfil
   ↓
 role: 'guest', status: 'pending' → Tela "Aguardando Aprovação"
   ↓

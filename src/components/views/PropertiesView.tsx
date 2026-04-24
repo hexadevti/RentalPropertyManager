@@ -25,6 +25,7 @@ import { useCurrency } from '@/lib/CurrencyContext'
 import { getPropertyAvailabilityStatus } from '@/lib/propertyAvailability'
 import ContractDialogForm from '@/components/ContractDialogForm'
 import PropertyMapView from '@/components/PropertyMapView'
+import { PropertyAdDialog } from '@/components/PropertyAdDialog'
 
 const PROPERTY_IMAGES_BUCKET = 'property-images'
 
@@ -73,6 +74,8 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null)
   const [contractDialogOpen, setContractDialogOpen] = useState(false)
+  const [adDialogOpen, setAdDialogOpen] = useState(false)
+  const [selectedPropertyForAd, setSelectedPropertyForAd] = useState<Property | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
   const [focusPropertyId, setFocusPropertyId] = useState<string | null>(null)
   const [selectedPropertyForContract, setSelectedPropertyForContract] = useState<string | undefined>(undefined)
@@ -673,6 +676,11 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
 
     setSelectedPropertyForContract(propertyId)
     setContractDialogOpen(true)
+  }
+
+  const handleGenerateAd = (property: Property) => {
+    setSelectedPropertyForAd(property)
+    setAdDialogOpen(true)
   }
 
   const buildDuplicatePropertyName = (baseName: string, existingNames: string[]) => {
@@ -1349,6 +1357,15 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2 bg-white/80"
+                      onClick={() => handleGenerateAd(property)}
+                    >
+                      <ImageIcon size={14} />
+                      {t.properties_view.generate_ad}
+                    </Button>
                     {(property.address || property.city) && (
                       <Button
                         variant="outline"
@@ -1422,6 +1439,14 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
         open={contractDialogOpen}
         onOpenChange={setContractDialogOpen}
         preSelectedPropertyId={selectedPropertyForContract}
+      />
+
+      <PropertyAdDialog
+        open={adDialogOpen}
+        onOpenChange={setAdDialogOpen}
+        property={selectedPropertyForAd}
+        currentStatus={selectedPropertyForAd ? getPropertyStatus(selectedPropertyForAd.id) : null}
+        coverPhotoUrl={selectedPropertyForAd ? coverPhotoUrls[selectedPropertyForAd.id] : ''}
       />
     </div>
   )

@@ -29,7 +29,7 @@ Se você precisar limpar manualmente o KV `bookings` do navegador:
 
 ```javascript
 // Execute no console do navegador
-await spark.kv.delete('bookings')
+await rpm.kv.delete('bookings')
 console.log('KV bookings removido com sucesso')
 ```
 

@@ -15,7 +15,7 @@ Esta é uma plataforma completa de gestão de propriedades com múltiplos módul
 ### Autenticação de Usuário e Gestão de Funções
 - **Functionality**: Autenticação OAuth GitHub com criação automática de perfil de usuário. Controle de acesso baseado em função com dois perfis: Administrador e Hóspede
 - **Purpose**: Controle de acesso seguro e experiência personalizada baseada em funções de usuário
-- **Trigger**: Automático ao carregar app via API spark.user()
+- **Trigger**: Automático ao carregar app via API rpm.user()
 - **Progression**: Carregar usuário GitHub → Verificar perfil existente → Criar/recuperar perfil de usuário → Atribuir função (owner=admin, outros=guest) → Exibir info de usuário no cabeçalho
 - **Success criteria**: Usuário vê seu avatar GitHub, nome de usuário e distintivo de função no cabeçalho. Admins podem gerenciar funções de usuário em Configurações
 
