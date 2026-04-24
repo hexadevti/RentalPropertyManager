@@ -75,10 +75,9 @@ function parseICalEvents(ics: string): RawEvent[] {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const BLOCKED_PATTERNS = [
-  /^closed/i,
-  /not available/i,
-  /blocked/i,
-  /unavailable/i,
+  /^blocked$/i,
+  /^owner block(ed)?$/i,
+  /^maintenance$/i,
 ]
 
 function isBlockedEvent(summary: string): boolean {
@@ -90,6 +89,13 @@ function jsonResponse(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
+
+function buildSyncUid(propertyId: string, provider: string, rawUid: string, startDate?: string, endDate?: string) {
+  if (startDate && endDate) {
+    return `${propertyId}::${provider}::${rawUid}::${startDate}::${endDate}`
+  }
+  return `${propertyId}::${provider}::${rawUid}`
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -170,13 +176,41 @@ Deno.serve(async (req) => {
   // Load existing contract ical_uids for dedup check
   const { data: existingContracts } = await adminClient
     .from('contracts')
-    .select('id, ical_uid')
+    .select('id, ical_uid, start_date, end_date')
     .eq('tenant_id', tenantId)
     .not('ical_uid', 'is', null)
+
+  const existingContractIds = (existingContracts ?? []).map((c: any) => c.id)
+  const { data: existingContractProperties } = existingContractIds.length > 0
+    ? await adminClient
+        .from('contract_properties')
+        .select('contract_id, property_id')
+        .eq('tenant_id', tenantId)
+        .in('contract_id', existingContractIds)
+    : { data: [] as Array<{ contract_id: string; property_id: string }> }
 
   const importedUids = new Set<string>(
     (existingContracts ?? []).map((c: any) => c.ical_uid).filter(Boolean)
   )
+
+  const contractPropertyMap = new Map<string, string[]>()
+  for (const row of existingContractProperties ?? []) {
+    const current = contractPropertyMap.get(row.contract_id) ?? []
+    current.push(row.property_id)
+    contractPropertyMap.set(row.contract_id, current)
+  }
+
+  const importedLegacyOccurrenceKeys = new Set<string>()
+  for (const contract of existingContracts ?? []) {
+    const icalUid = String(contract.ical_uid || '').trim()
+    if (!icalUid || icalUid.includes('::')) continue
+    const propertyIds = contractPropertyMap.get(contract.id) ?? []
+    const startDate = String(contract.start_date || '').trim()
+    const endDate = String(contract.end_date || '').trim()
+    for (const propertyId of propertyIds) {
+      importedLegacyOccurrenceKeys.add(`${propertyId}::${icalUid}::${startDate}::${endDate}`)
+    }
+  }
 
   // Build a map of property feeds
   const propMap = new Map<string, string>((properties ?? []).map((p: any) => [p.id, p.name]))
@@ -208,6 +242,18 @@ Deno.serve(async (req) => {
 
   const events: SyncEvent[] = []
   const fetchErrors: FetchError[] = []
+  const configuredFeedsCount = (icalFeeds ?? []).length
+  const hasConfiguredFeeds = configuredFeedsCount > 0
+  const today = new Date().toISOString().slice(0, 10)
+  const diagnostics = {
+    totalRawEvents: 0,
+    skippedCancelled: 0,
+    skippedBlocked: 0,
+    skippedMissingDates: 0,
+    skippedPast: 0,
+    duplicateCount: 0,
+    newCount: 0,
+  }
 
   for (const [propertyId, feeds] of feedsByProperty) {
     const propertyName = propMap.get(propertyId) ?? propertyId
@@ -231,18 +277,40 @@ Deno.serve(async (req) => {
 
         const icsContent = await response.text()
         const rawEvents = parseICalEvents(icsContent)
+        diagnostics.totalRawEvents += rawEvents.length
 
         for (const ev of rawEvents) {
-          if (ev.cancelled) continue
-          if (isBlockedEvent(ev.summary || '')) continue
-          if (!ev.startDate || !ev.endDate) continue
+          if (ev.cancelled) {
+            diagnostics.skippedCancelled += 1
+            continue
+          }
+          if (isBlockedEvent(ev.summary || '')) {
+            diagnostics.skippedBlocked += 1
+            continue
+          }
+          if (!ev.startDate || !ev.endDate) {
+            diagnostics.skippedMissingDates += 1
+            continue
+          }
 
           // Skip past events (ended before today)
-          const today = new Date().toISOString().slice(0, 10)
-          if (ev.endDate < today) continue
+          if (ev.endDate < today) {
+            diagnostics.skippedPast += 1
+            continue
+          }
+
+          const syncUid = buildSyncUid(property.id, feed.provider, ev.uid, ev.startDate, ev.endDate)
+          const legacyOccurrenceKey = `${property.id}::${ev.uid}::${ev.startDate}::${ev.endDate}`
+          const status = importedUids.has(syncUid)
+            || importedLegacyOccurrenceKeys.has(legacyOccurrenceKey)
+            ? 'duplicate'
+            : 'new'
+
+          if (status === 'duplicate') diagnostics.duplicateCount += 1
+          else diagnostics.newCount += 1
 
           events.push({
-            uid: ev.uid,
+            uid: syncUid,
             propertyId: property.id,
             propertyName: property.name,
             provider: feed.provider,
@@ -250,7 +318,7 @@ Deno.serve(async (req) => {
             summary: ev.summary || `${feed.provider} - Reserva`,
             startDate: ev.startDate,
             endDate: ev.endDate,
-            status: importedUids.has(ev.uid) ? 'duplicate' : 'new',
+            status,
           })
         }
       } catch (err: unknown) {
@@ -269,5 +337,5 @@ Deno.serve(async (req) => {
     return a.startDate.localeCompare(b.startDate)
   })
 
-  return jsonResponse({ events, fetchErrors })
+  return jsonResponse({ events, fetchErrors, hasConfiguredFeeds, configuredFeedsCount, diagnostics })
 })

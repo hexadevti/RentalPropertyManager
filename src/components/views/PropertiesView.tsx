@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ClipboardEvent, DragEvent } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { supabase } from '@/lib/supabase'
@@ -88,6 +89,21 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
   const [photoDrafts, setPhotoDrafts] = useState<PropertyPhotoDraft[]>([])
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
   const [isSavingPhotos, setIsSavingPhotos] = useState(false)
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; fileName: string; fileSize?: number } | null>(null)
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null)
+
+  const openPreview = (index: number) => {
+    const photo = photoDrafts[index]
+    if (!photo?.previewUrl) return
+    setPreviewIndex(index)
+    setPreviewPhoto({ url: photo.previewUrl, fileName: photo.fileName, fileSize: photo.fileSize })
+  }
+
+  const navigatePreview = (dir: 1 | -1) => {
+    if (previewIndex === null || photoDrafts.length === 0) return
+    const next = (previewIndex + dir + photoDrafts.length) % photoDrafts.length
+    openPreview(next)
+  }
   const [coverPhotoUrls, setCoverPhotoUrls] = useState<Record<string, string>>({})
   
   const [formData, setFormData] = useState({
@@ -785,6 +801,75 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
 
   return (
     <div className="space-y-6">
+      {isDialogOpen && (
+        <div aria-hidden className="fixed inset-0 z-40 bg-black/50" />
+      )}
+      {/* Photo lightbox */}
+      {previewPhoto && createPortal(
+        <div
+          className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm"
+          onPointerDown={() => { setPreviewPhoto(null); setPreviewIndex(null) }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') navigatePreview(-1)
+            else if (e.key === 'ArrowRight') navigatePreview(1)
+            else if (e.key === 'Escape') { setPreviewPhoto(null); setPreviewIndex(null) }
+          }}
+          tabIndex={-1}
+          ref={(el) => el?.focus()}
+        >
+          <div
+            className="flex flex-col items-center gap-3"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {/* Prev / image / Next row */}
+            <div className="flex items-center gap-4">
+              {photoDrafts.length > 1 && (
+                <button
+                  type="button"
+                  aria-label="Anterior"
+                  onClick={() => navigatePreview(-1)}
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white shrink-0 text-xl"
+                >
+                  &#8249;
+                </button>
+              )}
+              <img
+                src={previewPhoto.url}
+                alt={previewPhoto.fileName}
+                className="block rounded-lg shadow-2xl"
+                style={{ maxWidth: photoDrafts.length > 1 ? 'calc(90vw - 96px)' : '90vw', maxHeight: '85vh', objectFit: 'contain' }}
+              />
+              {photoDrafts.length > 1 && (
+                <button
+                  type="button"
+                  aria-label="Próxima"
+                  onClick={() => navigatePreview(1)}
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-white/20 hover:bg-white/40 text-white shrink-0 text-xl"
+                >
+                  &#8250;
+                </button>
+              )}
+            </div>
+            {/* Info bar */}
+            <div className="flex items-center gap-3 text-white/80 text-sm">
+              {previewIndex !== null && photoDrafts.length > 1 && (
+                <span className="text-white/50">{previewIndex + 1} / {photoDrafts.length}</span>
+              )}
+              <span className="truncate max-w-xs">{previewPhoto.fileName}</span>
+              {previewPhoto.fileSize ? <span className="shrink-0 text-white/50">{formatFileSize(previewPhoto.fileSize)}</span> : null}
+              <button
+                type="button"
+                onClick={() => { setPreviewPhoto(null); setPreviewIndex(null) }}
+                className="ml-4 flex items-center justify-center w-7 h-7 rounded-full bg-white/20 hover:bg-white/40 text-white shrink-0"
+                aria-label="Fechar"
+              >
+                <span aria-hidden="true" className="text-base leading-none">×</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-1">
@@ -819,7 +904,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
               <UploadSimple weight="bold" size={16} />
               {t.properties_view.import_csv}
             </Button>
-            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            <Dialog modal={false} open={isDialogOpen} onOpenChange={(open) => {
               if (!open) {
                 resetForm()
                 return
@@ -832,7 +917,11 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
                   {t.properties_view.add_property}
                 </Button>
               </DialogTrigger>
-            <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden w-[720px] min-w-[480px] max-w-[92vw] h-[88vh] min-h-[400px] resize-x">
+            <DialogContent
+              className="flex flex-col p-0 gap-0 overflow-hidden w-[720px] min-w-[480px] max-w-[92vw] h-[88vh] min-h-[400px] resize-x"
+              onInteractOutside={(e) => e.preventDefault()}
+              onEscapeKeyDown={(e) => e.preventDefault()}
+            >
               <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                 <DialogTitle className="flex items-center gap-1">
                   {editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}
@@ -1013,45 +1102,53 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
 
                     <div className="space-y-2">
                       <p className="text-sm font-medium">{t.properties_view.form.photos_gallery}</p>
-                      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 140px), 260px))' }}>
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
                         {photoDrafts.map((photo) => (
-                          <div key={photo.id} className="overflow-hidden rounded-xl border bg-card">
-                            {photo.previewUrl ? (
-                              <img src={photo.previewUrl} alt={photo.fileName} className="aspect-[4/3] w-full object-cover" />
-                            ) : (
-                              <div className="flex aspect-[4/3] items-center justify-center bg-muted text-muted-foreground">
-                                <ImageIcon size={28} />
-                              </div>
-                            )}
-                            <div className="space-y-2 p-3">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="truncate text-sm font-medium">{photo.fileName}</p>
-                                {photo.isCover && <Badge variant="secondary">{t.properties_view.form.cover_badge}</Badge>}
-                              </div>
-                              <p className="text-xs text-muted-foreground">{formatFileSize(photo.fileSize)}</p>
-                              <div className="flex gap-2">
-                                {!photo.isCover && (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    title={t.properties_view.form.set_cover}
-                                    aria-label={t.properties_view.form.set_cover}
-                                    onClick={() => handleSetCoverPhoto(photo.id)}
-                                  >
-                                    <Star size={14} />
-                                  </Button>
-                                )}
-                                <Button
+                          <div key={photo.id} className="group relative">
+                            {/* Thumbnail — click opens lightbox */}
+                            <button
+                              type="button"
+                              className="block w-full overflow-hidden rounded-lg border bg-card aspect-square cursor-zoom-in"
+                              onClick={() => photo.previewUrl && openPreview(photoDrafts.indexOf(photo))}
+                            >
+                              {photo.previewUrl ? (
+                                <img
+                                  src={photo.previewUrl}
+                                  alt={photo.fileName}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex w-full h-full items-center justify-center bg-muted text-muted-foreground">
+                                  <ImageIcon size={20} />
+                                </div>
+                              )}
+                            </button>
+
+                            {/* Always-visible action buttons at bottom of thumb */}
+                            <div className="absolute bottom-1 inset-x-1 flex items-center justify-between gap-1">
+                              {photo.isCover ? (
+                                <Badge variant="secondary" className="gap-0.5 px-1 py-0 text-[9px] leading-4 shrink-0">
+                                  <Star size={8} weight="fill" />
+                                </Badge>
+                              ) : (
+                                <button
                                   type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-destructive hover:text-destructive"
-                                  onClick={() => handleRemovePhoto(photo.id)}
+                                  title={t.properties_view.form.set_cover}
+                                  aria-label={t.properties_view.form.set_cover}
+                                  onClick={() => handleSetCoverPhoto(photo.id)}
+                                  className="flex items-center justify-center w-5 h-5 rounded bg-black/50 text-white hover:bg-black/70 shrink-0"
                                 >
-                                  <Trash size={14} />
-                                </Button>
-                              </div>
+                                  <Star size={10} />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                aria-label={t.properties_view.form.photos_gallery}
+                                onClick={() => handleRemovePhoto(photo.id)}
+                                className="flex items-center justify-center w-5 h-5 rounded bg-black/50 text-white hover:bg-destructive shrink-0"
+                              >
+                                <Trash size={10} />
+                              </button>
                             </div>
                           </div>
                         ))}

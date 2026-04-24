@@ -79,6 +79,15 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
     status: 'new' | 'duplicate'
   }
   type FetchError = { propertyName: string; feedLabel: string; error: string }
+  type SyncDiagnostics = {
+    totalRawEvents: number
+    skippedCancelled: number
+    skippedBlocked: number
+    skippedMissingDates: number
+    skippedPast: number
+    duplicateCount: number
+    newCount: number
+  }
 
   const [syncDialogOpen, setSyncDialogOpen] = useState(false)
   const [syncLoading, setSyncLoading] = useState(false)
@@ -86,6 +95,11 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
   const [syncErrors, setSyncErrors] = useState<FetchError[]>([])
   const [syncSelected, setSyncSelected] = useState<Set<string>>(new Set())
   const [syncImporting, setSyncImporting] = useState(false)
+  const [syncHasConfiguredFeeds, setSyncHasConfiguredFeeds] = useState(false)
+  const [syncDiagnostics, setSyncDiagnostics] = useState<SyncDiagnostics | null>(null)
+  const hasLocalConfiguredFeeds = (properties || []).some((property) =>
+    (property.icalFeeds || []).some((feed) => Boolean(feed?.url?.trim()))
+  )
 
   useEffect(() => {
     setLocalGuests(guests || [])
@@ -443,15 +457,37 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
     setSyncEvents([])
     setSyncErrors([])
     setSyncSelected(new Set())
+    setSyncHasConfiguredFeeds(false)
+    setSyncDiagnostics(null)
     setSyncDialogOpen(true)
     setSyncLoading(true)
     try {
-      const { data, error } = await supabase.functions.invoke<{ events: SyncEvent[]; fetchErrors: FetchError[] }>('ical-sync', { body: {} })
+      const { count: configuredFeedCount } = await supabase
+        .from('property_ical_feeds')
+        .select('id', { count: 'exact', head: true })
+
+      const hasConfiguredFeedsFromTable = Boolean((configuredFeedCount || 0) > 0)
+      if (hasConfiguredFeedsFromTable || hasLocalConfiguredFeeds) {
+        setSyncHasConfiguredFeeds(true)
+      }
+
+      const { data, error } = await supabase.functions.invoke<{
+        events: SyncEvent[]
+        fetchErrors: FetchError[]
+        hasConfiguredFeeds?: boolean
+        diagnostics?: SyncDiagnostics
+      }>('ical-sync', { body: {} })
       if (error) throw new Error(error.message)
       const events = data?.events ?? []
       const newUids = events.filter(e => e.status === 'new').map(e => e.uid)
       setSyncEvents(events)
       setSyncErrors(data?.fetchErrors ?? [])
+      setSyncDiagnostics(data?.diagnostics ?? null)
+      setSyncHasConfiguredFeeds(
+        Boolean(data?.hasConfiguredFeeds)
+        || hasConfiguredFeedsFromTable
+        || hasLocalConfiguredFeeds
+      )
       setSyncSelected(new Set(newUids))
     } catch (err: any) {
       toast.error(err?.message ?? 'Erro ao buscar feeds iCal')
@@ -1116,14 +1152,21 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                 </div>
               )}
 
-              {syncEvents.length === 0 && !syncLoading ? (
+              {syncEvents.length === 0 && !syncLoading && !syncHasConfiguredFeeds && !hasLocalConfiguredFeeds ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
                   {t.contracts_view.ical_sync_no_feeds}
                 </p>
               ) : syncEvents.filter(e => e.status === 'new').length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {t.contracts_view.ical_sync_no_new}
-                </p>
+                <div className="text-center py-8 space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {t.contracts_view.ical_sync_no_new}
+                  </p>
+                  {syncDiagnostics && (
+                    <p className="text-xs text-muted-foreground">
+                      Lidos: {syncDiagnostics.totalRawEvents} · Novos: {syncDiagnostics.newCount} · Duplicados: {syncDiagnostics.duplicateCount} · Cancelados: {syncDiagnostics.skippedCancelled} · Bloqueados: {syncDiagnostics.skippedBlocked} · Sem data: {syncDiagnostics.skippedMissingDates} · Passados: {syncDiagnostics.skippedPast}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <>
                   <div className="flex items-center justify-between">
