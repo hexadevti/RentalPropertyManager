@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { ArrowsClockwise, Eye, FileArrowDown, FilePdf, FloppyDisk, ArrowCounterClockwise } from '@phosphor-icons/react'
+import { ArrowsClockwise, Eye, FloppyDisk, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/AuthContext'
@@ -1006,10 +1006,12 @@ function flattenLayoutBoxes(nodes: LayoutBoxNode[]): LayoutBoxNode[] {
 function mapLayoutBoxesToRects(
   nodes: LayoutBoxNode[],
   baseRects: Record<string, Rect>,
+  hiddenSlotIds: string[] = [],
 ): { boxes: RenderedLayoutBox[]; parentRects: Record<string, Rect>; splitHandles: PreviewHandle[] } {
   const boxes: RenderedLayoutBox[] = []
   const parentRects: Record<string, Rect> = {}
   const splitHandles: PreviewHandle[] = []
+  const hiddenSlots = new Set(hiddenSlotIds)
 
   const walk = (node: LayoutBoxNode, rect: Rect) => {
     if (!node.children || !node.splitDirection) {
@@ -1050,6 +1052,7 @@ function mapLayoutBoxesToRects(
   }
 
   nodes.forEach((node) => {
+    if (hiddenSlots.has(node.sourceSlotId)) return
     const baseRect = baseRects[node.sourceSlotId]
     if (baseRect) walk(node, baseRect)
   })
@@ -1464,8 +1467,8 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
     [layoutBoxesByVariant, layoutSlots, layoutVariant, previewGeometry.hiddenSlotIds, slotAssignments],
   )
   const renderedLayout = useMemo(
-    () => mapLayoutBoxesToRects(rootLayoutBoxes, previewRects),
-    [previewRects, rootLayoutBoxes],
+    () => mapLayoutBoxesToRects(rootLayoutBoxes, previewRects, previewGeometry.hiddenSlotIds),
+    [previewGeometry.hiddenSlotIds, previewRects, rootLayoutBoxes],
   )
   const leafBoxes = useMemo(
     () => flattenLayoutBoxes(rootLayoutBoxes),
@@ -1635,17 +1638,27 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
   }
 
   const resetCurrentLayout = () => {
+    const defaultRatios = getDefaultLayoutRatios(layoutVariant)
+    const defaultMerges = getDefaultLayoutMerges()
+    const defaultGeometry = getLayoutGeometry(
+      layoutVariant,
+      pageSpec.widthPx,
+      pageSpec.heightPx,
+      defaultRatios,
+      defaultMerges,
+    )
+
     setLayoutRatiosByVariant((current) => ({
       ...current,
-      [layoutVariant]: getDefaultLayoutRatios(layoutVariant),
+      [layoutVariant]: defaultRatios,
     }))
     setLayoutMergesByVariant((current) => ({
       ...current,
-      [layoutVariant]: getDefaultLayoutMerges(),
+      [layoutVariant]: defaultMerges,
     }))
     setLayoutBoxesByVariant((current) => ({
       ...current,
-      [layoutVariant]: buildBaseLayoutBoxes(layoutSlots, slotAssignments, previewGeometry.hiddenSlotIds),
+      [layoutVariant]: buildBaseLayoutBoxes(layoutSlots, slotAssignments, defaultGeometry.hiddenSlotIds),
     }))
     setSelectedSlotId(getLayoutSlots(layoutVariant, isEnglish)[0]?.id || null)
   }
@@ -1703,7 +1716,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
         })),
       }
     })
-    setIsGenerated(false)
   }
 
   const handleBoxClick = (slotId: string) => {
@@ -1882,32 +1894,68 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
     openPDFInNewTab(pdf)
   }
 
-  const downloadImage = async (format: 'png' | 'jpg') => {
+  const handleImagePreview = async () => {
+    if (!property) return
     if (!isGenerated) {
       toast.error(t.properties_view.ad_generate_first)
       return
     }
-    const canvas = await renderFlyerCanvas()
-    const mimeType = format === 'png' ? 'image/png' : 'image/jpeg'
-    const quality = format === 'png' ? 1 : 0.92
-    const url = canvas.toDataURL(mimeType, quality)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${getExportBaseName()}.${format}`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-  }
 
-  const handleExport = async () => {
+    const previewWindow = window.open('about:blank', '_blank')
+    if (!previewWindow) {
+      toast.error(isEnglish ? 'Unable to open image preview.' : 'Nao foi possivel abrir a visualizacao da imagem.')
+      return
+    }
+
+    previewWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${isEnglish ? 'Image preview' : 'Visualizacao da imagem'}</title>
+          <style>
+            body { margin: 0; background: #0f172a; color: #e2e8f0; display: grid; place-items: center; min-height: 100vh; font-family: Arial, Helvetica, sans-serif; }
+          </style>
+        </head>
+        <body>
+          <p>${isEnglish ? 'Preparing image preview...' : 'Preparando visualizacao da imagem...'}</p>
+        </body>
+      </html>
+    `)
+    previewWindow.document.close()
+
     try {
-      if (outputFormat === 'pdf') {
-        await handlePdfAction('download')
-        return
+      const canvas = await renderFlyerCanvas()
+      const mimeType = outputFormat === 'png' ? 'image/png' : 'image/jpeg'
+      const quality = outputFormat === 'png' ? 1 : 0.92
+      const imageBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mimeType, quality))
+      if (!imageBlob) {
+        throw new Error(t.properties_view.ad_export_error)
       }
+      const imageUrl = URL.createObjectURL(imageBlob)
 
-      await downloadImage(outputFormat)
+      previewWindow.document.write(`
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>${isEnglish ? 'Image preview' : 'Visualizacao da imagem'}</title>
+            <style>
+              body { margin: 0; background: #0f172a; display: grid; place-items: center; min-height: 100vh; }
+              img { max-width: 100vw; max-height: 100vh; object-fit: contain; }
+            </style>
+          </head>
+          <body>
+            <img src="${imageUrl}" alt="preview" />
+          </body>
+        </html>
+      `)
+      previewWindow.document.close()
+      previewWindow.addEventListener('beforeunload', () => {
+        URL.revokeObjectURL(imageUrl)
+      })
     } catch (error: any) {
+      previewWindow.close()
       toast.error(error?.message || t.properties_view.ad_export_error)
     }
   }
@@ -2002,14 +2050,15 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[92vh] max-w-6xl flex-col overflow-hidden p-0">
+        <DialogHeader className="shrink-0 border-b px-6 py-4">
           <DialogTitle>{t.properties_view.ad_generator_title}</DialogTitle>
           <DialogDescription>{t.properties_view.ad_generate_hint}</DialogDescription>
         </DialogHeader>
 
-        {!property ? null : (
-          <div className="space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {!property ? null : (
+            <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{t.properties_view.type[property.type]}</Badge>
@@ -2212,17 +2261,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                       </g>
                     ))}
                   </svg>
-                  <div className="pointer-events-none absolute bottom-3 right-3 z-10">
-                    <Button
-                      type="button"
-                      className="pointer-events-auto gap-2"
-                      onClick={() => void handleExport()}
-                      disabled={!property || !isGenerated || isGenerating}
-                    >
-                      {outputFormat === 'pdf' ? <FilePdf size={16} /> : <FileArrowDown size={16} />}
-                      {isEnglish ? 'Generate artwork' : 'Gerar arte'}
-                    </Button>
-                  </div>
                 </div>
 
                 <div className="flex-1 space-y-2 text-sm text-muted-foreground">
@@ -2263,17 +2301,25 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                 </div>
               </div>
             </div>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t px-6 py-4">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t.properties_view.form.cancel}
           </Button>
-          <Button type="button" variant="outline" className="gap-2" onClick={() => void handlePdfAction('view')} disabled={!property || !isGenerated || isGenerating || outputFormat !== 'pdf'}>
-            <Eye size={16} />
-            {t.properties_view.ad_preview_pdf}
-          </Button>
+          {outputFormat === 'pdf' ? (
+            <Button type="button" variant="outline" className="gap-2" onClick={() => void handlePdfAction('view')} disabled={!property || !isGenerated || isGenerating}>
+              <Eye size={16} />
+              {t.properties_view.ad_preview_pdf}
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" className="gap-2" onClick={() => void handleImagePreview()} disabled={!property || !isGenerated || isGenerating}>
+              <Eye size={16} />
+              {isEnglish ? 'Preview image' : 'Visualizar imagem'}
+            </Button>
+          )}
           <Button type="button" variant="outline" className="gap-2" onClick={() => void handleSaveToDocuments()} disabled={!property || !isGenerated || isGenerating || isSavingDocument}>
             <FloppyDisk size={16} />
             {t.properties_view.ad_save_to_documents}
