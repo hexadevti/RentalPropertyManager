@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { ArrowsClockwise, Eye, FileArrowDown, FilePdf, FloppyDisk, ArrowCounterClockwise } from '@phosphor-icons/react'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -1624,7 +1625,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
       ...current,
       [layoutVariant]: nextRatios,
     }))
-    setIsGenerated(false)
   }
 
   const updateCurrentLayoutMerges = (nextMerges: LayoutMerges) => {
@@ -1632,7 +1632,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
       ...current,
       [layoutVariant]: nextMerges,
     }))
-    setIsGenerated(false)
   }
 
   const resetCurrentLayout = () => {
@@ -1649,7 +1648,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
       [layoutVariant]: buildBaseLayoutBoxes(layoutSlots, slotAssignments, previewGeometry.hiddenSlotIds),
     }))
     setSelectedSlotId(getLayoutSlots(layoutVariant, isEnglish)[0]?.id || null)
-    setIsGenerated(false)
   }
 
   const deleteDivider = (handleId: string) => {
@@ -1751,7 +1749,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
         })),
       }
     })
-    setIsGenerated(false)
   }
 
   const updateCustomSplitRatio = (boxId: string, ratio: number) => {
@@ -1765,7 +1762,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
         })),
       }
     })
-    setIsGenerated(false)
   }
 
   const handlePreviewResizeStart = (handleId: string) => (event: any) => {
@@ -2019,10 +2015,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                 <Badge variant="secondary">{t.properties_view.type[property.type]}</Badge>
                 {currentStatus ? <Badge>{t.properties_view.status[currentStatus]}</Badge> : null}
               </div>
-              <Button type="button" variant="outline" className="gap-2" onClick={() => void generateAd()} disabled={isGenerating}>
-                <ArrowsClockwise size={16} className={isGenerating ? 'animate-spin' : ''} />
-                {t.properties_view.ad_generate_now}
-              </Button>
             </div>
 
             <div className="grid gap-4 rounded-2xl border bg-card p-4 md:grid-cols-2 xl:grid-cols-3">
@@ -2077,11 +2069,11 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                 <>
                   <div className="space-y-2">
                     <Label>{t.properties_view.ad_pixel_width}</Label>
-                    <Input type="number" min={320} step={10} value={customWidthPx} onChange={(event) => setCustomWidthPx(event.target.value)} placeholder="1080" />
+                    <Input type="number" min={320} step={10} value={customWidthPx} onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomWidthPx(event.target.value)} placeholder="1080" />
                   </div>
                   <div className="space-y-2">
                     <Label>{t.properties_view.ad_pixel_height}</Label>
-                    <Input type="number" min={320} step={10} value={customHeightPx} onChange={(event) => setCustomHeightPx(event.target.value)} placeholder="1350" />
+                    <Input type="number" min={320} step={10} value={customHeightPx} onChange={(event: ChangeEvent<HTMLInputElement>) => setCustomHeightPx(event.target.value)} placeholder="1350" />
                   </div>
                 </>
               ) : null}
@@ -2094,6 +2086,10 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                   <p className="text-xs text-muted-foreground">{layoutVariantLabel}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void generateAd()} disabled={isGenerating}>
+                    <ArrowsClockwise size={14} className={isGenerating ? 'animate-spin' : ''} />
+                    {isEnglish ? 'Preview content' : 'Preview de conteudo'}
+                  </Button>
                   <Button type="button" variant="outline" size="sm" className="gap-2" onClick={resetCurrentLayout}>
                     <ArrowCounterClockwise size={14} />
                     Resetar layout
@@ -2104,7 +2100,7 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
 
               <div className="flex items-start gap-4">
                 <div
-                  className="relative w-full max-w-[380px] overflow-hidden rounded-xl border bg-[#f5f1ea] p-2 shadow-sm"
+                  className="relative w-full max-w-[520px] overflow-hidden rounded-xl border bg-[#f5f1ea] p-2 shadow-sm"
                   style={{ aspectRatio: `${pageSpec.widthPx} / ${pageSpec.heightPx}` }}
                 >
                   <svg
@@ -2112,16 +2108,66 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                     viewBox={`0 0 ${pageSpec.widthPx} ${pageSpec.heightPx}`}
                     className="block h-full w-full touch-none"
                   >
-                    <rect width={pageSpec.widthPx} height={pageSpec.heightPx} fill="#f5f1ea" />
-                    <rect x={24} y={24} width={pageSpec.widthPx - 48} height={pageSpec.heightPx - 48} rx={28} ry={28} fill="#f5f1ea" stroke="#e2e8f0" strokeWidth={1.5} />
-                    <rect x={36} y={36} width={pageSpec.widthPx - 72} height={pageSpec.heightPx - 72} rx={24} ry={24} fill="#ffffff" />
-                    {renderedLayout.boxes.map(({ node, rect }) => {
-                      const palette = getSlotSvgPalette(node.assignment || 'empty', isEnglish)
+                    {isGenerated && flyerSvgDataUrl ? (
+                      <image
+                        href={flyerSvgDataUrl}
+                        x={0}
+                        y={0}
+                        width={pageSpec.widthPx}
+                        height={pageSpec.heightPx}
+                        preserveAspectRatio="xMidYMid meet"
+                      />
+                    ) : (
+                      <>
+                        <rect width={pageSpec.widthPx} height={pageSpec.heightPx} fill="#f5f1ea" />
+                        <rect x={24} y={24} width={pageSpec.widthPx - 48} height={pageSpec.heightPx - 48} rx={28} ry={28} fill="#f5f1ea" stroke="#e2e8f0" strokeWidth={1.5} />
+                        <rect x={36} y={36} width={pageSpec.widthPx - 72} height={pageSpec.heightPx - 72} rx={24} ry={24} fill="#ffffff" />
+                        {renderedLayout.boxes.map(({ node, rect }) => {
+                          const palette = getSlotSvgPalette(node.assignment || 'empty', isEnglish)
+                          const isSelected = selectedSlot?.id === node.id
+                          const pillWidth = Math.min(rect.width - 24, Math.max(72, node.label.length * 9))
+                          return (
+                            <g
+                              key={node.id}
+                              className="cursor-pointer"
+                              onClick={() => handleBoxClick(node.id)}
+                            >
+                              <rect
+                                x={rect.x}
+                                y={rect.y}
+                                width={rect.width}
+                                height={rect.height}
+                                rx={14}
+                                ry={14}
+                                fill={palette.bg}
+                                stroke={isSelected ? '#2563eb' : '#ffffff'}
+                                strokeWidth={isSelected ? 4 : 1.5}
+                              />
+                              <rect
+                                x={rect.x + 14}
+                                y={rect.y + 14}
+                                width={pillWidth}
+                                height={28}
+                                rx={14}
+                                ry={14}
+                                fill="rgba(255,255,255,0.82)"
+                              />
+                              <text x={rect.x + 14 + pillWidth / 2} y={rect.y + 32} textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="13" fontWeight="700" letterSpacing="1.2" fill="#475569">
+                                {node.label.toUpperCase()}
+                              </text>
+                              <text x={rect.x + rect.width / 2} y={rect.y + rect.height / 2 + 6} textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="18" fontWeight="700" fill={palette.fg}>
+                                {palette.label}
+                              </text>
+                            </g>
+                          )
+                        })}
+                      </>
+                    )}
+                    {isGenerated ? renderedLayout.boxes.map(({ node, rect }) => {
                       const isSelected = selectedSlot?.id === node.id
-                      const pillWidth = Math.min(rect.width - 24, Math.max(72, node.label.length * 9))
                       return (
                         <g
-                          key={node.id}
+                          key={`overlay-${node.id}`}
                           className="cursor-pointer"
                           onClick={() => handleBoxClick(node.id)}
                         >
@@ -2132,28 +2178,14 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                             height={rect.height}
                             rx={14}
                             ry={14}
-                            fill={palette.bg}
-                            stroke={isSelected ? '#2563eb' : '#ffffff'}
+                            fill="transparent"
+                            stroke={isSelected ? '#2563eb' : 'rgba(30,41,59,0.35)'}
                             strokeWidth={isSelected ? 4 : 1.5}
+                            strokeDasharray={isSelected ? undefined : '6 5'}
                           />
-                          <rect
-                            x={rect.x + 14}
-                            y={rect.y + 14}
-                            width={pillWidth}
-                            height={28}
-                            rx={14}
-                            ry={14}
-                            fill="rgba(255,255,255,0.82)"
-                          />
-                          <text x={rect.x + 14 + pillWidth / 2} y={rect.y + 32} textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="13" fontWeight="700" letterSpacing="1.2" fill="#475569">
-                            {node.label.toUpperCase()}
-                          </text>
-                          <text x={rect.x + rect.width / 2} y={rect.y + rect.height / 2 + 6} textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" fontSize="18" fontWeight="700" fill={palette.fg}>
-                            {palette.label}
-                          </text>
                         </g>
                       )
-                    })}
+                    }) : null}
                     {[...previewHandles, ...renderedLayout.splitHandles].map((handle) => (
                       <g key={handle.id}>
                         <circle
@@ -2180,11 +2212,24 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                       </g>
                     ))}
                   </svg>
+                  <div className="pointer-events-none absolute bottom-3 right-3 z-10">
+                    <Button
+                      type="button"
+                      className="pointer-events-auto gap-2"
+                      onClick={() => void handleExport()}
+                      disabled={!property || !isGenerated || isGenerating}
+                    >
+                      {outputFormat === 'pdf' ? <FilePdf size={16} /> : <FileArrowDown size={16} />}
+                      {isEnglish ? 'Generate artwork' : 'Gerar arte'}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex-1 space-y-2 text-sm text-muted-foreground">
                   <p>{t.properties_view.ad_layout_preview_hint}</p>
                   <p>{t.properties_view.ad_layout_size_hint.replace('{width}', String(pageSpec.widthPx)).replace('{height}', String(pageSpec.heightPx))}</p>
+                  {isGenerating ? <p>{t.properties_view.ad_generating}</p> : null}
+                  {!isGenerating && !isGenerated ? <p>{t.properties_view.ad_generate_hint}</p> : null}
                   {selectedSlot ? (
                     <div className="mt-4 rounded-xl border bg-background p-3 text-foreground">
                       <p className="text-sm font-medium">{selectedSlot.label}</p>
@@ -2202,7 +2247,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                               })),
                             }
                           })
-                          setIsGenerated(false)
                         }}
                       >
                         <SelectTrigger>
@@ -2219,26 +2263,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
                 </div>
               </div>
             </div>
-
-            {isGenerating ? (
-              <div className="rounded-[28px] border bg-card p-10 text-center text-muted-foreground">
-                {t.properties_view.ad_generating}
-              </div>
-            ) : !isGenerated ? (
-              <div className="rounded-[28px] border border-dashed bg-card p-10 text-center text-muted-foreground">
-                {t.properties_view.ad_generate_hint}
-              </div>
-            ) : (
-              <div className="overflow-auto rounded-[28px] border bg-muted/20 p-3">
-                <img
-                  src={flyerSvgDataUrl}
-                  alt={t.properties_view.ad_generator_title}
-                  className="block h-auto max-w-full rounded-[28px] border border-slate-200 bg-[#f5f1ea] shadow-sm"
-                  width={pageSpec.widthPx}
-                  height={pageSpec.heightPx}
-                />
-              </div>
-            )}
           </div>
         )}
 
@@ -2253,10 +2277,6 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
           <Button type="button" variant="outline" className="gap-2" onClick={() => void handleSaveToDocuments()} disabled={!property || !isGenerated || isGenerating || isSavingDocument}>
             <FloppyDisk size={16} />
             {t.properties_view.ad_save_to_documents}
-          </Button>
-          <Button type="button" className="gap-2" onClick={() => void handleExport()} disabled={!property || !isGenerated || isGenerating}>
-            {outputFormat === 'pdf' ? <FilePdf size={16} /> : <FileArrowDown size={16} />}
-            {outputFormat === 'pdf' ? t.properties_view.ad_download_pdf : t.properties_view.ad_download_image}
           </Button>
         </DialogFooter>
       </DialogContent>
