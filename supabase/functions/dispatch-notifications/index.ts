@@ -293,43 +293,91 @@ function prepareDeliveryForDispatch(delivery: DeliveryRow, masterTemplate: Maste
   }
 }
 
-// ── WhatsApp via Twilio ───────────────────────────────────────────────────────
-// Required env vars:
+// ── WhatsApp — provider priority: Evolution API → Twilio → Webhook ────────────
+//
+// Evolution API (recommended for WhatsApp Business on your phone):
+//   WHATSAPP_EVOLUTION_URL       — e.g. https://your-server.railway.app
+//   WHATSAPP_EVOLUTION_API_KEY   — API key defined in your Evolution API instance
+//   WHATSAPP_EVOLUTION_INSTANCE  — instance name created in Evolution API
+//
+// Twilio (alternative):
 //   TWILIO_ACCOUNT_SID      — Account SID from twilio.com/console
 //   TWILIO_AUTH_TOKEN       — Auth Token from twilio.com/console
-//   TWILIO_WHATSAPP_FROM    — Sender number, e.g. "whatsapp:+14155238886" (sandbox)
-//                             or your approved Twilio WhatsApp number in production
+//   TWILIO_WHATSAPP_FROM    — Sender number, e.g. "whatsapp:+14155238886"
 //
-// Falls back to WHATSAPP_WEBHOOK_URL if Twilio credentials are not configured.
+// Generic webhook fallback:
+//   WHATSAPP_WEBHOOK_URL / WHATSAPP_WEBHOOK_TOKEN
 
-const WHATSAPP_MAX_TEXT_LENGTH = 1600 // Twilio WhatsApp message limit
+const WHATSAPP_MAX_TEXT_LENGTH = 4096
 
 function normalizeWhatsAppNumber(raw: string): string {
-  const digits = raw.replace(/[^\d+]/g, '')
-  return digits.startsWith('+') ? digits : `+${digits}`
+  // Strip everything except digits — Evolution API and Twilio both accept bare digits
+  return raw.replace(/[^\d]/g, '')
 }
 
-async function sendWhatsApp(delivery: PreparedDelivery): Promise<DispatchResult> {
+// ── Evolution API ─────────────────────────────────────────────────────────────
+
+async function sendViaEvolution(delivery: PreparedDelivery): Promise<DispatchResult> {
+  const baseUrl = Deno.env.get('WHATSAPP_EVOLUTION_URL')?.replace(/\/$/, '')
+  const apiKey = Deno.env.get('WHATSAPP_EVOLUTION_API_KEY')
+  const instance = Deno.env.get('WHATSAPP_EVOLUTION_INSTANCE')
+
+  if (!baseUrl || !apiKey || !instance) {
+    return { success: false, provider: 'evolution', error: 'Evolution API not configured' }
+  }
+
+  const number = normalizeWhatsAppNumber(delivery.recipient_destination)
+  if (!number || number.length < 7) {
+    return { success: false, provider: 'evolution', error: `Invalid WhatsApp number: ${delivery.recipient_destination}` }
+  }
+
+  const text = delivery.rendered_message_text.slice(0, WHATSAPP_MAX_TEXT_LENGTH)
+
+  const response = await fetch(`${baseUrl}/message/sendText/${instance}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': apiKey,
+    },
+    body: JSON.stringify({ number, text }),
+  })
+
+  const responseText = await response.text()
+  let responseData: any = null
+  try { responseData = responseText ? JSON.parse(responseText) : null } catch { responseData = { raw: responseText } }
+
+  if (!response.ok) {
+    const error = responseData?.message || responseData?.error || `Evolution API error ${response.status}`
+    return { success: false, provider: 'evolution', error }
+  }
+
+  return {
+    success: true,
+    provider: 'evolution',
+    providerMessageId: responseData?.key?.id ?? responseData?.messageId ?? undefined,
+  }
+}
+
+// ── Twilio ────────────────────────────────────────────────────────────────────
+
+async function sendViaTwilio(delivery: PreparedDelivery): Promise<DispatchResult> {
   const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID')
   const authToken = Deno.env.get('TWILIO_AUTH_TOKEN')
   const fromNumber = Deno.env.get('TWILIO_WHATSAPP_FROM')
 
-  // Fall back to generic webhook if Twilio is not configured
   if (!accountSid || !authToken || !fromNumber) {
-    return sendViaWebhook(delivery, 'WHATSAPP_WEBHOOK_URL', 'WHATSAPP_WEBHOOK_TOKEN', 'whatsapp-webhook')
+    return { success: false, provider: 'twilio-whatsapp', error: 'Twilio not configured' }
   }
 
-  const toRaw = normalizeWhatsAppNumber(delivery.recipient_destination)
-  if (!toRaw || toRaw.length < 8) {
+  const toDigits = normalizeWhatsAppNumber(delivery.recipient_destination)
+  if (!toDigits || toDigits.length < 7) {
     return { success: false, provider: 'twilio-whatsapp', error: `Invalid WhatsApp number: ${delivery.recipient_destination}` }
   }
 
-  // Twilio requires "whatsapp:" prefix for both From and To
-  const to = toRaw.startsWith('whatsapp:') ? toRaw : `whatsapp:${toRaw}`
+  const to = `whatsapp:+${toDigits}`
   const from = fromNumber.startsWith('whatsapp:') ? fromNumber : `whatsapp:${fromNumber}`
-  const body = delivery.rendered_message_text.slice(0, WHATSAPP_MAX_TEXT_LENGTH)
+  const body = delivery.rendered_message_text.slice(0, 1600)
 
-  // Twilio Messages API uses form-encoded body, Basic auth
   const credentials = btoa(`${accountSid}:${authToken}`)
   const formBody = new URLSearchParams({ From: from, To: to, Body: body })
 
@@ -350,15 +398,27 @@ async function sendWhatsApp(delivery: PreparedDelivery): Promise<DispatchResult>
   try { responseData = responseText ? JSON.parse(responseText) : null } catch { responseData = { raw: responseText } }
 
   if (!response.ok) {
-    const error = responseData?.message || responseData?.error_message || `Twilio error ${response.status} (code ${responseData?.code ?? '?'})`
+    const error = responseData?.message || responseData?.error_message || `Twilio error ${response.status}`
     return { success: false, provider: 'twilio-whatsapp', error }
   }
 
-  return {
-    success: true,
-    provider: 'twilio-whatsapp',
-    providerMessageId: responseData?.sid,
-  }
+  return { success: true, provider: 'twilio-whatsapp', providerMessageId: responseData?.sid }
+}
+
+// ── WhatsApp dispatcher — tries providers in priority order ───────────────────
+
+async function sendWhatsApp(delivery: PreparedDelivery): Promise<DispatchResult> {
+  const hasEvolution = Deno.env.get('WHATSAPP_EVOLUTION_URL') &&
+                       Deno.env.get('WHATSAPP_EVOLUTION_API_KEY') &&
+                       Deno.env.get('WHATSAPP_EVOLUTION_INSTANCE')
+
+  const hasTwilio = Deno.env.get('TWILIO_ACCOUNT_SID') &&
+                    Deno.env.get('TWILIO_AUTH_TOKEN') &&
+                    Deno.env.get('TWILIO_WHATSAPP_FROM')
+
+  if (hasEvolution) return sendViaEvolution(delivery)
+  if (hasTwilio)    return sendViaTwilio(delivery)
+  return sendViaWebhook(delivery, 'WHATSAPP_WEBHOOK_URL', 'WHATSAPP_WEBHOOK_TOKEN', 'whatsapp-webhook')
 }
 
 // ── Channel dispatcher ────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import InspectionsView from './components/views/InspectionsView'
 import BugReportsView from './components/views/BugReportsView'
 import MyBugReportsView from './components/views/MyBugReportsView'
 import ContactMessagesView from './components/views/ContactMessagesView'
+import WhatsAppBotView from './components/views/WhatsAppBotView'
 import AuditLogsView from './components/views/AuditLogsView'
 import AiAssistantView from './components/views/AiAssistantView'
 import { Toaster } from '@/components/ui/sonner'
@@ -247,7 +248,7 @@ function AppContent() {
     ]
 
     const specialTabs = [
-      ...(isPlatformAdmin ? ['contact-messages', 'bug-reports'] : []),
+      ...(isPlatformAdmin ? ['contact-messages', 'bug-reports', 'whatsapp-bot'] : []),
       ...(isAdmin && !isPlatformAdmin ? ['my-bug-reports'] : []),
     ]
 
@@ -397,6 +398,7 @@ function AppContent() {
           {activeTab === 'my-bug-reports' && isAdmin && !isPlatformAdmin && <MyBugReportsView />}
           {activeTab === 'contact-messages' && isPlatformAdmin && <ContactMessagesView />}
           {activeTab === 'bug-reports' && isPlatformAdmin && <BugReportsView />}
+          {activeTab === 'whatsapp-bot' && isPlatformAdmin && <WhatsAppBotView />}
           {activeTab === 'tenant' && canRead('tenant') && <TenantManagementView />}
           {activeTab === 'users-permissions' && canRead('users-permissions') && <UsersPermissionsView />}
           {activeTab === 'access-profiles' && canRead('access-profiles') && <AccessProfilesView readOnly={!canWrite('access-profiles')} />}

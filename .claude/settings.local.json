@@ -23,7 +23,9 @@
       "Bash(awk 'NR>=2390 && NR<=2410 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)",
       "Bash(awk 'NR>=2410 && NR<=2430 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)",
       "Bash(awk 'NR>=2780 && NR<=2815 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)",
-      "Bash(awk 'NR>=2595 && NR<=2660 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)"
+      "Bash(awk 'NR>=2595 && NR<=2660 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)",
+      "Bash(sed -i \"s/^    log\\(/    await log\\(/g\" c:/Users/lucia/repos/RentalPropertyManager/supabase/functions/whatsapp-bot/index.ts)",
+      "Bash(sed -i \"s/^  log\\(/  await log\\(/g\" c:/Users/lucia/repos/RentalPropertyManager/supabase/functions/whatsapp-bot/index.ts)"
     ]
   }
 }
