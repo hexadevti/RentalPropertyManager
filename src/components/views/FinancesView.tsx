@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Transaction, TransactionType, Property, Contract, ServiceProvider, Guest, Owner } from '@/types'
-import helpContent from '@/docs/finances.md?raw'
-import formHelpContent from '@/docs/form-transaction.md?raw'
+
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -404,7 +404,7 @@ export default function FinancesView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{t.finances_view.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Finanças" />
+            <HelpButton docKey="finances" title="Ajuda — Finanças" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{t.finances_view.monthly_cashflow}</p>
         </div>
@@ -431,7 +431,7 @@ export default function FinancesView() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
                 {editingTransaction ? t.finances_view.form.title_edit : t.finances_view.form.title_new}
-                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Transação" />
+                <HelpButton docKey="form-transaction" title="Ajuda — Formulário de Transação" />
               </DialogTitle>
               <DialogDescription>{t.finances_view.form.description}</DialogDescription>
             </DialogHeader>

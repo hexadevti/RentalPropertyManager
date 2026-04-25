@@ -5,8 +5,8 @@ import { useKV } from '@/lib/useSupabaseKV'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/AuthContext'
 import { Property, PropertyPhoto, PropertyICalFeed, ICalProvider, PropertyType, PropertyStatus, Contract, Owner } from '@/types'
-import helpContent from '@/docs/properties.md?raw'
-import formHelpContent from '@/docs/form-property.md?raw'
+
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -874,7 +874,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{t.properties_view.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Propriedades" />
+            <HelpButton docKey="properties" title="Ajuda — Propriedades" />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -925,7 +925,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
               <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                 <DialogTitle className="flex items-center gap-1">
                   {editingProperty ? t.properties_view.form.title_edit : t.properties_view.form.title_new}
-                  <HelpButton content={formHelpContent} title="Ajuda — Formulário de Propriedade" />
+                  <HelpButton docKey="form-property" title="Ajuda — Formulário de Propriedade" />
                 </DialogTitle>
               </DialogHeader>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import helpContent from '@/docs/appointments.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -184,7 +184,7 @@ export default function AppointmentsView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-3xl font-bold tracking-tight">{t.appointments_view.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Agenda" />
+            <HelpButton docKey="appointments" title="Ajuda — Agenda" />
           </div>
         </div>
         <Button onClick={() => {

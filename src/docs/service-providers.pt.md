@@ -7,30 +7,28 @@ Cadastra os fornecedores, técnicos, profissionais autônomos e empresas que pre
 ## Campos do formulário
 
 - **Nome** — nome completo ou razão social
-- **Tipo de serviço** — especialidade do prestador (ex: Elétrica, Hidráulica, Limpeza, Pintura, Geral)
+- **Tipo de serviço** — especialidade do prestador (ex: Elétrica, Hidráulica, Limpeza, Pintura)
 - **Telefone** — contato principal
 - **E-mail** — para envio de solicitações e orçamentos
 - **CPF / CNPJ** — documento fiscal do prestador
-- **Endereço** — localização para emissão de notas fiscais e contratos de serviço
-- **Observações** — notas internas: avaliação de qualidade, preços médios, restrições de acesso etc.
+- **Endereço** — localização para emissão de notas fiscais
+- **Observações** — avaliação de qualidade, preços médios, restrições de acesso etc.
+
+## Importação via CSV
+
+Use o botão **Importar CSV** para importar múltiplos prestadores de uma vez. Campos disponíveis: nome, serviço, telefone, e-mail, documento, endereço e observações.
 
 ## Vínculo com outros módulos
-
-Os prestadores podem ser vinculados a:
 
 | Módulo | Como usar |
 |---|---|
 | **Agenda** | Agendar visita de manutenção com o prestador |
 | **Finanças** | Registrar despesa paga ao prestador |
-| **Contratos** | Referenciar prestador em cláusulas especiais |
+| **Contratos/Reservas** | Referenciar prestador em cláusulas especiais |
 
 ## Busca
 
-Localize prestadores pelo nome ou tipo de serviço na barra de busca.
-
-## Relatório de prestadores
-
-A tela de **Relatórios** exibe os prestadores com maior volume de atendimentos no período selecionado, com custo total por prestador.
+Localize prestadores pelo nome, tipo de serviço, telefone ou e-mail.
 
 ## Dicas
 

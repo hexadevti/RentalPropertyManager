@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import helpContent from '@/docs/form-appointment.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -81,7 +81,7 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1">
             {appointment ? t.appointments_view.form.title_edit : t.appointments_view.form.title_new}
-            <HelpButton content={helpContent} title="Ajuda — Formulário de Compromisso" />
+            <HelpButton docKey="form-appointment" title="Ajuda — Formulário de Compromisso" />
           </DialogTitle>
           <DialogDescription>
             {appointment ? 'Edite as informações do compromisso' : 'Preencha os dados do novo compromisso'}

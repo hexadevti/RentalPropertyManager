@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Guest, Owner, Property, ServiceProvider, Task, TaskAssigneeType, TaskPriority, TaskStatus } from '@/types'
-import helpContent from '@/docs/tasks.md?raw'
-import formHelpContent from '@/docs/form-task.md?raw'
+
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -177,7 +177,7 @@ export default function TasksView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{tv.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Tarefas" />
+            <HelpButton docKey="tasks" title="Ajuda — Tarefas" />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -196,7 +196,7 @@ export default function TasksView() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
                 {editingTask ? tv.form.title_edit : tv.form.title_new}
-                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Tarefa" />
+                <HelpButton docKey="form-task" title="Ajuda — Formulário de Tarefa" />
               </DialogTitle>
               <DialogDescription>{editingTask ? tv.form.updated_success : tv.form.created_success}</DialogDescription>
             </DialogHeader>

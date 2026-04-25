@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Brain, PaperPlaneTilt, Sparkle, Trash, WarningCircle } from '@phosphor-icons/react'
-import helpContent from '@/docs/ai-assistant.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -190,7 +190,7 @@ export default function AiAssistantView() {
             <Brain size={28} weight="duotone" className="text-primary" />
             <div className="flex items-center gap-1">
               <h2 className="text-3xl font-bold tracking-tight">Assistente IA</h2>
-              <HelpButton content={helpContent} title="Ajuda — Assistente IA" />
+              <HelpButton docKey="ai-assistant" title="Ajuda — Assistente IA" />
             </div>
           </div>
           <p className="text-muted-foreground mt-1">

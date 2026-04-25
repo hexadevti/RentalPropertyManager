@@ -23,7 +23,11 @@ Endereço do prestador ou empresa — para correspondências e contratos formais
 ## Observações
 
 Use este campo para:
-- Nota de avaliação após cada serviço (ex: *⭐⭐⭐⭐ — bom atendimento*)
+- Nota de avaliação após cada serviço
 - Preços médios praticados
 - Restrições de horário ou acesso
 - Contato de um responsável específico
+
+## Importação via CSV
+
+Para cadastrar vários prestadores de uma vez, use **Importar CSV** na tela de Prestadores.

@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useKV } from '@/lib/useSupabaseKV'
-import helpContent from '@/docs/contract-templates.md?raw'
-import formHelpContent from '@/docs/form-template.md?raw'
+
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -500,7 +500,7 @@ export default function ContractTemplatesView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-bold">Templates de Contrato</h2>
-            <HelpButton content={helpContent} title="Ajuda — Templates de Contrato" />
+            <HelpButton docKey="contract-templates" title="Ajuda — Templates de Contrato" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             Gerencie modelos de contratos reutilizáveis
@@ -524,7 +524,7 @@ export default function ContractTemplatesView() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-1">
                   {editingTemplate ? 'Editar Template' : 'Novo Template'}
-                  <HelpButton content={formHelpContent} title="Ajuda — Formulário de Template" />
+                  <HelpButton docKey="form-template" title="Ajuda — Formulário de Template" />
                 </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">

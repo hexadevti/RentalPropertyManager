@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Contract, Property, Guest, Appointment, ServiceProvider, Task } from '@/types'
-import helpContent from '@/docs/calendar.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -215,7 +215,7 @@ export default function CalendarView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{t.tabs.calendar}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Calendário" />
+            <HelpButton docKey="calendar" title="Ajuda — Calendário" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{cv.subtitle}</p>
           <div className="flex items-center gap-4 mt-2">

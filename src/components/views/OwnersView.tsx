@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Owner, Property, GuestDocument } from '@/types'
-import helpContent from '@/docs/owners.md?raw'
-import formHelpContent from '@/docs/form-owner.md?raw'
+
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -249,7 +249,7 @@ export default function OwnersView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{labels.title}</h2>
-            <HelpButton content={helpContent} title={labels.title} />
+            <HelpButton docKey="owners" title={labels.title} />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{labels.subtitle}</p>
         </div>
@@ -273,7 +273,7 @@ export default function OwnersView() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
                 {editingOwner ? labels.title_edit : labels.title_new}
-                <HelpButton content={formHelpContent} title={labels.title_edit} />
+                <HelpButton docKey="form-owner" title={labels.title_edit} />
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">

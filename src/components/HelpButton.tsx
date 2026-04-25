@@ -4,14 +4,24 @@ import remarkGfm from 'remark-gfm'
 import { Question } from '@phosphor-icons/react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useLanguage } from '@/lib/LanguageContext'
+import { HELP_DOCS, type HelpDocKey } from '@/lib/helpDocs'
 
 interface HelpButtonProps {
-  content: string
+  /** Use docKey for automatic language selection (preferred). */
+  docKey?: HelpDocKey
+  /** Fallback: direct PT content (legacy, used when docKey is not set). */
+  content?: string
   title?: string
 }
 
-export function HelpButton({ content, title = 'Ajuda' }: HelpButtonProps) {
+export function HelpButton({ docKey, content, title = 'Ajuda' }: HelpButtonProps) {
   const [open, setOpen] = useState(false)
+  const { language } = useLanguage()
+
+  const resolvedContent = docKey
+    ? (language === 'en' ? HELP_DOCS[docKey].en : HELP_DOCS[docKey].pt)
+    : (content ?? '')
 
   return (
     <>
@@ -20,7 +30,7 @@ export function HelpButton({ content, title = 'Ajuda' }: HelpButtonProps) {
         size="icon"
         className="h-7 w-7 text-muted-foreground hover:text-foreground"
         onClick={() => setOpen(true)}
-        title="Ajuda"
+        title={language === 'en' ? 'Help' : 'Ajuda'}
         type="button"
       >
         <Question size={17} weight="duotone" />
@@ -66,7 +76,7 @@ export function HelpButton({ content, title = 'Ajuda' }: HelpButtonProps) {
                 td: ({ children }) => <td className="px-4 py-2.5 text-sm text-foreground/80">{children}</td>,
               }}
             >
-              {content}
+              {resolvedContent}
             </ReactMarkdown>
           </div>
         </DialogContent>

@@ -11,48 +11,45 @@ Registra e analisa todas as movimentações financeiras do portfólio — receit
 | **Receita** | Aluguel recebido, taxa de condomínio repassada, multa por atraso |
 | **Despesa** | Manutenção, IPTU, seguro, comissão de imobiliária |
 
-## Categorias disponíveis
-
-- Aluguel
-- Manutenção
-- IPTU / Taxas
-- Seguro
-- Condomínio
-- Comissão
-- Outros
-
 ## Campos do formulário
 
 - **Tipo** — Receita ou Despesa
-- **Valor** — montante em reais
-- **Categoria** — classificação da transação
+- **Valor** — montante
+- **Categoria** — classificação livre da transação (ex: Aluguel, Manutenção, IPTU)
 - **Data** — data de competência ou pagamento
 - **Descrição** — detalhamento livre
 - **Propriedade** *(opcional)* — vincula a transação a um imóvel específico
-- **Contrato** *(opcional)* — vincula ao contrato correspondente
+- **Contrato/Reserva** *(opcional)* — vincula ao contrato correspondente
 - **Prestador de serviço** *(opcional)* — para despesas com fornecedores
+
+## Importação via CSV
+
+Use o botão **Importar CSV** para importar transações em lote. Campos: tipo (income/expense/receita/despesa), valor, categoria, descrição, data. Formatos de data aceitos: `AAAA-MM-DD` ou `DD/MM/AAAA`.
 
 ## Filtros disponíveis
 
-- **Mês atual / período personalizado** — selecione o intervalo de datas
+- **Mês / período personalizado** — selecione o intervalo de datas
 - **Tipo** — Receita, Despesa ou Todos
 - **Categoria** — filtre por tipo de despesa/receita
-- **Propriedade** — veja só as movimentações de um imóvel
-- **Contrato** — movimentações vinculadas a um contrato específico
+- **Propriedade** — movimentações de um imóvel específico
+- **Contrato/Reserva** — movimentações vinculadas a um contrato
 - **Hóspede** — transações associadas a um inquilino
 - **Prestador** — despesas com um fornecedor específico
+- **Proprietário** — transações vinculadas às propriedades de um proprietário
 
 ## Resumo financeiro
 
-O painel de resumo exibe para o período selecionado:
+O painel exibe para o período selecionado:
 - **Total de receitas**
 - **Total de despesas**
 - **Saldo líquido** (receitas − despesas)
 
+Transações são agrupadas por mês, com subtotais por período.
+
 ## Dicas
 
-> Sempre vincule a transação ao contrato correspondente para que os relatórios de ocupação e rentabilidade por propriedade sejam precisos.
-
-> Use a categoria **Manutenção** para despesas de reparo — elas são destacadas no relatório de gastos por categoria.
+> Sempre vincule a transação ao contrato correspondente para que os relatórios de rentabilidade por propriedade sejam precisos.
 
 > O **Assistente IA** pode responder perguntas como "Qual o saldo do mês?" ou "Quais as maiores despesas?" com base nestes registros.
+
+> Use categorias padronizadas para facilitar análise nos relatórios.

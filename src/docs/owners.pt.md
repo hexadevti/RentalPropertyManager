@@ -12,8 +12,7 @@ Gerencia o cadastro dos proprietários dos imóveis — pessoas físicas ou jur�
 - **Telefone** — contato direto
 
 ### Documentação
-- **Tipo de documento** — CPF (pessoa física) ou CNPJ (pessoa jurídica)
-- **Número do documento** — cadastro fiscal para emissão de documentos
+Adicione múltiplos documentos ao proprietário (CPF, CNPJ, RG, passaporte etc.), cada um com tipo e número.
 
 ### Dados pessoais (pessoa física)
 - **Nacionalidade** — brasileira ou estrangeira
@@ -21,7 +20,7 @@ Gerencia o cadastro dos proprietários dos imóveis — pessoas físicas ou jur�
 - **Profissão** — ocupação atual
 
 ### Endereço
-- Endereço completo para correspondências e documentos formais
+Endereço completo para correspondências e documentos formais.
 
 ### Observações
 Notas internas sobre o proprietário, acordos de repasse, preferências de contato etc.
@@ -29,6 +28,10 @@ Notas internas sobre o proprietário, acordos de repasse, preferências de conta
 ## Propriedades vinculadas
 
 Cada proprietário exibe a lista de imóveis a ele associados. O vínculo é feito no cadastro da **Propriedade**, na seção "Proprietários vinculados".
+
+## Importação via CSV
+
+Use o botão **Importar CSV** para importar múltiplos proprietários de uma vez. Campos disponíveis: nome, e-mail, telefone, endereço, nacionalidade, estado civil, profissão, tipo e número de documento.
 
 ## Busca
 
@@ -38,6 +41,6 @@ Localize proprietários pelo nome, e-mail ou documento usando a barra de busca.
 
 > Um imóvel pode ter múltiplos proprietários (copropriedade). Cada um aparece separadamente nesta tela.
 
-> Os dados do proprietário são usados em **modelos de contrato** para preenchimento automático das partes.
+> Os dados do proprietário são usados em **modelos de contrato/reserva** para preenchimento automático das partes.
 
 > Use o campo de observações para registrar percentuais de propriedade em caso de copropriedade.

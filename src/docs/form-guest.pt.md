@@ -8,6 +8,10 @@
 - **Nacionalidade** — relevante para contratos com estrangeiros
 - **CPF / Documento** — documento de identificação principal
 
+## Documentos
+
+Adicione múltiplos documentos ao hóspede (RG, CPF, passaporte, CNH etc.), cada um com tipo e número.
+
 ## Endereço
 
 Endereço completo para fins contratuais e de cobrança.
@@ -16,16 +20,16 @@ Endereço completo para fins contratuais e de cobrança.
 
 Notas internas sobre o hóspede — não aparecem em documentos.
 
-## Fiadores
+## Fiadores (Sponsors)
 
-Adicione pessoas que garantem o pagamento em caso de inadimplência. Os fiadores aparecerão automaticamente nos modelos de contrato que usam a variável `{fiadores}`.
+Adicione pessoas que garantem o pagamento em caso de inadimplência. Cada fiador tem nome, e-mail, telefone e documentos próprios.
 
-> Cada fiador é um hóspede cadastrado no sistema. Cadastre o fiador primeiro se ainda não existir.
+> Os fiadores aparecem automaticamente nos modelos de contrato que usam a variável correspondente.
 
 ## Dependentes
 
 Adicione familiares ou acompanhantes que residem junto. Útil para controle de ocupantes e documentação.
 
-## Documentos vinculados
+## Importação via CSV
 
-Anexe arquivos ao hóspede (RG, CPF, comprovante de renda etc.) usando a aba de documentos. Os arquivos são armazenados com segurança na nuvem.
+Para cadastrar vários hóspedes de uma vez, use **Importar CSV** na tela de Hóspedes. Campos disponíveis: nome, e-mail, telefone, endereço, nacionalidade, estado civil, profissão, data de nascimento, tipo e número de documento.

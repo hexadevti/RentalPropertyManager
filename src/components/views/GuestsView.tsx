@@ -12,7 +12,7 @@ import { useLanguage } from '@/lib/LanguageContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 import { format } from 'date-fns'
 import GuestDialogForm from '@/components/GuestDialogForm'
-import helpContent from '@/docs/guests.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 
 export default function GuestsView() {
@@ -159,7 +159,7 @@ export default function GuestsView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.guests_view.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Hóspedes" />
+            <HelpButton docKey="guests" title="Ajuda — Hóspedes" />
           </div>
         </div>
         <div className="flex gap-2">

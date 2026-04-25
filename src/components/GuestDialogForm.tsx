@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import helpContent from '@/docs/form-guest.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -404,7 +404,7 @@ export default function GuestDialogForm({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1">
             {editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}
-            <HelpButton content={helpContent} title="Ajuda â€” FormulÃ¡rio de HÃ³spede" />
+            <HelpButton docKey="form-guest" title="Ajuda â€” FormulÃ¡rio de HÃ³spede" />
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

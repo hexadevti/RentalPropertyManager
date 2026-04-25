@@ -8,10 +8,9 @@
 
 ## Documentação
 
-- **Tipo de documento** — CPF (pessoa física) ou CNPJ (pessoa jurídica)
-- **Número do documento** — cadastro fiscal; usado em documentos formais
+Adicione múltiplos documentos ao proprietário (CPF, CNPJ, RG, passaporte etc.), cada um com tipo e número.
 
-> Você pode adicionar múltiplos documentos clicando em **Adicionar documento**.
+> Clique em **Adicionar documento** para incluir mais de um documento.
 
 ## Dados pessoais
 
@@ -28,3 +27,7 @@ Endereço completo para correspondências e emissão de documentos formais.
 Notas internas: acordos de repasse, percentuais de copropriedade, preferências de contato etc.
 
 > Para vincular o proprietário a um imóvel, edite a **Propriedade** e adicione este proprietário na seção "Proprietários vinculados".
+
+## Importação via CSV
+
+Para cadastrar vários proprietários de uma vez, use **Importar CSV** na tela de Proprietários.

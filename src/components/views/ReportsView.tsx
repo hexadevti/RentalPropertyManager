@@ -1,6 +1,6 @@
 import { useKV } from '@/lib/useSupabaseKV'
 import { Transaction, Property, Task, ServiceProvider, Guest, Contract, Appointment, Owner } from '@/types'
-import helpContent from '@/docs/reports.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -233,7 +233,7 @@ export default function ReportsView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{rv.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Relatórios" />
+            <HelpButton docKey="reports" title="Ajuda — Relatórios" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{rv.subtitle}</p>
         </div>

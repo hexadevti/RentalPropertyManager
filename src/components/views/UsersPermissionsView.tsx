@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
-import helpContent from '@/docs/users-permissions.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -696,7 +696,7 @@ export default function UsersPermissionsView() {
       <div>
         <div className="flex items-center gap-1">
           <h2 className="text-3xl font-bold tracking-tight">{t.tabs['users-permissions']}</h2>
-          <HelpButton content={helpContent} title={t.users_permissions_view.help_title} />
+          <HelpButton docKey="users-permissions" title={t.users_permissions_view.help_title} />
         </div>
         <p className="text-muted-foreground mt-1">
           {t.users_permissions_view.subtitle}

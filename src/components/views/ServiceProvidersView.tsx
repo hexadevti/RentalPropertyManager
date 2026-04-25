@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { MagnifyingGlass, Plus, Pencil, Trash, Wrench, Envelope, Phone, Briefcase, ArrowsClockwise, UploadSimple, DownloadSimple } from '@phosphor-icons/react'
-import helpContent from '@/docs/service-providers.md?raw'
-import formHelpContent from '@/docs/form-service-provider.md?raw'
+
+
 import { HelpButton } from '@/components/HelpButton'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -215,7 +215,7 @@ export default function ServiceProvidersView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-3xl font-bold tracking-tight text-foreground">{t.service_providers_view.title}</h2>
-            <HelpButton content={helpContent} title={t.service_providers_view.help_title} />
+            <HelpButton docKey="service-providers" title={t.service_providers_view.help_title} />
           </div>
         </div>
         <div className="flex gap-2">
@@ -241,7 +241,7 @@ export default function ServiceProvidersView() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
                 {editingProvider ? t.service_providers_view.form.title_edit : t.service_providers_view.form.title_new}
-                <HelpButton content={formHelpContent} title={t.service_providers_view.form.help_title} />
+                <HelpButton docKey="form-service-provider" title={t.service_providers_view.form.help_title} />
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
