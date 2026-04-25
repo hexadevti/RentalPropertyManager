@@ -237,7 +237,7 @@ function AppContent() {
   const canWrite = (roleId: AccessRoleId) => hasAccess(roleId, 'write')
 
   useEffect(() => {
-    const accessibleTabs = [
+    const roleBasedTabs = [
       ...(Object.entries(APP_TABS_BY_ACCESS_ROLE) as Array<[AccessRoleId, string]>)
         .filter(([roleId]) => canRead(roleId))
         .map(([, tab]) => tab),
@@ -246,11 +246,18 @@ function AppContent() {
         .map(({ tab }) => tab),
     ]
 
+    const specialTabs = [
+      ...(isPlatformAdmin ? ['contact-messages', 'bug-reports'] : []),
+      ...(isAdmin && !isPlatformAdmin ? ['my-bug-reports'] : []),
+    ]
+
+    const accessibleTabs = [...new Set([...roleBasedTabs, ...specialTabs])]
+
     if (!accessibleTabs.length) return
     if (!accessibleTabs.includes(activeTab)) {
       setActiveTab(accessibleTabs[0])
     }
-  }, [activeTab, hasAccess])
+  }, [activeTab, hasAccess, isAdmin, isPlatformAdmin])
 
   if (isAuthCallbackRoute) {
     return <AuthCallbackPage />
