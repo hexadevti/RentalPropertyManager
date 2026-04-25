@@ -7,17 +7,21 @@ import {
   FileText, Wrench, CheckCircle, ArrowRight, Globe, Star, ShieldCheck,
   Rocket, Lightning, Handshake, IdentificationCard, Bell, Lock,
   CaretDown, ClipboardText, FolderOpen, Bug, ClockCounterClockwise,
-  UserFocus, PushPin,
+  UserFocus, PushPin, Brain, WhatsappLogo, ArrowsClockwise, UploadSimple,
+  Sparkle, ChatCircleText, Robot, Database, MagicWand,
 } from '@phosphor-icons/react'
 
 interface HomePageProps {
   onLoginClick: () => void
+  onDemoClick?: () => void
+  isDemoLoggingIn?: boolean
 }
 
 const content = {
   pt: {
     nav: {
       features: 'Recursos',
+      ai: 'IA & Automação',
       latest: 'Novidades',
       howItWorks: 'Como funciona',
       pricing: 'Planos',
@@ -25,108 +29,178 @@ const content = {
       cta: 'Começar grátis',
     },
     hero: {
-      badge: 'Gestão de Aluguel Simplificada',
+      badge: 'Gestão com Inteligência Artificial',
       title: 'Gerencie seus imóveis com',
-      titleHighlight: 'inteligência e praticidade',
-      subtitle: 'Do cadastro de hóspedes à geração de contratos, vistorias digitais, documentos, auditoria e controle financeiro avançado — tudo em um só lugar.',
+      titleHighlight: 'IA e automação real',
+      subtitle: 'Assistente Claude integrado, bot WhatsApp, sincronização com Airbnb e Booking.com, importação em massa e notificações automáticas — tudo em um só sistema.',
       cta: 'Começar gratuitamente',
-      demo: 'Ver demonstração',
+      demo: 'Ver como funciona',
       stats: [
-        { value: '360°', label: 'Gestão integrada' },
-        { value: '24/7', label: 'Dados organizados' },
-        { value: '3×', label: 'Mais produtividade' },
+        { value: 'Claude', label: 'AI integrado' },
+        { value: 'WhatsApp', label: 'Bot nativo' },
+        { value: 'iCal', label: 'Sync Airbnb/Booking' },
+      ],
+    },
+    ai: {
+      badge: 'Inteligência Artificial',
+      title: 'O primeiro sistema de gestão de imóveis',
+      titleHighlight: 'verdadeiramente inteligente',
+      subtitle: 'Não é só um chatbot. É um assistente que consulta seus dados em tempo real, raciocina sobre eles e responde em linguagem natural — via web ou WhatsApp.',
+      items: [
+        {
+          icon: Brain,
+          title: 'Assistente IA (Claude)',
+          description: 'Faça perguntas como "Qual o saldo do mês?" ou "Quais contratos vencem em 30 dias?". O assistente consulta seu banco de dados dinamicamente e responde com precisão.',
+          highlight: true,
+        },
+        {
+          icon: WhatsappLogo,
+          title: 'Bot WhatsApp',
+          description: 'Acesse o assistente pelo WhatsApp. Usuários identificados pelo número de telefone têm acesso direto ao portfólio via chat — sem abrir o sistema.',
+          highlight: false,
+        },
+        {
+          icon: Database,
+          title: 'Consultas dinâmicas',
+          description: 'Powered by tool use — o Claude decide quais dados buscar, faz múltiplas queries simultâneas e cruza informações de tabelas diferentes para responder.',
+          highlight: false,
+        },
+        {
+          icon: Bell,
+          title: 'Notificações automáticas',
+          description: 'Regras configuráveis por trigger: contratos vencendo, pagamentos, vistorias, tarefas. Entrega via email, SMS ou WhatsApp com templates personalizáveis.',
+          highlight: false,
+        },
+      ],
+      chatPreview: [
+        { role: 'user', text: 'Quais propriedades estão disponíveis agora?' },
+        { role: 'bot', text: '3 imóveis disponíveis: Apto 203 Centro, Casa Vila Nova e Quarto 01. Deseja criar um contrato para algum deles?' },
+        { role: 'user', text: 'Qual o saldo financeiro de abril?' },
+        { role: 'bot', text: 'Abril: R$ 8.400 em receitas, R$ 1.250 em despesas. Saldo líquido: *R$ 7.150*. Maior categoria de receita: Aluguel mensal.' },
+      ],
+    },
+    integrations: {
+      badge: 'Integrações',
+      title: 'Conectado às principais',
+      titleHighlight: 'plataformas de reservas',
+      subtitle: 'Sincronize reservas do Airbnb, Booking.com e outros via iCal. Importe em massa via CSV. Envie notificações via Twilio.',
+      items: [
+        {
+          icon: ArrowsClockwise,
+          title: 'Sync iCal — Airbnb & Booking',
+          description: 'Cadastre os links iCal das suas propriedades e importe reservas automaticamente. Cada propriedade também gera um link público para exportar disponibilidade.',
+        },
+        {
+          icon: UploadSimple,
+          title: 'Importação CSV em massa',
+          description: 'Importe propriedades, hóspedes, proprietários, contratos, finanças e prestadores via CSV. Templates prontos com preview antes de confirmar.',
+        },
+        {
+          icon: WhatsappLogo,
+          title: 'Notificações WhatsApp (Twilio)',
+          description: 'Envio automático de alertas via WhatsApp para usuários com telefone cadastrado. Sem necessidade de conta Business API — funciona com sandbox Twilio.',
+        },
+        {
+          icon: Bell,
+          title: 'Email & SMS',
+          description: 'Notificações via Resend (email) e SMS via webhook. Templates HTML e texto com tokens dinâmicos do contrato, tarefa, hóspede e mais.',
+        },
       ],
     },
     features: {
       title: 'Tudo que você precisa para',
       titleHighlight: 'gerenciar seus imóveis',
-      subtitle: 'Uma plataforma completa para simplificar cada etapa da gestão de propriedades.',
+      subtitle: 'Uma plataforma completa com 18 módulos integrados.',
       items: [
         {
           icon: Buildings,
           title: 'Portfólio de Imóveis',
-          description: 'Cadastre quartos, apartamentos e casas com ambientes, mobiliário, itens de vistoria e status operacional.',
+          description: 'Quartos, apartamentos e casas com fotos, ambientes, mobiliário, itens de vistoria, mapa e links iCal por propriedade.',
         },
         {
           icon: Users,
-          title: 'Gestão de Hóspedes',
-          description: 'Cadastro completo com documentos, histórico de contratos e informações pessoais.',
+          title: 'Hóspedes & Proprietários',
+          description: 'Cadastro completo com documentos múltiplos, fiadores, dependentes e histórico de contratos.',
         },
         {
           icon: FileText,
           title: 'Contratos Inteligentes',
-          description: 'Templates customizáveis com variáveis automáticas. Gere PDFs profissionais em segundos.',
+          description: 'Templates com variáveis XPath automáticas. Gere PDFs profissionais em múltiplos idiomas com um clique.',
         },
         {
           icon: CurrencyCircleDollar,
           title: 'Controle Financeiro',
-          description: 'Receitas, despesas e filtros por mês, contrato, hóspede, proprietário, propriedade, categoria e prestador.',
+          description: 'Receitas e despesas com filtros por período, contrato, hóspede, proprietário, propriedade e prestador.',
         },
         {
           icon: CalendarBlank,
-          title: 'Calendário de Reservas',
-          description: 'Visualize ocupações, vencimentos e compromissos em um calendário interativo.',
+          title: 'Calendário Integrado',
+          description: 'Ocupações, vencimentos, compromissos e tarefas em um calendário interativo com mini-calendários por imóvel.',
         },
         {
           icon: ChartBar,
-          title: 'Relatórios Detalhados',
-          description: 'Análises de desempenho, taxa de ocupação, receita por imóvel e muito mais.',
-        },
-        {
-          icon: Wrench,
-          title: 'Prestadores de Serviço',
-          description: 'Gerencie contatos de manutenção, limpeza e reparos vinculados a cada imóvel.',
-        },
-        {
-          icon: ShieldCheck,
-          title: 'Multi-usuário',
-          description: 'Convide sua equipe, defina permissões por perfil e colabore com segurança.',
+          title: 'Relatórios Avançados',
+          description: 'Taxa de ocupação, receita por imóvel, tendência financeira, prestadores mais utilizados e hóspedes ativos.',
         },
         {
           icon: ClipboardText,
           title: 'Vistoria Digital',
-          description: 'Registre vistorias por ambiente, compare diferenças e gere tarefas a partir de problemas encontrados.',
+          description: 'Checklist por ambiente, comparação entre vistorias, geração automática de tarefas a partir de danos identificados.',
         },
         {
           icon: FolderOpen,
-          title: 'Central de Documentos',
-          description: 'Envie, visualize, baixe e organize documentos por propriedade, contrato, hóspede, proprietário ou geral.',
+          title: 'Documentos',
+          description: 'Upload via drag-and-drop, paste ou clique. Vincule a contratos, hóspedes, proprietários ou propriedades.',
+        },
+        {
+          icon: Wrench,
+          title: 'Prestadores & Agenda',
+          description: 'Gestão de fornecedores vinculados a despesas e compromissos, com histórico por prestador.',
+        },
+        {
+          icon: ShieldCheck,
+          title: 'Permissões Granulares',
+          description: 'Perfis de acesso com permissão por módulo (none/read/write). Convite por email, monitoramento de sessões.',
         },
         {
           icon: ClockCounterClockwise,
-          title: 'Auditoria e Presença',
-          description: 'Acompanhe login, logout, criações, alterações, exclusões e usuários online em tempo quase real.',
+          title: 'Auditoria Completa',
+          description: 'Log imutável de login, logout, criações, alterações e exclusões com filtros por usuário, entidade e período.',
         },
         {
-          icon: Bug,
-          title: 'Reporte de Bugs',
-          description: 'Usuários reportam problemas com descrição, tela, registro e print colado do clipboard.',
+          icon: Bell,
+          title: 'Notificações Automáticas',
+          description: 'Regras por trigger com entrega via email, SMS ou WhatsApp. Templates HTML multilíngue com tokens dinâmicos.',
         },
       ],
     },
     latest: {
-      title: 'Novas ferramentas para operação profissional',
-      subtitle: 'Funcionalidades pensadas para reduzir retrabalho, aumentar rastreabilidade e dar mais controle ao administrador.',
+      title: 'As últimas novidades do sistema',
+      subtitle: 'Funcionalidades lançadas recentemente para aumentar produtividade e automação.',
       items: [
         {
-          icon: ClipboardText,
-          title: 'Vistorias vinculadas',
-          description: 'Entrada, periódica, manutenção e saída podem ser acompanhadas em cards relacionados, comparando diferenças entre vistorias.',
+          icon: Brain,
+          title: 'Assistente IA com Claude',
+          description: 'Tool use real — o Claude consulta o banco dinamicamente para cada pergunta, sem limites de registros pré-carregados.',
+          isNew: true,
         },
         {
-          icon: FolderOpen,
-          title: 'Documentos com storage',
-          description: 'Upload, download, preview, colar do clipboard e drag and drop com vínculos e filtros por entidade.',
+          icon: WhatsappLogo,
+          title: 'Bot WhatsApp',
+          description: 'Chat com o assistente IA pelo WhatsApp. Histórico de conversa, comandos e identificação por número de telefone.',
+          isNew: true,
         },
         {
-          icon: UserFocus,
-          title: 'Usuários online',
-          description: 'Veja quem está acessando, tela atual, atividade, horário, IP, browser e hostname dentro do tenant.',
+          icon: ArrowsClockwise,
+          title: 'Sincronização iCal',
+          description: 'Importe reservas do Airbnb e Booking.com via iCal. Exporte disponibilidade de cada propriedade com link público.',
+          isNew: true,
         },
         {
-          icon: PushPin,
-          title: 'Menu personalizável',
-          description: 'Fixe itens no sidebar, reorganize por drag and drop e mantenha a preferência salva por usuário.',
+          icon: UploadSimple,
+          title: 'Importação CSV universal',
+          description: 'Importe em massa qualquer entidade do sistema: imóveis, hóspedes, proprietários, contratos, finanças e prestadores.',
+          isNew: false,
         },
       ],
     },
@@ -137,17 +211,17 @@ const content = {
         {
           number: '01',
           title: 'Crie sua conta',
-          description: 'Cadastre-se com e-mail e senha ou Google. Configure o nome da sua empresa e está pronto.',
+          description: 'Cadastre-se com e-mail ou GitHub. Configure o nome da sua empresa e convide sua equipe.',
         },
         {
           number: '02',
-          title: 'Cadastre seus imóveis',
-          description: 'Adicione propriedades, proprietários, hóspedes, ambientes, mobília e itens de vistoria.',
+          title: 'Importe seus dados',
+          description: 'Use os templates CSV para importar propriedades, hóspedes e contratos existentes em minutos.',
         },
         {
           number: '03',
-          title: 'Gerencie tudo em um lugar',
-          description: 'Contratos, finanças, tarefas, documentos, vistorias, auditoria e agenda centralizados para economizar tempo.',
+          title: 'Automatize com IA',
+          description: 'Configure o bot WhatsApp, ative notificações automáticas e use o assistente Claude para consultas em tempo real.',
         },
       ],
     },
@@ -182,12 +256,13 @@ const content = {
           features: [
             'Imóveis ilimitados',
             'Até 5 usuários',
-            'Templates de contratos personalizados',
-            'Relatórios avançados',
-            'Calendário de reservas',
+            'Assistente IA (Claude)',
+            'Bot WhatsApp',
+            'Sync iCal (Airbnb/Booking)',
+            'Importação CSV',
+            'Templates de contratos',
+            'Notificações automáticas',
             'Vistoria digital',
-            'Documentos vinculados',
-            'Gestão de prestadores',
             'Suporte prioritário',
           ],
           cta: 'Assinar agora',
@@ -218,139 +293,210 @@ const content = {
       title: 'O que dizem nossos clientes',
       items: [
         {
-          quote: 'Reduzi o tempo de gestão dos meus imóveis em mais da metade. Os contratos automáticos são um divisor de águas.',
+          quote: 'O bot WhatsApp mudou tudo. Verifico contratos e saldos pelo celular sem nem abrir o sistema.',
           author: 'Mariana S.',
           role: 'Proprietária de 12 imóveis',
         },
         {
-          quote: 'A equipe agora trabalha de forma sincronizada. Cada um sabe o que precisa fazer sem ligações desnecessárias.',
+          quote: 'Importamos 80 contratos via CSV em 20 minutos. O que levaria dias ficou pronto antes do almoço.',
           author: 'Carlos M.',
           role: 'Administradora Imobiliária',
         },
         {
-          quote: 'Finalmente um sistema que entende o mercado de aluguel. Simples, rápido e completo.',
+          quote: 'A sincronização com Airbnb e Booking economiza horas por semana. As reservas chegam automáticas.',
           author: 'Ana P.',
           role: 'Gestora de 30 unidades',
         },
       ],
     },
     footer: {
-      tagline: 'Gestão de imóveis simples e inteligente.',
+      tagline: 'Gestão de imóveis com inteligência artificial.',
       rights: 'Todos os direitos reservados.',
     },
   },
   en: {
     nav: {
       features: 'Features',
-      latest: 'What’s new',
+      ai: 'AI & Automation',
+      latest: 'What\'s new',
       howItWorks: 'How it works',
       pricing: 'Pricing',
       login: 'Sign in',
       cta: 'Get started free',
     },
     hero: {
-      badge: 'Simplified Rental Management',
+      badge: 'Property Management with AI',
       title: 'Manage your properties with',
-      titleHighlight: 'intelligence and ease',
-      subtitle: 'From guest registration to contracts, digital inspections, documents, audit logs, and advanced financial control — all in one place.',
+      titleHighlight: 'real AI and automation',
+      subtitle: 'Claude AI assistant, WhatsApp bot, Airbnb & Booking.com sync, bulk CSV import and automatic notifications — all in one system.',
       cta: 'Get started for free',
-      demo: 'See demo',
+      demo: 'See how it works',
       stats: [
-        { value: '360°', label: 'Integrated management' },
-        { value: '24/7', label: 'Organized data' },
-        { value: '3×', label: 'More productive' },
+        { value: 'Claude', label: 'AI integrated' },
+        { value: 'WhatsApp', label: 'Native bot' },
+        { value: 'iCal', label: 'Airbnb/Booking sync' },
+      ],
+    },
+    ai: {
+      badge: 'Artificial Intelligence',
+      title: 'The first property management system',
+      titleHighlight: 'truly powered by AI',
+      subtitle: 'It\'s not just a chatbot. It\'s an assistant that queries your live data, reasons about it and responds in natural language — via web or WhatsApp.',
+      items: [
+        {
+          icon: Brain,
+          title: 'AI Assistant (Claude)',
+          description: 'Ask questions like "What\'s this month\'s balance?" or "Which contracts expire in 30 days?". The assistant queries your database dynamically and answers accurately.',
+          highlight: true,
+        },
+        {
+          icon: WhatsappLogo,
+          title: 'WhatsApp Bot',
+          description: 'Access the assistant via WhatsApp. Users identified by phone number get direct portfolio access via chat — without opening the system.',
+          highlight: false,
+        },
+        {
+          icon: Database,
+          title: 'Dynamic queries',
+          description: 'Powered by tool use — Claude decides which data to fetch, runs multiple queries and cross-references tables to answer accurately.',
+          highlight: false,
+        },
+        {
+          icon: Bell,
+          title: 'Automatic notifications',
+          description: 'Configurable rules by trigger: expiring contracts, payments, inspections, tasks. Delivered via email, SMS or WhatsApp with custom templates.',
+          highlight: false,
+        },
+      ],
+      chatPreview: [
+        { role: 'user', text: 'Which properties are available right now?' },
+        { role: 'bot', text: '3 properties available: Apt 203 Downtown, Villa Nova House and Room 01. Want to create a contract for any of them?' },
+        { role: 'user', text: 'What\'s the financial balance for April?' },
+        { role: 'bot', text: 'April: $8,400 in revenue, $1,250 in expenses. Net balance: *$7,150*. Top income category: Monthly rent.' },
+      ],
+    },
+    integrations: {
+      badge: 'Integrations',
+      title: 'Connected to the leading',
+      titleHighlight: 'booking platforms',
+      subtitle: 'Sync bookings from Airbnb, Booking.com and others via iCal. Import in bulk via CSV. Send notifications via Twilio.',
+      items: [
+        {
+          icon: ArrowsClockwise,
+          title: 'iCal Sync — Airbnb & Booking',
+          description: 'Register iCal links from your properties and import bookings automatically. Each property also generates a public link to export availability.',
+        },
+        {
+          icon: UploadSimple,
+          title: 'Bulk CSV import',
+          description: 'Import properties, guests, owners, contracts, finances and service providers via CSV. Ready-made templates with preview before confirming.',
+        },
+        {
+          icon: WhatsappLogo,
+          title: 'WhatsApp Notifications (Twilio)',
+          description: 'Automatic WhatsApp alerts for users with a registered phone number. No Business API required — works with Twilio sandbox.',
+        },
+        {
+          icon: Bell,
+          title: 'Email & SMS',
+          description: 'Notifications via Resend (email) and SMS via webhook. HTML and text templates with dynamic tokens for contracts, tasks, guests and more.',
+        },
       ],
     },
     features: {
       title: 'Everything you need to',
       titleHighlight: 'manage your properties',
-      subtitle: 'A complete platform to simplify every stage of property management.',
+      subtitle: 'A complete platform with 18 integrated modules.',
       items: [
         {
           icon: Buildings,
           title: 'Property Portfolio',
-          description: 'Register rooms, apartments, and houses with environments, furniture, inspection items and operational status.',
+          description: 'Rooms, apartments and houses with photos, rooms, furniture, inspection items, map and iCal links per property.',
         },
         {
           icon: Users,
-          title: 'Guest Management',
-          description: 'Complete profiles with documents, contract history and personal information.',
+          title: 'Guests & Owners',
+          description: 'Complete profiles with multiple documents, guarantors, dependents and contract history.',
         },
         {
           icon: FileText,
           title: 'Smart Contracts',
-          description: 'Customizable templates with automatic variables. Generate professional PDFs in seconds.',
+          description: 'Templates with automatic XPath variables. Generate professional PDFs in multiple languages with one click.',
         },
         {
           icon: CurrencyCircleDollar,
           title: 'Financial Control',
-          description: 'Income, expenses and filters by month, contract, guest, owner, property, category and service provider.',
+          description: 'Income and expenses with filters by period, contract, guest, owner, property and service provider.',
         },
         {
           icon: CalendarBlank,
-          title: 'Booking Calendar',
-          description: 'Visualize occupancy, due dates and appointments in an interactive calendar.',
+          title: 'Integrated Calendar',
+          description: 'Occupancy, due dates, appointments and tasks in an interactive calendar with mini-calendars per property.',
         },
         {
           icon: ChartBar,
-          title: 'Detailed Reports',
-          description: 'Performance analytics, occupancy rates, revenue per property and more.',
-        },
-        {
-          icon: Wrench,
-          title: 'Service Providers',
-          description: 'Manage maintenance, cleaning and repair contacts linked to each property.',
-        },
-        {
-          icon: ShieldCheck,
-          title: 'Multi-user',
-          description: 'Invite your team, set permissions by role and collaborate securely.',
+          title: 'Advanced Reports',
+          description: 'Occupancy rate, revenue per property, financial trends, top service providers and active guests.',
         },
         {
           icon: ClipboardText,
           title: 'Digital Inspections',
-          description: 'Record inspections by environment, compare differences and create tasks from issues found.',
+          description: 'Room-by-room checklists, inspection comparisons, automatic task generation from identified damage.',
         },
         {
           icon: FolderOpen,
-          title: 'Document Center',
-          description: 'Upload, preview, download and organize documents by property, contract, guest, owner or general use.',
+          title: 'Documents',
+          description: 'Upload via drag-and-drop, paste or click. Link to contracts, guests, owners or properties.',
+        },
+        {
+          icon: Wrench,
+          title: 'Providers & Schedule',
+          description: 'Vendor management linked to expenses and appointments, with history per provider.',
+        },
+        {
+          icon: ShieldCheck,
+          title: 'Granular Permissions',
+          description: 'Access profiles with per-module permissions (none/read/write). Email invites, session monitoring.',
         },
         {
           icon: ClockCounterClockwise,
-          title: 'Audit & Presence',
-          description: 'Track login, logout, create, update, delete and online users in near real time.',
+          title: 'Full Audit Trail',
+          description: 'Immutable log of login, logout, creates, updates and deletes with filters by user, entity and period.',
         },
         {
-          icon: Bug,
-          title: 'Bug Reporting',
-          description: 'Users can report issues with screen, record, description and screenshots pasted from clipboard.',
+          icon: Bell,
+          title: 'Automatic Notifications',
+          description: 'Trigger-based rules delivered via email, SMS or WhatsApp. Multilingual HTML templates with dynamic tokens.',
         },
       ],
     },
     latest: {
-      title: 'New tools for professional operations',
-      subtitle: 'Features designed to reduce rework, increase traceability and give admins more control.',
+      title: 'Latest features',
+      subtitle: 'Recently launched to increase productivity and automation.',
       items: [
         {
-          icon: ClipboardText,
-          title: 'Linked inspections',
-          description: 'Check-in, periodic, maintenance and check-out inspections can be tracked in related cards with differences between inspections.',
+          icon: Brain,
+          title: 'AI Assistant with Claude',
+          description: 'Real tool use — Claude queries the database dynamically for each question, with no pre-loaded record limits.',
+          isNew: true,
         },
         {
-          icon: FolderOpen,
-          title: 'Storage-backed documents',
-          description: 'Upload, download, preview, clipboard paste and drag and drop with entity links and filters.',
+          icon: WhatsappLogo,
+          title: 'WhatsApp Bot',
+          description: 'Chat with the AI assistant via WhatsApp. Conversation history, commands and phone number identification.',
+          isNew: true,
         },
         {
-          icon: UserFocus,
-          title: 'Online users',
-          description: 'See who is online, current screen, activity, time, IP, browser and hostname inside the tenant.',
+          icon: ArrowsClockwise,
+          title: 'iCal Sync',
+          description: 'Import bookings from Airbnb and Booking.com via iCal. Export each property\'s availability with a public link.',
+          isNew: true,
         },
         {
-          icon: PushPin,
-          title: 'Personalized menu',
-          description: 'Pin sidebar items, reorder them with drag and drop and keep preferences saved per user.',
+          icon: UploadSimple,
+          title: 'Universal CSV import',
+          description: 'Bulk import any entity in the system: properties, guests, owners, contracts, finances and providers.',
+          isNew: false,
         },
       ],
     },
@@ -361,17 +507,17 @@ const content = {
         {
           number: '01',
           title: 'Create your account',
-          description: 'Sign up with email and password or Google. Set your company name and you\'re ready.',
+          description: 'Sign up with email or GitHub. Set your company name and invite your team.',
         },
         {
           number: '02',
-          title: 'Add your properties',
-          description: 'Add properties, owners, guests, environments, furniture and inspection items.',
+          title: 'Import your data',
+          description: 'Use CSV templates to import existing properties, guests and contracts in minutes.',
         },
         {
           number: '03',
-          title: 'Manage everything in one place',
-          description: 'Contracts, finances, tasks, documents, inspections, audit logs and schedule — all centralized to save time.',
+          title: 'Automate with AI',
+          description: 'Set up the WhatsApp bot, enable automatic notifications and use the Claude assistant for real-time queries.',
         },
       ],
     },
@@ -386,7 +532,7 @@ const content = {
         {
           name: 'Starter',
           price: 'Free',
-          description: 'For those just getting started or with a small portfolio.',
+          description: 'For those getting started or with a small portfolio.',
           features: [
             'Up to 3 properties',
             '1 user',
@@ -406,12 +552,13 @@ const content = {
           features: [
             'Unlimited properties',
             'Up to 5 users',
-            'Custom contract templates',
-            'Advanced reports',
-            'Booking calendar',
+            'AI Assistant (Claude)',
+            'WhatsApp Bot',
+            'iCal Sync (Airbnb/Booking)',
+            'CSV Import',
+            'Contract templates',
+            'Automatic notifications',
             'Digital inspections',
-            'Linked documents',
-            'Service provider management',
             'Priority support',
           ],
           cta: 'Subscribe now',
@@ -442,30 +589,30 @@ const content = {
       title: 'What our customers say',
       items: [
         {
-          quote: 'I cut my property management time in half. Automatic contracts are a game changer.',
+          quote: 'The WhatsApp bot changed everything. I check contracts and balances from my phone without even opening the system.',
           author: 'Mariana S.',
           role: 'Owner of 12 properties',
         },
         {
-          quote: 'The team now works in sync. Everyone knows what to do without unnecessary calls.',
+          quote: 'We imported 80 contracts via CSV in 20 minutes. What would take days was done before lunch.',
           author: 'Carlos M.',
           role: 'Property Management Company',
         },
         {
-          quote: 'Finally a system that understands the rental market. Simple, fast and complete.',
+          quote: 'The Airbnb and Booking sync saves hours every week. Reservations come in automatically.',
           author: 'Ana P.',
           role: 'Manager of 30 units',
         },
       ],
     },
     footer: {
-      tagline: 'Simple and smart property management.',
+      tagline: 'Property management with artificial intelligence.',
       rights: 'All rights reserved.',
     },
   },
 }
 
-export function HomePage({ onLoginClick }: HomePageProps) {
+export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }: HomePageProps) {
   const [lang, setLang] = useState<'pt' | 'en'>('pt')
   const t = content[lang]
 
@@ -484,6 +631,10 @@ export function HomePage({ onLoginClick }: HomePageProps) {
           </div>
 
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
+            <button onClick={() => scrollTo('ai')} className="hover:text-foreground transition-colors flex items-center gap-1">
+              <Sparkle size={12} weight="fill" className="text-primary" />
+              {t.nav.ai}
+            </button>
             <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors">{t.nav.features}</button>
             <button onClick={() => scrollTo('latest')} className="hover:text-foreground transition-colors">{t.nav.latest}</button>
             <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors">{t.nav.howItWorks}</button>
@@ -509,13 +660,13 @@ export function HomePage({ onLoginClick }: HomePageProps) {
 
       {/* HERO */}
       <section className="relative overflow-hidden pt-20 pb-24 px-6">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-accent/10 pointer-events-none" />
-        <div className="absolute top-20 right-10 w-96 h-96 bg-primary/8 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-background to-accent/10 pointer-events-none" />
+        <div className="absolute top-20 right-10 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-10 w-72 h-72 bg-accent/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-4xl mx-auto text-center">
-          <Badge variant="secondary" className="mb-6 gap-1.5">
-            <Rocket size={12} weight="fill" />
+          <Badge variant="secondary" className="mb-6 gap-1.5 px-4 py-1.5">
+            <Brain size={13} weight="fill" className="text-primary" />
             {t.hero.badge}
           </Badge>
 
@@ -529,22 +680,218 @@ export function HomePage({ onLoginClick }: HomePageProps) {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Button size="lg" onClick={onLoginClick} className="gap-2 h-12 px-8 text-base">
+            {onDemoClick && (
+              <Button
+                size="lg"
+                onClick={onDemoClick}
+                disabled={isDemoLoggingIn}
+                className="gap-2 h-12 px-8 text-base bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+              >
+                <Sparkle size={18} weight="fill" />
+                {isDemoLoggingIn
+                  ? (lang === 'pt' ? 'Entrando...' : 'Loading...')
+                  : (lang === 'pt' ? 'Explorar Demo' : 'Try Demo')}
+              </Button>
+            )}
+            <Button size="lg" variant="outline" onClick={onLoginClick} className="gap-2 h-12 px-8 text-base">
               {t.hero.cta}
               <ArrowRight size={18} />
             </Button>
-            <Button size="lg" variant="outline" onClick={() => scrollTo('how-it-works')} className="h-12 px-8 text-base gap-2">
+            <Button size="lg" variant="ghost" onClick={() => scrollTo('ai')} className="h-12 px-8 text-base gap-2">
               {t.hero.demo}
               <CaretDown size={16} />
             </Button>
           </div>
 
+          {onDemoClick && (
+            <p className="text-xs text-muted-foreground mb-6 -mt-10">
+              {lang === 'pt'
+                ? '✦ Demo com dados de exemplo — somente leitura, sem precisar criar conta'
+                : '✦ Demo with sample data — read-only, no account needed'}
+            </p>
+          )}
+
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-sm sm:max-w-none sm:grid-cols-3 mx-auto">
+          <div className="grid grid-cols-3 gap-8 max-w-md mx-auto mb-16">
             {t.hero.stats.map((stat) => (
               <div key={stat.label} className="text-center">
-                <p className="text-3xl sm:text-4xl font-bold text-primary">{stat.value}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-primary">{stat.value}</p>
                 <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Property image mosaic */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-5xl mx-auto">
+            {[
+              { src: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=500&q=80&auto=format&fit=crop', alt: 'Modern apartment', tall: true },
+              { src: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=500&q=80&auto=format&fit=crop', alt: 'Living room' },
+              { src: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=500&q=80&auto=format&fit=crop', alt: 'Modern kitchen' },
+              { src: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=500&q=80&auto=format&fit=crop', alt: 'Luxury house', tall: true },
+            ].map((img, i) => (
+              <div key={i} className={`overflow-hidden rounded-2xl shadow-lg ${img.tall ? 'row-span-2' : ''}`}>
+                <img
+                  src={img.src}
+                  alt={img.alt}
+                  className="h-full w-full object-cover hover:scale-105 transition-transform duration-500"
+                  style={{ minHeight: img.tall ? '280px' : '130px' }}
+                  loading="lazy"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* AI SECTION — destaque principal */}
+      <section id="ai" className="py-24 px-6 bg-gradient-to-b from-primary/5 via-primary/3 to-background">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <Badge className="mb-5 gap-1.5 px-4 py-1.5">
+              <Sparkle size={12} weight="fill" />
+              {t.ai.badge}
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              {t.ai.title}{' '}
+              <span className="text-primary">{t.ai.titleHighlight}</span>
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">{t.ai.subtitle}</p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* AI Features */}
+            <div className="space-y-5">
+              {t.ai.items.map((item) => {
+                const Icon = item.icon
+                return (
+                  <div
+                    key={item.title}
+                    className={`flex gap-4 p-5 rounded-xl border transition-all ${
+                      item.highlight
+                        ? 'border-primary/40 bg-primary/5 shadow-lg shadow-primary/10'
+                        : 'border-border bg-card hover:border-primary/30'
+                    }`}
+                  >
+                    <div className={`shrink-0 h-11 w-11 rounded-xl flex items-center justify-center ${
+                      item.highlight ? 'bg-primary text-primary-foreground' : 'bg-primary/10'
+                    }`}>
+                      <Icon size={22} weight="duotone" className={item.highlight ? '' : 'text-primary'} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold mb-1">{item.title}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Chat Preview */}
+            <div className="relative">
+              <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-accent/20 rounded-3xl blur-2xl opacity-50" />
+              <div className="relative bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+                {/* Chat header */}
+                <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/40">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Brain size={16} weight="duotone" className="text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">Assistente RPM</p>
+                    <p className="text-xs text-green-500">● {lang === 'pt' ? 'Online' : 'Online'}</p>
+                  </div>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <WhatsappLogo size={16} weight="fill" className="text-green-500" />
+                    <span className="text-xs text-muted-foreground">WhatsApp</span>
+                  </div>
+                </div>
+                {/* Messages */}
+                <div className="p-4 space-y-3 min-h-[240px]">
+                  {t.ai.chatPreview.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-foreground'
+                      }`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Input */}
+                <div className="px-4 py-3 border-t bg-muted/20 flex items-center gap-2">
+                  <div className="flex-1 h-9 rounded-full bg-background border px-4 flex items-center">
+                    <span className="text-xs text-muted-foreground">
+                      {lang === 'pt' ? 'Pergunte sobre seus imóveis...' : 'Ask about your properties...'}
+                    </span>
+                  </div>
+                  <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center shrink-0">
+                    <ArrowRight size={14} className="text-primary-foreground" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* INTEGRATIONS */}
+      <section className="py-20 px-6 bg-muted/20">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <Badge variant="outline" className="mb-4 gap-1.5">
+              <ArrowsClockwise size={12} weight="bold" />
+              {t.integrations.badge}
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              {t.integrations.title}{' '}
+              <span className="text-primary">{t.integrations.titleHighlight}</span>
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">{t.integrations.subtitle}</p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {t.integrations.items.map((item) => {
+              const Icon = item.icon
+              return (
+                <div key={item.title} className="bg-card border border-border rounded-xl p-6 hover:border-primary/40 hover:shadow-md transition-all">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+                    <Icon size={20} weight="duotone" className="text-primary" />
+                  </div>
+                  <h3 className="font-semibold mb-2 text-sm">{item.title}</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{item.description}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* PROPERTY GALLERY STRIP */}
+      <section className="py-16 px-6 overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-center text-sm font-semibold text-primary uppercase tracking-wider mb-8">
+            {lang === 'pt' ? 'Portfólio de imóveis' : 'Property portfolio'}
+          </p>
+          <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-none -mx-6 px-6">
+            {[
+              { src: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Apartamento' : 'Apartment' },
+              { src: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Estúdio moderno' : 'Modern studio' },
+              { src: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Edifício corporativo' : 'Corporate building' },
+              { src: 'https://images.unsplash.com/photo-1416331108676-a22ccb276e35?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Casa de temporada' : 'Vacation home' },
+              { src: 'https://images.unsplash.com/photo-1469022563428-aa04fef9f5a2?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Cobertura' : 'Penthouse' },
+            ].map((img, i) => (
+              <div key={i} className="snap-start shrink-0 w-72 md:w-80 rounded-2xl overflow-hidden shadow-md relative group">
+                <img
+                  src={img.src}
+                  alt={img.label}
+                  className="h-52 w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute bottom-3 left-3 text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                  {img.label}
+                </div>
               </div>
             ))}
           </div>
@@ -552,10 +899,12 @@ export function HomePage({ onLoginClick }: HomePageProps) {
       </section>
 
       {/* FEATURES */}
-      <section id="features" className="py-24 px-6 bg-muted/30">
+      <section id="features" className="py-24 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Recursos</p>
+            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
+              {lang === 'pt' ? 'Módulos' : 'Modules'}
+            </p>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
               {t.features.title}{' '}
               <span className="text-primary">{t.features.titleHighlight}</span>
@@ -584,7 +933,7 @@ export function HomePage({ onLoginClick }: HomePageProps) {
       </section>
 
       {/* LATEST FEATURES */}
-      <section id="latest" className="py-24 px-6">
+      <section id="latest" className="py-24 px-6 bg-muted/20">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-10 items-start">
             <div className="lg:sticky lg:top-24">
@@ -605,6 +954,12 @@ export function HomePage({ onLoginClick }: HomePageProps) {
                     className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg"
                   >
                     <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
+                    {item.isNew && (
+                      <Badge className="absolute top-3 right-3 text-xs gap-1" variant="secondary">
+                        <Sparkle size={10} weight="fill" />
+                        {lang === 'pt' ? 'Novo' : 'New'}
+                      </Badge>
+                    )}
                     <div className="relative">
                       <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md">
                         <Icon size={24} weight="duotone" />
@@ -624,14 +979,16 @@ export function HomePage({ onLoginClick }: HomePageProps) {
       <section id="how-it-works" className="py-24 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">Processo</p>
+            <p className="text-sm font-semibold text-primary uppercase tracking-wider mb-3">
+              {lang === 'pt' ? 'Processo' : 'Process'}
+            </p>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t.howItWorks.title}</h2>
             <p className="text-muted-foreground text-lg">{t.howItWorks.subtitle}</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 relative">
             <div className="hidden md:block absolute top-8 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-            {t.howItWorks.steps.map((step, i) => (
+            {t.howItWorks.steps.map((step) => (
               <div key={step.number} className="relative text-center group">
                 <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 border-2 border-primary/20 mb-6 mx-auto group-hover:bg-primary/20 transition-colors">
                   <span className="text-2xl font-bold text-primary">{step.number}</span>
@@ -650,7 +1007,7 @@ export function HomePage({ onLoginClick }: HomePageProps) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
             {[
               { icon: Lock, label: lang === 'pt' ? 'Dados seguros' : 'Secure data' },
-              { icon: Lightning, label: lang === 'pt' ? 'Alta performance' : 'High performance' },
+              { icon: Brain, label: lang === 'pt' ? 'IA real (Claude)' : 'Real AI (Claude)' },
               { icon: Handshake, label: lang === 'pt' ? 'Suporte humano' : 'Human support' },
               { icon: Bell, label: lang === 'pt' ? 'Sempre atualizado' : 'Always updated' },
             ].map(({ icon: Icon, label }) => (
@@ -713,11 +1070,7 @@ export function HomePage({ onLoginClick }: HomePageProps) {
                   ))}
                 </ul>
 
-                <Button
-                  variant={plan.highlighted ? 'default' : 'outline'}
-                  className="w-full"
-                  onClick={onLoginClick}
-                >
+                <Button variant={plan.highlighted ? 'default' : 'outline'} className="w-full" onClick={onLoginClick}>
                   {plan.cta}
                 </Button>
               </div>
@@ -736,43 +1089,56 @@ export function HomePage({ onLoginClick }: HomePageProps) {
             <h2 className="text-3xl sm:text-4xl font-bold">{t.testimonials.title}</h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {t.testimonials.items.map((item) => (
-              <div key={item.author} className="bg-card border border-border rounded-xl p-6 flex flex-col gap-4">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} size={14} weight="fill" className="text-yellow-500" />
-                  ))}
-                </div>
-                <p className="text-muted-foreground text-sm leading-relaxed italic">"{item.quote}"</p>
-                <div className="mt-auto flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-                    <IdentificationCard size={18} weight="duotone" className="text-primary" />
+          {(() => {
+            const avatars = [
+              'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&q=80&auto=format&fit=crop&crop=face',
+              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&q=80&auto=format&fit=crop&crop=face',
+              'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&q=80&auto=format&fit=crop&crop=face',
+            ]
+            return (
+              <div className="grid md:grid-cols-3 gap-6">
+                {t.testimonials.items.map((item, idx) => (
+                  <div key={item.author} className="bg-card border border-border rounded-xl p-6 flex flex-col gap-4">
+                    <div className="flex gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={14} weight="fill" className="text-yellow-500" />
+                      ))}
+                    </div>
+                    <p className="text-muted-foreground text-sm leading-relaxed italic">"{item.quote}"</p>
+                    <div className="mt-auto flex items-center gap-3">
+                      <img
+                        src={avatars[idx]}
+                        alt={item.author}
+                        className="h-10 w-10 rounded-full object-cover ring-2 ring-primary/20"
+                        loading="lazy"
+                      />
+                      <div>
+                        <p className="font-semibold text-sm">{item.author}</p>
+                        <p className="text-xs text-muted-foreground">{item.role}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-sm">{item.author}</p>
-                    <p className="text-xs text-muted-foreground">{item.role}</p>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )
+          })()}
         </div>
       </section>
 
       {/* FINAL CTA */}
-      <section className="py-24 px-6">
-        <div className="max-w-3xl mx-auto text-center">
+      <section className="py-24 px-6 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/8 to-accent/8 pointer-events-none" />
+        <div className="relative max-w-3xl mx-auto text-center">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-primary/10 mb-6 mx-auto">
-            <Rocket size={32} weight="duotone" className="text-primary" />
+            <Brain size={32} weight="duotone" className="text-primary" />
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
             {lang === 'pt' ? 'Pronto para começar?' : 'Ready to get started?'}
           </h2>
           <p className="text-muted-foreground text-lg mb-8">
             {lang === 'pt'
-              ? 'Crie sua conta gratuitamente e veja como o RPM - Rental Property Manager simplifica a gestão dos seus imóveis.'
-              : 'Create your free account and see how RPM - Rental Property Manager simplifies managing your properties.'}
+              ? 'Crie sua conta e experimente o assistente IA, o bot WhatsApp e a sincronização com Airbnb — tudo incluído.'
+              : 'Create your account and try the AI assistant, WhatsApp bot and Airbnb sync — all included.'}
           </p>
           <Button size="lg" onClick={onLoginClick} className="gap-2 h-12 px-10 text-base">
             {lang === 'pt' ? 'Começar gratuitamente' : 'Start for free'}

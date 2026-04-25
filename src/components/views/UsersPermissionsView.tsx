@@ -75,7 +75,7 @@ type UserPresenceRow = {
 type InvitationRow = TenantUserInvitation
 
 export default function UsersPermissionsView() {
-  const { isAdmin, isPlatformAdmin, setSessionTenant, currentUser, currentTenantId } = useAuth()
+  const { isAdmin, isPlatformAdmin, setSessionTenant, currentUser, currentTenantId, tenantUsagePlan } = useAuth()
   const { t } = useLanguage()
 
   const [tenants, setTenants] = useState<TenantOption[]>([])
@@ -141,6 +141,17 @@ export default function UsersPermissionsView() {
       )
     })
   }, [profiles, search, accessProfileFilter, statusFilter])
+
+  const activeUsersCount = useMemo(() => (
+    profiles.filter((profile) => profile.status !== 'blocked').length
+  ), [profiles])
+
+  const pendingInvitesCount = useMemo(() => (
+    invitations.filter((invitation) => invitation.status === 'pending').length
+  ), [invitations])
+
+  const maxUsersByPlan = tenantUsagePlan?.maxUsers ?? null
+  const inviteLimitReached = maxUsersByPlan !== null && (activeUsersCount + pendingInvitesCount) >= maxUsersByPlan
 
   const accessProfileNameById = useMemo(() => (
     new Map(accessProfiles.map((profile) => [profile.id, profile.name]))
@@ -976,6 +987,7 @@ export default function UsersPermissionsView() {
             emailRequiredMessage={t.users_permissions_view.profile_email_required}
             successMessage={t.users_permissions_view.invite_sent_success}
             errorMessage={t.users_permissions_view.invite_send_error}
+            disabled={inviteLimitReached}
             onInvited={() => {
               void loadProfilesByTenant(selectedTenantId)
               void loadInvitations(selectedTenantId)
@@ -983,6 +995,11 @@ export default function UsersPermissionsView() {
           />
         </CardHeader>
         <CardContent className="space-y-3">
+          {inviteLimitReached && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {t.users_permissions_view.plan_users_limit_reached.replace('{limit}', String(maxUsersByPlan ?? '-'))}
+            </p>
+          )}
           {isLoadingInvitations && (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               {t.users_permissions_view.loading}

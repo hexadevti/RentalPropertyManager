@@ -6,6 +6,7 @@ import logoFull from '@/assets/rpm-go-tranparent.png'
 import type { AccessRoleId } from '@/types'
 import {
   Wallet,
+  CurrencyDollar,
   Calendar,
   CheckSquare,
   ChartBar,
@@ -65,7 +66,8 @@ export const menuItems: MenuItem[] = [
   { id: 'providers', icon: Wrench, value: 'providers', accessRoleId: 'providers' },
   { id: 'appointments', icon: CalendarCheck, value: 'appointments', accessRoleId: 'appointments' },
   { id: 'tenant', icon: BuildingOffice, value: 'tenant', accessRoleId: 'tenant' },
-  { id: 'my-bug-reports', icon: Bug, value: 'my-bug-reports', regularAdminOnly: true },
+  { id: 'usage-plans', icon: CurrencyDollar, value: 'usage-plans', platformAdminOnly: true },
+  { id: 'my-bug-reports', icon: Bug, value: 'my-bug-reports', accessRoleId: 'my-bug-reports' },
   { id: 'contact-messages', icon: ChatCircleDots, value: 'contact-messages', platformAdminOnly: true },
   { id: 'bug-reports', icon: Bug, value: 'bug-reports', platformAdminOnly: true },
   { id: 'whatsapp-bot', icon: WhatsappLogo, value: 'whatsapp-bot', platformAdminOnly: true },
@@ -82,41 +84,49 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsChange }: AppSidebarProps) {
-  const { isAdmin, isPlatformAdmin, hasAccess } = useAuth()
+  const { isAdmin, isPlatformAdmin, hasAccess, isLoading } = useAuth()
   const { t, language } = useLanguage()
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const [draggedPinnedItemId, setDraggedPinnedItemId] = useState<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  const visibleItems = menuItems.filter(item => {
+  // While auth/access profile is still loading, show no items to avoid flash
+  const visibleItems = isLoading ? [] : menuItems.filter(item => {
     if (item.accessRoleId && !hasAccess(item.accessRoleId, 'read')) return false
     if (item.platformAdminOnly && !isPlatformAdmin) return false
     if (item.regularAdminOnly && (!isAdmin || isPlatformAdmin)) return false
     return true
   })
 
+  const standardVisibleItems = visibleItems.filter((item) => !item.platformAdminOnly)
+  const masterVisibleItems = visibleItems.filter((item) => item.platformAdminOnly)
+
   const safePinnedItems = pinnedItems || []
-  const pinnedMenuItems = safePinnedItems
-    .map(itemId => visibleItems.find(item => item.id === itemId))
+  const pinnedStandardMenuItems = safePinnedItems
+    .map(itemId => standardVisibleItems.find(item => item.id === itemId))
     .filter((item): item is MenuItem => Boolean(item))
-  const unpinnedMenuItems = visibleItems.filter(item => !pinnedItems?.includes(item.id))
+  const pinnedMasterMenuItems = safePinnedItems
+    .map(itemId => masterVisibleItems.find(item => item.id === itemId))
+    .filter((item): item is MenuItem => Boolean(item))
+  const unpinnedStandardMenuItems = standardVisibleItems.filter(item => !pinnedItems?.includes(item.id))
+  const unpinnedMasterMenuItems = masterVisibleItems.filter(item => !pinnedItems?.includes(item.id))
   const sidebarExpanded = contextMenuOpen
   const mobilePrimaryItems = useMemo(() => {
     const preferredOrder = ['calendar', 'contracts', 'appointments', 'properties']
     const preferredItems = preferredOrder
-      .map((value) => visibleItems.find((item) => item.value === value))
+      .map((value) => standardVisibleItems.find((item) => item.value === value))
       .filter((item): item is MenuItem => Boolean(item))
 
-    const fallbackItems = visibleItems.filter((item) => !preferredItems.some((preferred) => preferred.id === item.id))
+    const fallbackItems = standardVisibleItems.filter((item) => !preferredItems.some((preferred) => preferred.id === item.id))
     const baseItems = [...preferredItems, ...fallbackItems].slice(0, 4)
-    const activeItem = visibleItems.find((item) => item.value === activeTab)
+    const activeItem = standardVisibleItems.find((item) => item.value === activeTab)
 
     if (activeItem && !baseItems.some((item) => item.id === activeItem.id)) {
       return [...baseItems.slice(0, 3), activeItem]
     }
 
     return baseItems
-  }, [activeTab, visibleItems])
+  }, [activeTab, standardVisibleItems])
 
   const pinItem = (itemId: string) => {
     onPinnedItemsChange((current) => {
@@ -170,12 +180,12 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsC
     window.open(url.href, '_blank')
   }
 
-  const renderMenuItem = (item: MenuItem, isPinned: boolean) => {
+  const renderMenuItem = (item: MenuItem, isPinned: boolean, pinnedGroupItems: MenuItem[]) => {
     const Icon = item.icon
     const label = t.tabs[item.value as keyof typeof t.tabs] || item.value
     const isActive = activeTab === item.value
-    const isFirstPinned = isPinned && pinnedMenuItems[0]?.id === item.id
-    const isLastPinned = isPinned && pinnedMenuItems[pinnedMenuItems.length - 1]?.id === item.id
+    const isFirstPinned = isPinned && pinnedGroupItems[0]?.id === item.id
+    const isLastPinned = isPinned && pinnedGroupItems[pinnedGroupItems.length - 1]?.id === item.id
 
     return (
       <ContextMenu key={item.id} onOpenChange={setContextMenuOpen}>
@@ -309,21 +319,53 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsC
           sidebarExpanded && "px-3"
         )}>
           <nav className="space-y-1">
-            {pinnedMenuItems.length > 0 && (
+            {pinnedStandardMenuItems.length > 0 && (
               <>
-                {pinnedMenuItems.map(item => (
+                {pinnedStandardMenuItems.map(item => (
                   <div key={item.id} className="relative">
-                    {renderMenuItem(item, true)}
+                    {renderMenuItem(item, true, pinnedStandardMenuItems)}
                   </div>
                 ))}
-                {unpinnedMenuItems.length > 0 && (
+                {unpinnedStandardMenuItems.length > 0 && (
                   <div className="h-px bg-border my-3" />
                 )}
               </>
             )}
-            {unpinnedMenuItems.map(item => (
+            {unpinnedStandardMenuItems.map(item => (
               <div key={item.id} className="relative">
-                {renderMenuItem(item, false)}
+                {renderMenuItem(item, false, pinnedStandardMenuItems)}
+              </div>
+            ))}
+
+            {masterVisibleItems.length > 0 && (
+              <>
+                <div className="h-px bg-border my-3" />
+                <p className={cn(
+                  "px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground transition-all duration-200",
+                  "max-h-0 opacity-0 overflow-hidden",
+                  "group-hover/sidebar:max-h-6 group-hover/sidebar:opacity-100",
+                  sidebarExpanded && "max-h-6 opacity-100"
+                )}>
+                  {t.sidebar.master_section}
+                </p>
+              </>
+            )}
+
+            {pinnedMasterMenuItems.length > 0 && (
+              <>
+                {pinnedMasterMenuItems.map(item => (
+                  <div key={item.id} className="relative">
+                    {renderMenuItem(item, true, pinnedMasterMenuItems)}
+                  </div>
+                ))}
+                {unpinnedMasterMenuItems.length > 0 && (
+                  <div className="h-px bg-border my-3" />
+                )}
+              </>
+            )}
+            {unpinnedMasterMenuItems.map(item => (
+              <div key={item.id} className="relative">
+                {renderMenuItem(item, false, pinnedMasterMenuItems)}
               </div>
             ))}
           </nav>
@@ -377,32 +419,70 @@ export function AppSidebar({ activeTab, onTabChange, pinnedItems, onPinnedItemsC
             <SheetTitle>Menu</SheetTitle>
           </SheetHeader>
           <ScrollArea className="h-full px-3">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {visibleItems.map((item) => {
-                const Icon = item.icon
-                const label = t.tabs[item.value as keyof typeof t.tabs] || item.value
-                const isActive = activeTab === item.value
+            <div className="space-y-4 pb-6">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {standardVisibleItems.map((item) => {
+                  const Icon = item.icon
+                  const label = t.tabs[item.value as keyof typeof t.tabs] || item.value
+                  const isActive = activeTab === item.value
 
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      onTabChange(item.value)
-                      setMobileMenuOpen(false)
-                    }}
-                    className={cn(
-                      "flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-xl border px-3 py-4 text-center text-sm font-medium transition-colors",
-                      isActive
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border text-foreground hover:bg-accent"
-                    )}
-                  >
-                    <Icon size={20} weight={isActive ? "fill" : "duotone"} />
-                    <span className="max-w-[120px] leading-tight">{label}</span>
-                  </button>
-                )
-              })}
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        onTabChange(item.value)
+                        setMobileMenuOpen(false)
+                      }}
+                      className={cn(
+                        "flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-xl border px-3 py-4 text-center text-sm font-medium transition-colors",
+                        isActive
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border text-foreground hover:bg-accent"
+                      )}
+                    >
+                      <Icon size={20} weight={isActive ? "fill" : "duotone"} />
+                      <span className="max-w-[120px] leading-tight">{label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {masterVisibleItems.length > 0 && (
+                <>
+                  <div className="h-px bg-border" />
+                  <p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t.sidebar.master_section}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {masterVisibleItems.map((item) => {
+                      const Icon = item.icon
+                      const label = t.tabs[item.value as keyof typeof t.tabs] || item.value
+                      const isActive = activeTab === item.value
+
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            onTabChange(item.value)
+                            setMobileMenuOpen(false)
+                          }}
+                          className={cn(
+                            "flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-xl border px-3 py-4 text-center text-sm font-medium transition-colors",
+                            isActive
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border text-foreground hover:bg-accent"
+                          )}
+                        >
+                          <Icon size={20} weight={isActive ? "fill" : "duotone"} />
+                          <span className="max-w-[120px] leading-tight">{label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </ScrollArea>
         </SheetContent>

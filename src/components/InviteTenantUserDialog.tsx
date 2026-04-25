@@ -27,6 +27,7 @@ interface InviteTenantUserDialogProps {
   emailRequiredMessage: string
   successMessage: string
   errorMessage: string
+  disabled?: boolean
   onInvited?: () => void
 }
 
@@ -62,6 +63,7 @@ export function InviteTenantUserDialog({
   emailRequiredMessage,
   successMessage,
   errorMessage,
+  disabled = false,
   onInvited,
 }: InviteTenantUserDialogProps) {
   const [open, setOpen] = useState(false)
@@ -176,7 +178,7 @@ export function InviteTenantUserDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2" disabled={!tenantId}>
+        <Button variant="outline" size="sm" className="gap-2" disabled={!tenantId || disabled}>
           <EnvelopeSimple size={16} weight="duotone" />
           {triggerLabel}
         </Button>

@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import { Owner, Property, GuestDocument } from '@/types'
+import { Document, Owner, Property, GuestDocument } from '@/types'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthContext'
 
 
 import { HelpButton } from '@/components/HelpButton'
@@ -17,19 +19,27 @@ import { Plus, User, Pencil, Trash, House, EnvelopeSimple, Phone, Identification
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
+import { PersonDocumentImportDialog, type PersonDocumentImportResult } from '@/components/PersonDocumentImportDialog'
+
+const DOCUMENTS_BUCKET = 'documents'
 
 export default function OwnersView() {
   const { t } = useLanguage()
+  const { currentTenantId } = useAuth()
   const { formatPhone } = usePhoneFormat()
   const [owners, setOwners] = useKV<Owner[]>('owners', [])
+  const [, setDocuments] = useKV<Document[]>('documents', [])
   const [properties] = useKV<Property[]>('properties', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingOwner, setEditingOwner] = useState<Owner | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [ownerToDelete, setOwnerToDelete] = useState<Owner | null>(null)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [isAiImportDialogOpen, setIsAiImportDialogOpen] = useState(false)
   const [csvParsedRows, setCsvParsedRows] = useState<Partial<Owner>[]>([])
   const [csvError, setCsvError] = useState<string | null>(null)
+  const [importedOwnerDraft, setImportedOwnerDraft] = useState<Partial<Owner> | null>(null)
+  const [importedOwnerFiles, setImportedOwnerFiles] = useState<File[]>([])
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -43,6 +53,7 @@ export default function OwnersView() {
   })
   const [newDocType, setNewDocType] = useState('')
   const [newDocNumber, setNewDocNumber] = useState('')
+  const [aiImportFiles, setAiImportFiles] = useState<File[]>([])
 
   const labels = t.owners_view
 
@@ -129,6 +140,42 @@ export default function OwnersView() {
     toast.success(t.common.refreshed_success)
   }
 
+  const handleAiImportApplied = (result: PersonDocumentImportResult) => {
+    setEditingOwner(null)
+    setImportedOwnerDraft({
+      name: result.draft.name,
+      email: result.draft.email,
+      phone: result.draft.phone,
+      address: result.draft.address,
+      nationality: result.draft.nationality,
+      maritalStatus: result.draft.maritalStatus,
+      profession: result.draft.profession,
+      notes: result.draft.notes,
+      documents: result.draft.documents,
+    })
+    setImportedOwnerFiles(result.files)
+    setIsDialogOpen(true)
+  }
+
+  useEffect(() => {
+    if (!importedOwnerDraft || editingOwner) return
+
+    setFormData({
+      name: importedOwnerDraft.name || '',
+      email: importedOwnerDraft.email || '',
+      phone: importedOwnerDraft.phone || '',
+      documents: importedOwnerDraft.documents || [],
+      nationality: importedOwnerDraft.nationality || '',
+      maritalStatus: importedOwnerDraft.maritalStatus || '',
+      profession: importedOwnerDraft.profession || '',
+      address: importedOwnerDraft.address || '',
+      notes: importedOwnerDraft.notes || '',
+    })
+    setAiImportFiles(importedOwnerFiles || [])
+    setNewDocType('')
+    setNewDocNumber('')
+  }, [editingOwner, importedOwnerDraft, importedOwnerFiles])
+
   const handleImportConfirm = () => {
     const newOwners: Owner[] = csvParsedRows.map((row) => ({
       ...row,
@@ -157,6 +204,81 @@ export default function OwnersView() {
     setNewDocNumber('')
   }
 
+  const mergeDocuments = (current: GuestDocument[], incoming: GuestDocument[]) => {
+    const next = [...current]
+    const seen = new Set(current.map((doc) => `${doc.type.toLowerCase()}::${doc.number.toLowerCase()}`))
+
+    for (const doc of incoming) {
+      const type = doc.type.trim()
+      const number = doc.number.trim()
+      if (!number) continue
+      const key = `${type.toLowerCase()}::${number.toLowerCase()}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      next.push({ type, number })
+    }
+
+    return next
+  }
+
+  const sanitizeFileName = (fileName: string) => {
+    return fileName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '-')
+      .replace(/-+/g, '-')
+  }
+
+  const createDocumentId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  const saveImportedFilesAsDocuments = async (ownerId: string, ownerName: string) => {
+    if (aiImportFiles.length === 0) return
+    if (!currentTenantId) {
+      toast.error(t.documents_view.tenant_required)
+      return
+    }
+
+    const savedDocuments: Document[] = []
+
+    for (const file of aiImportFiles.slice(0, 6)) {
+      const id = createDocumentId()
+      const safeFileName = sanitizeFileName(file.name || `owner-document-${id}.jpg`)
+      const filePath = `${currentTenantId}/${id}/${safeFileName}`
+
+      const { error } = await supabase.storage
+        .from(DOCUMENTS_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || undefined,
+        })
+
+      if (error) {
+        toast.error(error.message || t.documents_view.upload_error)
+        continue
+      }
+
+      savedDocuments.push({
+        id,
+        name: `${ownerName || labels.full_name} - ${safeFileName}`,
+        category: 'other',
+        notes: 'Document image used in AI extraction flow.',
+        relationType: 'owner',
+        relationId: ownerId,
+        fileName: file.name,
+        filePath,
+        fileSize: file.size,
+        mimeType: file.type || undefined,
+        uploadDate: new Date().toISOString(),
+      })
+    }
+
+    if (savedDocuments.length > 0) {
+      setDocuments((current) => [...(current || []), ...savedDocuments])
+      toast.success(`${savedDocuments.length} ${t.documents_view.upload_success}`)
+    }
+  }
+
   const removeDocument = (index: number) => {
     setFormData((currentForm) => ({
       ...currentForm,
@@ -182,11 +304,14 @@ export default function OwnersView() {
     })
     setNewDocType('')
     setNewDocNumber('')
+    setAiImportFiles([])
+    setImportedOwnerDraft(null)
+    setImportedOwnerFiles([])
     setEditingOwner(null)
     setIsDialogOpen(false)
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
     if (editingOwner) {
@@ -198,6 +323,7 @@ export default function OwnersView() {
         )
       )
       toast.success(labels.updated_success)
+      await saveImportedFilesAsDocuments(editingOwner.id, formData.name)
     } else {
       const newOwner: Owner = {
         ...formData,
@@ -206,6 +332,7 @@ export default function OwnersView() {
       }
       setOwners((currentOwners) => [...(currentOwners || []), newOwner])
       toast.success(labels.created_success)
+      await saveImportedFilesAsDocuments(newOwner.id, newOwner.name)
     }
 
     resetForm()
@@ -261,6 +388,10 @@ export default function OwnersView() {
           <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
             <UploadSimple weight="bold" size={16} />
             {labels.import_csv}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => setIsAiImportDialogOpen(true)}>
+            <IdentificationCard weight="bold" size={16} />
+            {labels.doc_import_title}
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -470,6 +601,46 @@ export default function OwnersView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <PersonDocumentImportDialog
+        open={isAiImportDialogOpen}
+        onOpenChange={setIsAiImportDialogOpen}
+        personType="owner"
+        onApply={handleAiImportApplied}
+        labels={{
+          title: labels.doc_import_dialog_title,
+          hint: labels.doc_import_hint,
+          selectFiles: labels.doc_import_select_files,
+          useCamera: labels.doc_import_use_camera,
+          clearFiles: labels.doc_import_clear_files,
+          extract: labels.doc_import_extract,
+          extracting: labels.doc_import_extracting,
+          filesSelected: labels.doc_import_files_selected,
+          noFiles: labels.doc_import_no_files,
+          success: labels.doc_import_success,
+          error: labels.doc_import_error,
+          previewTitle: labels.doc_import_preview_title,
+          reviewButton: labels.doc_import_review_btn,
+          selectedImages: labels.doc_import_selected_images,
+          dropOrPasteHint: labels.doc_import_drop_or_paste_hint,
+          dropActive: labels.doc_import_drop_active,
+          removeImage: labels.doc_import_remove_image,
+          pastedImages: labels.doc_import_pasted_images,
+          droppedImages: labels.doc_import_dropped_images,
+          confidence: labels.doc_import_confidence,
+          confidenceHigh: labels.doc_import_confidence_high,
+          confidenceMedium: labels.doc_import_confidence_medium,
+          confidenceLow: labels.doc_import_confidence_low,
+          warningsTitle: labels.doc_import_warnings_title,
+          cancel: labels.cancel,
+          name: labels.full_name,
+          email: labels.email,
+          phone: labels.phone,
+          address: labels.address,
+          nationality: labels.nationality,
+          documents: labels.documents,
+        }}
+      />
 
       {!owners || owners.length === 0 ? (
         <Card className="border-dashed">

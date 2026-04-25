@@ -23,6 +23,7 @@ import ContactMessagesView from './components/views/ContactMessagesView'
 import WhatsAppBotView from './components/views/WhatsAppBotView'
 import AuditLogsView from './components/views/AuditLogsView'
 import AiAssistantView from './components/views/AiAssistantView'
+import UsagePlansView from './components/views/UsagePlansView'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
 import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
@@ -174,12 +175,36 @@ function AppContent() {
     currentTenantId,
     setSessionTenant,
   } = useAuth()
+  const { signInWithEmail } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
+  const [isDemoLoggingIn, setIsDemoLoggingIn] = useState(false)
+
+  const handleDemoLogin = async () => {
+    setIsDemoLoggingIn(true)
+    try {
+      await signInWithEmail('demo@rpm.app', 'Demo@2026!')
+    } catch {
+      setShowLogin(true)
+    } finally {
+      setIsDemoLoggingIn(false)
+    }
+  }
   const hasInviteParam = new URLSearchParams(window.location.search).has('invite')
+  const DEMO_TENANT_ID = 'aaaaaaaa-0000-4000-a000-000000000001'
+
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('tab') || (isGuest ? 'calendar' : 'properties')
   })
+
+  // Force 'properties' as landing tab for the demo tenant
+  useEffect(() => {
+    if (!currentTenantId) return
+    if (currentTenantId === DEMO_TENANT_ID) {
+      const params = new URLSearchParams(window.location.search)
+      if (!params.get('tab')) setActiveTab('properties')
+    }
+  }, [currentTenantId])
   const [pinnedItems, setPinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([])
   const [isChangingTenant, setIsChangingTenant] = useState(false)
@@ -204,6 +229,7 @@ function AppContent() {
     'bug-reports': t.tabs['bug-reports'],
     'my-bug-reports': t.tabs['my-bug-reports'],
     'contact-messages': t.tabs['contact-messages'],
+    'usage-plans': t.tabs['usage-plans'] || 'Planos de uso',
     'users-permissions': t.tabs['users-permissions'],
     tenant: t.tabs.tenant,
     'access-profiles': 'Perfis de acesso',
@@ -248,8 +274,7 @@ function AppContent() {
     ]
 
     const specialTabs = [
-      ...(isPlatformAdmin ? ['contact-messages', 'bug-reports', 'whatsapp-bot'] : []),
-      ...(isAdmin && !isPlatformAdmin ? ['my-bug-reports'] : []),
+      ...(isPlatformAdmin ? ['contact-messages', 'bug-reports', 'whatsapp-bot', 'usage-plans'] : []),
     ]
 
     const accessibleTabs = [...new Set([...roleBasedTabs, ...specialTabs])]
@@ -299,7 +324,7 @@ function AppContent() {
         setShowLogin(false)
       }} />
     }
-    return <HomePage onLoginClick={() => setShowLogin(true)} />
+    return <HomePage onLoginClick={() => setShowLogin(true)} onDemoClick={handleDemoLogin} isDemoLoggingIn={isDemoLoggingIn} />
   }
 
   if (!isAuthenticated) {
@@ -395,10 +420,11 @@ function AppContent() {
           {activeTab === 'notifications' && canRead('notifications') && <NotificationsView />}
           {activeTab === 'providers' && canRead('providers') && <ServiceProvidersView />}
           {activeTab === 'appointments' && canRead('appointments') && <AppointmentsView />}
-          {activeTab === 'my-bug-reports' && isAdmin && !isPlatformAdmin && <MyBugReportsView />}
+          {activeTab === 'my-bug-reports' && canRead('my-bug-reports') && !isPlatformAdmin && <MyBugReportsView />}
           {activeTab === 'contact-messages' && isPlatformAdmin && <ContactMessagesView />}
           {activeTab === 'bug-reports' && isPlatformAdmin && <BugReportsView />}
           {activeTab === 'whatsapp-bot' && isPlatformAdmin && <WhatsAppBotView />}
+          {activeTab === 'usage-plans' && isPlatformAdmin && <UsagePlansView />}
           {activeTab === 'tenant' && canRead('tenant') && <TenantManagementView />}
           {activeTab === 'users-permissions' && canRead('users-permissions') && <UsersPermissionsView />}
           {activeTab === 'access-profiles' && canRead('access-profiles') && <AccessProfilesView readOnly={!canWrite('access-profiles')} />}

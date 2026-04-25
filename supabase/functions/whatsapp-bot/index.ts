@@ -252,6 +252,21 @@ Deno.serve(async (req) => {
     .maybeSingle()
   const tenantName = (tenantData as any)?.name ?? tenantId
 
+  // ── Fetch currency preference ─────────────────────────────────────────────
+  const { data: currencySetting } = await adminClient
+    .from('user_settings')
+    .select('value')
+    .eq('auth_user_id', userProfile.auth_user_id)
+    .eq('key', 'app-currency')
+    .maybeSingle()
+
+  const currencyCode: string = (currencySetting as any)?.value ?? 'BRL'
+  const CURRENCY_SYMBOLS: Record<string, string> = {
+    BRL: 'R$', USD: '$', EUR: '€', GBP: '£', JPY: '¥',
+    CAD: 'CA$', AUD: 'A$', CHF: 'Fr', CNY: '¥', MXN: 'MX$',
+  }
+  const currencySymbol = CURRENCY_SYMBOLS[currencyCode] ?? currencyCode
+
   const today = new Date().toISOString().slice(0, 10)
 
   // ── System prompt ─────────────────────────────────────────────────────────
@@ -275,6 +290,9 @@ Deno.serve(async (req) => {
     'Para responder perguntas sobre dados, use a tool query_supabase.',
     'Faça quantas chamadas forem necessárias para uma resposta precisa.',
     'Não invente dados — se não encontrar, diga que não encontrou.',
+    '',
+    '## Moeda',
+    `- Moeda configurada: ${currencyCode} (${currencySymbol}) — use sempre este símbolo nos valores`,
     '',
     '## Regras de negócio',
     '- transactions.type = "income" = Receita | "expense" = Despesa',

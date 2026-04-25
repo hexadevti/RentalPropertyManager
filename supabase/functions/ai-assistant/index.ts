@@ -306,6 +306,27 @@ Deno.serve(async (req) => {
       .maybeSingle()
     const tenantName = tenantData?.name ?? tenantId
 
+    // ── Fetch user currency preference ────────────────────────────────────────
+    const { data: currencySetting } = await adminClient
+      .from('user_settings')
+      .select('value')
+      .eq('auth_user_id', authUserId)
+      .eq('key', 'app-currency')
+      .maybeSingle()
+
+    const currencyCode: string = (currencySetting as any)?.value ?? 'BRL'
+
+    const CURRENCY_SYMBOLS: Record<string, string> = {
+      BRL: 'R$', USD: '$',  EUR: '€',  GBP: '£',
+      JPY: '¥',  CAD: 'CA$', AUD: 'A$', CHF: 'Fr',
+      CNY: '¥',  MXN: 'MX$', ARS: '$',  CLP: 'CLP$',
+      COP: 'COP$', PEN: 'S/', UYU: '$U', HKD: 'HK$',
+      SGD: 'S$', KRW: '₩',  INR: '₹',  NOK: 'kr',
+      SEK: 'kr', DKK: 'kr', PLN: 'zł', CZK: 'Kč',
+      HUF: 'Ft', RON: 'lei', BGN: 'лв',
+    }
+    const currencySymbol = CURRENCY_SYMBOLS[currencyCode] ?? currencyCode
+
     const action = String(body?.action ?? '').trim()
 
     // ── translate-template ────────────────────────────────────────────────────
@@ -433,6 +454,11 @@ Deno.serve(async (req) => {
       'Não invente IDs, valores, contratos, hóspedes, propriedades ou documentos.',
       'Se uma informação não for encontrada nas queries, diga que não encontrou nos cadastros.',
       'Se a pergunta pedir uma ação que altere dados, explique o caminho no sistema; você não altera registros diretamente.',
+      '',
+      '## Moeda configurada',
+      `- Moeda do tenant: ${currencyCode} (símbolo: ${currencySymbol})`,
+      `- Sempre exiba valores monetários com o símbolo correto: ${currencySymbol}`,
+      '- Use formatação local adequada (ex: R$ 1.500,00 para BRL, $ 1,500.00 para USD)',
       '',
       '## Regras de negócio',
       '- transactions.type = "income" = Receita | "expense" = Despesa',

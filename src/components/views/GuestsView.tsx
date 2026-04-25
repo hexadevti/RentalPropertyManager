@@ -12,6 +12,7 @@ import { useLanguage } from '@/lib/LanguageContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 import { format } from 'date-fns'
 import GuestDialogForm from '@/components/GuestDialogForm'
+import { PersonDocumentImportDialog, type PersonDocumentImportResult } from '@/components/PersonDocumentImportDialog'
 
 import { HelpButton } from '@/components/HelpButton'
 
@@ -24,11 +25,34 @@ export default function GuestsView() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [isAiImportDialogOpen, setIsAiImportDialogOpen] = useState(false)
   const [csvParsedRows, setCsvParsedRows] = useState<Partial<Guest>[]>([])
   const [csvError, setCsvError] = useState<string | null>(null)
+  const [importedGuestDraft, setImportedGuestDraft] = useState<Partial<Guest> | null>(null)
+  const [importedGuestFiles, setImportedGuestFiles] = useState<File[]>([])
 
   const resetForm = () => {
     setEditingGuest(null)
+    setImportedGuestDraft(null)
+    setImportedGuestFiles([])
+  }
+
+  const handleAiImportApplied = (result: PersonDocumentImportResult) => {
+    setEditingGuest(null)
+    setImportedGuestDraft({
+      name: result.draft.name,
+      email: result.draft.email,
+      phone: result.draft.phone,
+      address: result.draft.address,
+      nationality: result.draft.nationality,
+      maritalStatus: result.draft.maritalStatus,
+      profession: result.draft.profession,
+      dateOfBirth: result.draft.dateOfBirth,
+      notes: result.draft.notes,
+      documents: result.draft.documents,
+    })
+    setImportedGuestFiles(result.files)
+    setDialogOpen(true)
   }
 
   const handleDownloadTemplate = () => {
@@ -170,6 +194,10 @@ export default function GuestsView() {
           <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
             <UploadSimple weight="bold" size={16} />
             {t.guests_view.import_csv}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => setIsAiImportDialogOpen(true)}>
+            <IdentificationCard weight="bold" size={16} />
+            {t.guests_view.ai_import_title}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
@@ -316,6 +344,48 @@ export default function GuestsView() {
           if (!open) resetForm()
         }}
         editingGuest={editingGuest}
+        importedDraft={importedGuestDraft}
+        importedFiles={importedGuestFiles}
+      />
+
+      <PersonDocumentImportDialog
+        open={isAiImportDialogOpen}
+        onOpenChange={setIsAiImportDialogOpen}
+        personType="guest"
+        onApply={handleAiImportApplied}
+        labels={{
+          title: t.guests_view.ai_import_dialog_title,
+          hint: t.guests_view.ai_import_hint,
+          selectFiles: t.guests_view.form.ai_import_select_files,
+          useCamera: t.guests_view.form.ai_import_use_camera,
+          clearFiles: t.guests_view.form.ai_import_clear_files,
+          extract: t.guests_view.form.ai_import_extract,
+          extracting: t.guests_view.form.ai_import_extracting,
+          filesSelected: t.guests_view.form.ai_import_files_selected,
+          noFiles: t.guests_view.form.ai_import_no_files,
+          success: t.guests_view.form.ai_import_success,
+          error: t.guests_view.form.ai_import_error,
+          previewTitle: t.guests_view.ai_import_preview_title,
+          reviewButton: t.guests_view.ai_import_review_btn,
+          selectedImages: t.guests_view.ai_import_selected_images,
+          dropOrPasteHint: t.guests_view.ai_import_drop_or_paste_hint,
+          dropActive: t.guests_view.ai_import_drop_active,
+          removeImage: t.guests_view.ai_import_remove_image,
+          pastedImages: t.guests_view.ai_import_pasted_images,
+          droppedImages: t.guests_view.ai_import_dropped_images,
+          confidence: t.guests_view.ai_import_confidence,
+          confidenceHigh: t.guests_view.ai_import_confidence_high,
+          confidenceMedium: t.guests_view.ai_import_confidence_medium,
+          confidenceLow: t.guests_view.ai_import_confidence_low,
+          warningsTitle: t.guests_view.ai_import_warnings_title,
+          cancel: t.guests_view.form.cancel,
+          name: t.guests_view.form.name,
+          email: t.guests_view.form.email,
+          phone: t.guests_view.form.phone,
+          address: t.guests_view.form.address,
+          nationality: t.guests_view.form.nationality,
+          documents: t.guests_view.form.documents,
+        }}
       />
 
       <Dialog open={isImportDialogOpen} onOpenChange={(open) => { setIsImportDialogOpen(open); if (!open) { setCsvParsedRows([]); setCsvError(null) } }}>

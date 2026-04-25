@@ -242,6 +242,7 @@ export type AccessRoleId =
   | 'users-permissions'
   | 'access-profiles'
   | 'audit-logs'
+  | 'my-bug-reports'
 export type AccessLevel = 'none' | 'read' | 'write'
 export type TemplateLanguage = 'pt' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'nl' | 'ar' | 'zh' | 'ja' | 'pl' | 'ru'
 
@@ -265,6 +266,7 @@ export const ACCESS_ROLES: { id: AccessRoleId; label: string; description: strin
   { id: 'users-permissions', label: 'Usuarios e Permissoes', description: 'Acesso a usuarios e permissoes' },
   { id: 'access-profiles', label: 'Perfis de Acesso', description: 'Acesso ao gerenciamento de perfis de acesso' },
   { id: 'audit-logs', label: 'Log de Auditoria', description: 'Acesso ao log de auditoria' },
+  { id: 'my-bug-reports', label: 'Bugs Reportados', description: 'Acesso à lista de bugs reportados pelo usuário' },
 ]
 
 export const TEMPLATE_LANGUAGES: { code: TemplateLanguage; nativeName: string }[] = [
@@ -287,6 +289,7 @@ export interface UserProfile {
   role: UserRole
   status: UserStatus
   email: string
+  phone?: string | null
   avatarUrl: string
   accessProfileId?: string | null
   accessProfileName?: string | null

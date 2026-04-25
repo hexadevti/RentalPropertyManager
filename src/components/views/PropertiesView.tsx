@@ -19,11 +19,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, Compass, SquaresFour, UploadSimple, DownloadSimple, Image as ImageIcon, Star, Car, CalendarBlank, Copy, LinkSimple } from '@phosphor-icons/react'
+import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, Compass, SquaresFour, UploadSimple, DownloadSimple, Image as ImageIcon, Star, Car, CalendarBlank, Copy, LinkSimple, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { getPropertyAvailabilityStatus } from '@/lib/propertyAvailability'
+import { fetchListingImportDraft, type ListingImportDraft } from '@/lib/listingImport'
 import ContractDialogForm from '@/components/ContractDialogForm'
 import PropertyMapView from '@/components/PropertyMapView'
 import { PropertyAdDialog } from '@/components/PropertyAdDialog'
@@ -41,6 +42,15 @@ type PropertyPhotoDraft = {
   createdAt: string
   previewUrl: string
   file?: File
+}
+
+function extensionFromMimeType(mimeType?: string | null) {
+  if (!mimeType) return 'jpg'
+  if (mimeType.includes('png')) return 'png'
+  if (mimeType.includes('webp')) return 'webp'
+  if (mimeType.includes('gif')) return 'gif'
+  if (mimeType.includes('avif')) return 'avif'
+  return 'jpg'
 }
 
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -62,16 +72,24 @@ function formatFileSize(size?: number) {
 
 export default function PropertiesView({ readOnly = false }: { readOnly?: boolean }) {
   const { t, language } = useLanguage()
+  const propertiesViewText = t.properties_view as Record<string, any>
   const { formatCurrency } = useCurrency()
-  const { currentTenantId } = useAuth()
+  const { currentTenantId, tenantUsagePlan } = useAuth()
   const [properties, setProperties] = useKV<Property[]>('properties', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [owners] = useKV<Owner[]>('owners', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | null>(null)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [isUrlImportDialogOpen, setIsUrlImportDialogOpen] = useState(false)
   const [csvParsedRows, setCsvParsedRows] = useState<Partial<Property>[]>([])
   const [csvError, setCsvError] = useState<string | null>(null)
+  const [importUrl, setImportUrl] = useState('')
+  const [urlImportError, setUrlImportError] = useState<string | null>(null)
+  const [isFetchingImportData, setIsFetchingImportData] = useState(false)
+  const [importOwnershipConfirmed, setImportOwnershipConfirmed] = useState(false)
+  const [importedListingDraft, setImportedListingDraft] = useState<ListingImportDraft | null>(null)
+  const [importDraftQueue, setImportDraftQueue] = useState<ListingImportDraft[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null)
   const [contractDialogOpen, setContractDialogOpen] = useState(false)
@@ -124,6 +142,9 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
     icalFeeds: [] as PropertyICalFeed[],
   })
   const [icalFeedDraft, setICalFeedDraft] = useState({ provider: 'airbnb' as ICalProvider, label: '', url: '' })
+
+  const maxPropertiesByPlan = tenantUsagePlan?.maxProperties ?? null
+  const canCreateProperty = maxPropertiesByPlan === null || (properties || []).length < maxPropertiesByPlan
 
   const supportsEnvironments = formData.type === 'house' || formData.type === 'apartment'
 
@@ -233,6 +254,43 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
         file,
       })),
     ])
+  }
+
+  const attachImportedPhotoUrls = async (photoUrls: string[]) => {
+    if (!photoUrls || photoUrls.length === 0) return
+
+    const maxPhotos = 10
+    const selectedUrls = photoUrls.slice(0, maxPhotos)
+    const settled = await Promise.allSettled(
+      selectedUrls.map(async (url, index) => {
+        const response = await fetch(url)
+        if (!response.ok) throw new Error(`Image download failed (${response.status})`)
+        const blob = await response.blob()
+        const extension = extensionFromMimeType(blob.type)
+        const fileName = `imported-photo-${index + 1}.${extension}`
+        return new File([blob], fileName, { type: blob.type || `image/${extension}` })
+      })
+    )
+
+    const files = settled
+      .filter((item): item is PromiseFulfilledResult<File> => item.status === 'fulfilled')
+      .map((item) => item.value)
+
+    if (files.length > 0) {
+      attachPhotos(files)
+      toast.success(
+        propertiesViewText.url_import_photos_success
+          .replace('{count}', String(files.length))
+      )
+    }
+
+    const failedCount = settled.length - files.length
+    if (failedCount > 0) {
+      toast.warning(
+        propertiesViewText.url_import_photos_partial
+          .replace('{count}', String(failedCount))
+      )
+    }
   }
 
   const handlePastePhotos = (event: ClipboardEvent<HTMLFormElement | HTMLDivElement>) => {
@@ -408,6 +466,121 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
     setCsvError(null)
   }
 
+  const resetUrlImportDialog = () => {
+    setImportUrl('')
+    setUrlImportError(null)
+    setImportOwnershipConfirmed(false)
+    setImportedListingDraft(null)
+    setImportDraftQueue([])
+    setIsFetchingImportData(false)
+  }
+
+  const prefillFormFromImportedDraft = (draft: ListingImportDraft, options?: { closeImportDialog?: boolean }) => {
+    setEditingProperty(null)
+    setFormData({
+      name: draft.name || '',
+      type: draft.type || 'apartment',
+      capacity: Math.max(1, draft.capacity || 1),
+      pricePerNight: draft.pricePerNight || 0,
+      pricePerMonth: draft.pricePerMonth || 0,
+      address: draft.address || '',
+      city: draft.city || '',
+      conservationState: '',
+      environments: [],
+      furnitureItems: [],
+      inspectionItems: [],
+      description: draft.description || '',
+      ownerIds: [],
+      photos: [],
+      icalFeeds: [],
+    })
+    setPhotoDrafts([])
+    setIsDraggingPhoto(false)
+    setEnvironmentInput('')
+    setEditingEnvironmentIndex(null)
+    setFurnitureInput('')
+    setEditingFurnitureIndex(null)
+    setInspectionItemInput('')
+    setEditingInspectionItemIndex(null)
+    setICalFeedDraft({ provider: 'airbnb', label: '', url: '' })
+
+    if (options?.closeImportDialog) {
+      setIsUrlImportDialogOpen(false)
+      setIsDialogOpen(true)
+    }
+
+    void attachImportedPhotoUrls(draft.photoUrls || [])
+  }
+
+  const handleCaptureListingData = async () => {
+    if (!importOwnershipConfirmed) {
+      setUrlImportError(propertiesViewText.url_import_disclaimer_required)
+      return
+    }
+
+    if (!importUrl.trim()) {
+      setUrlImportError(propertiesViewText.url_import_invalid_url)
+      return
+    }
+
+    setUrlImportError(null)
+    setIsFetchingImportData(true)
+    try {
+      const { data, error } = await supabase.functions.invoke<{ draft?: ListingImportDraft; drafts?: ListingImportDraft[]; confidence?: number; warning?: string; error?: string }>('listing-import-ai', {
+        body: { url: importUrl },
+      })
+
+      if (error) throw error
+
+      const importedDrafts = (data?.drafts || []).filter((item) => item?.name).slice(0, 3)
+      const warningMessage = data?.warning
+
+      if (importedDrafts.length > 0) {
+        setImportedListingDraft(importedDrafts[0])
+        setImportDraftQueue(importedDrafts.slice(1))
+        if (importedDrafts.length > 1) {
+          toast.warning(
+            propertiesViewText.url_import_multi_detected
+              .replace('{count}', String(importedDrafts.length))
+          )
+        }
+        if (warningMessage) {
+          toast.warning(warningMessage)
+        }
+      } else if (data?.draft?.name) {
+        setImportedListingDraft(data.draft)
+        setImportDraftQueue([])
+        if (warningMessage) {
+          toast.warning(warningMessage)
+        }
+      } else {
+        const fallbackDraft = await fetchListingImportDraft(importUrl)
+        setImportedListingDraft(fallbackDraft)
+        setImportDraftQueue([])
+      }
+
+      toast.success(propertiesViewText.url_import_capture_success)
+    } catch (error: any) {
+      try {
+        const fallbackDraft = await fetchListingImportDraft(importUrl)
+        setImportedListingDraft(fallbackDraft)
+        setImportDraftQueue([])
+        toast.success(propertiesViewText.url_import_capture_success)
+      } catch {
+        setUrlImportError(error?.message || propertiesViewText.url_import_capture_error)
+      }
+    } finally {
+      setIsFetchingImportData(false)
+    }
+  }
+
+  const handleApplyImportedDraftToForm = () => {
+    if (!importedListingDraft) return
+
+    prefillFormFromImportedDraft(importedListingDraft, { closeImportDialog: true })
+    toast.success(propertiesViewText.url_import_prefilled_success)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (readOnly) return
@@ -459,7 +632,17 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
         if (error) console.warn('Failed to delete removed property images:', error.message)
       }
 
-      resetForm()
+      if (!editingProperty && importDraftQueue.length > 0) {
+        const [nextDraft, ...rest] = importDraftQueue
+        setImportDraftQueue(rest)
+        prefillFormFromImportedDraft(nextDraft, { closeImportDialog: false })
+        toast.message(
+          propertiesViewText.url_import_next_review
+            .replace('{remaining}', String(rest.length + 1))
+        )
+      } else {
+        resetForm()
+      }
     } catch (error: any) {
       toast.error(error?.message || t.properties_view.form.photos_upload_error)
     } finally {
@@ -613,7 +796,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
     if (!supportsEnvironments) return
     setFormData((current) => ({
       ...current,
-      environments: getDefaultEnvironments(current.type),
+      environments: [...getDefaultEnvironments(current.type)],
     }))
     setEnvironmentInput('')
     setEditingEnvironmentIndex(null)
@@ -900,6 +1083,24 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
           </Button>
           {!readOnly && (
             <>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                if (!canCreateProperty) {
+                  toast.error(
+                    t.properties_view.plan_limit_reached
+                      .replace('{limit}', String(maxPropertiesByPlan ?? '-'))
+                  )
+                  return
+                }
+                setIsUrlImportDialogOpen(true)
+              }}
+              disabled={!canCreateProperty}
+            >
+              <Brain weight="duotone" size={16} />
+              {propertiesViewText.import_url_ai}
+            </Button>
             <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
               <UploadSimple weight="bold" size={16} />
               {t.properties_view.import_csv}
@@ -909,10 +1110,19 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
                 resetForm()
                 return
               }
+
+              if (!editingProperty && !canCreateProperty) {
+                toast.error(
+                  t.properties_view.plan_limit_reached
+                    .replace('{limit}', String(maxPropertiesByPlan ?? '-'))
+                )
+                return
+              }
+
               setIsDialogOpen(true)
             }}>
               <DialogTrigger asChild>
-                <Button className="gap-2">
+                <Button className="gap-2" disabled={!canCreateProperty}>
                   <Plus weight="bold" size={16} />
                   {t.properties_view.add_property}
                 </Button>
@@ -1488,6 +1698,97 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
             </Button>
             <Button onClick={handleImportConfirm} disabled={csvParsedRows.length === 0}>
               {t.properties_view.import_confirm_btn} {csvParsedRows.length > 0 && `(${csvParsedRows.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isUrlImportDialogOpen}
+        onOpenChange={(open) => {
+          setIsUrlImportDialogOpen(open)
+          if (!open) resetUrlImportDialog()
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{propertiesViewText.url_import_dialog_title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{propertiesViewText.url_import_hint}</p>
+
+            <div className="space-y-2">
+              <Label htmlFor="import-url">{propertiesViewText.url_import_url_label}</Label>
+              <Input
+                id="import-url"
+                value={importUrl}
+                onChange={(event) => setImportUrl(event.target.value)}
+                placeholder={propertiesViewText.url_import_url_placeholder}
+              />
+            </div>
+
+            <div className="rounded-md border border-amber-200 bg-amber-50/70 p-3">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="import-disclaimer"
+                  checked={importOwnershipConfirmed}
+                  onCheckedChange={(checked) => setImportOwnershipConfirmed(Boolean(checked))}
+                />
+                <label htmlFor="import-disclaimer" className="text-sm leading-relaxed cursor-pointer">
+                  {propertiesViewText.url_import_disclaimer}
+                </label>
+              </div>
+            </div>
+
+            {urlImportError && (
+              <p className="text-sm text-destructive">{urlImportError}</p>
+            )}
+
+            {importedListingDraft && (
+              <div className="space-y-2 rounded-lg border p-3">
+                <p className="text-sm font-medium">{propertiesViewText.url_import_preview_title}</p>
+                <div className="grid gap-2 sm:grid-cols-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">{t.properties_view.import_col_name}: </span>
+                    <span className="font-medium">{importedListingDraft.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t.properties_view.import_col_type}: </span>
+                    <span>{importedListingDraft.type}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t.properties_view.import_col_capacity}: </span>
+                    <span>{importedListingDraft.capacity}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t.properties_view.import_col_city}: </span>
+                    <span>{importedListingDraft.city || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t.properties_view.import_col_price_night}: </span>
+                    <span>{importedListingDraft.pricePerNight || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{t.properties_view.import_col_price_month}: </span>
+                    <span>{importedListingDraft.pricePerMonth || 0}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUrlImportDialogOpen(false)}>
+              {t.properties_view.form.cancel}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleCaptureListingData}
+              disabled={!importOwnershipConfirmed || !importUrl.trim() || isFetchingImportData}
+            >
+              {isFetchingImportData ? propertiesViewText.url_import_capturing : propertiesViewText.url_import_capture_btn}
+            </Button>
+            <Button onClick={handleApplyImportedDraftToForm} disabled={!importedListingDraft}>
+              {propertiesViewText.url_import_review_btn}
             </Button>
           </DialogFooter>
         </DialogContent>

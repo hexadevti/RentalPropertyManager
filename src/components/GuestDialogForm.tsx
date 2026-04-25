@@ -1,5 +1,7 @@
 ﻿import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/AuthContext'
 
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
@@ -11,14 +13,18 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash, IdentificationCard, Users } from '@phosphor-icons/react'
 import { toast } from 'sonner'
-import { Dependent, Guest, GuestDocument, GuestRelatedPerson, Sponsor } from '@/types'
+import { Dependent, Document, Guest, GuestDocument, GuestRelatedPerson, Sponsor } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
+
+const DOCUMENTS_BUCKET = 'documents'
 
 interface GuestDialogFormProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onGuestCreated?: (guestId: string) => void
   editingGuest?: Guest | null
+  importedDraft?: Partial<Guest> | null
+  importedFiles?: File[]
 }
 
 type RelatedPeopleKey = 'sponsors' | 'dependents'
@@ -89,17 +95,98 @@ export default function GuestDialogForm({
   onOpenChange,
   onGuestCreated,
   editingGuest,
+  importedDraft,
+  importedFiles,
 }: GuestDialogFormProps) {
   const { t } = useLanguage()
+  const { currentTenantId } = useAuth()
   const [guests, setGuests] = useKV<Guest[]>('guests', [])
+  const [, setDocuments] = useKV<Document[]>('documents', [])
   const [formData, setFormData] = useState<GuestFormState>(createEmptyGuestForm())
   const [newDocType, setNewDocType] = useState('')
   const [newDocNumber, setNewDocNumber] = useState('')
+  const [aiImportFiles, setAiImportFiles] = useState<File[]>([])
+
+  const mergeDocuments = (current: GuestDocument[], incoming: GuestDocument[]) => {
+    const next = [...current]
+    const seen = new Set(current.map((doc) => `${doc.type.toLowerCase()}::${doc.number.toLowerCase()}`))
+
+    for (const doc of incoming) {
+      const type = doc.type.trim()
+      const number = doc.number.trim()
+      if (!number) continue
+      const key = `${type.toLowerCase()}::${number.toLowerCase()}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      next.push({ type, number })
+    }
+
+    return next
+  }
+
+  const sanitizeFileName = (fileName: string) => {
+    return fileName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '-')
+      .replace(/-+/g, '-')
+  }
+
+  const createDocumentId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+  const saveImportedFilesAsDocuments = async (guestId: string, guestName: string) => {
+    if (aiImportFiles.length === 0) return
+    if (!currentTenantId) {
+      toast.error(t.documents_view.tenant_required)
+      return
+    }
+
+    const savedDocuments: Document[] = []
+
+    for (const file of aiImportFiles.slice(0, 6)) {
+      const id = createDocumentId()
+      const safeFileName = sanitizeFileName(file.name || `guest-document-${id}.jpg`)
+      const filePath = `${currentTenantId}/${id}/${safeFileName}`
+
+      const { error } = await supabase.storage
+        .from(DOCUMENTS_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || undefined,
+        })
+
+      if (error) {
+        toast.error(error.message || t.documents_view.upload_error)
+        continue
+      }
+
+      savedDocuments.push({
+        id,
+        name: `${guestName || t.guests_view.form.name} - ${safeFileName}`,
+        category: 'other',
+        notes: 'Document image used in AI extraction flow.',
+        relationType: 'guest',
+        relationId: guestId,
+        fileName: file.name,
+        filePath,
+        fileSize: file.size,
+        mimeType: file.type || undefined,
+        uploadDate: new Date().toISOString(),
+      })
+    }
+
+    if (savedDocuments.length > 0) {
+      setDocuments((current) => [...(current || []), ...savedDocuments])
+      toast.success(`${savedDocuments.length} ${t.documents_view.upload_success}`)
+    }
+  }
 
   const resetForm = () => {
     setFormData(createEmptyGuestForm())
     setNewDocType('')
     setNewDocNumber('')
+    setAiImportFiles([])
   }
 
   useEffect(() => {
@@ -122,6 +209,28 @@ export default function GuestDialogForm({
     setNewDocType('')
     setNewDocNumber('')
   }, [editingGuest])
+
+  useEffect(() => {
+    if (!importedDraft || editingGuest) return
+
+    setFormData({
+      name: importedDraft.name || '',
+      email: importedDraft.email || '',
+      phone: importedDraft.phone || '',
+      documents: importedDraft.documents || [],
+      sponsors: [],
+      dependents: [],
+      address: importedDraft.address || '',
+      nationality: importedDraft.nationality || '',
+      maritalStatus: importedDraft.maritalStatus || '',
+      profession: importedDraft.profession || '',
+      dateOfBirth: importedDraft.dateOfBirth || '',
+      notes: importedDraft.notes || '',
+    })
+    setAiImportFiles(importedFiles || [])
+    setNewDocType('')
+    setNewDocNumber('')
+  }, [editingGuest, importedDraft, importedFiles])
 
   const addDocument = () => {
     if (!newDocNumber.trim()) return
@@ -208,7 +317,7 @@ export default function GuestDialogForm({
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (editingGuest) {
@@ -220,6 +329,7 @@ export default function GuestDialogForm({
         )
       )
       toast.success(t.guests_view.form.updated_success)
+      await saveImportedFilesAsDocuments(editingGuest.id, formData.name)
       onOpenChange(false)
       resetForm()
       return
@@ -236,6 +346,8 @@ export default function GuestDialogForm({
     if (onGuestCreated) {
       onGuestCreated(newGuest.id)
     }
+
+    await saveImportedFilesAsDocuments(newGuest.id, newGuest.name)
 
     onOpenChange(false)
     resetForm()

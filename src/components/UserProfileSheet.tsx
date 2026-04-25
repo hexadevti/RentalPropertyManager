@@ -28,7 +28,7 @@ interface UserProfileSheetProps {
 }
 
 export function UserProfileSheet({ open, onOpenChange, activeTab = '', activeTabLabel = '', tabTitleMap = {} }: UserProfileSheetProps) {
-  const { currentUser, userProfile, accessProfile, signOut } = useAuth()
+  const { currentUser, userProfile, accessProfile, tenantName, currentTenantId, signOut } = useAuth()
   const { t, setLanguage, language } = useLanguage()
   const { currency, setCurrency, availableCurrencies } = useCurrency()
   const { decimalSeparator, setDecimalSeparator } = useNumberFormat()
@@ -42,6 +42,8 @@ export function UserProfileSheet({ open, onOpenChange, activeTab = '', activeTab
   const initials = login.slice(0, 2).toUpperCase()
   const roleLabel = accessProfile?.name || 'Perfil padrao'
   const roleColor = userProfile?.role === 'admin' ? 'default' : 'secondary'
+  const resolvedTenantName = tenantName || currentTenantId || '—'
+  const resolvedPhone = userProfile.phone || '—'
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -118,25 +120,43 @@ export function UserProfileSheet({ open, onOpenChange, activeTab = '', activeTab
 
         <Separator />
 
-        <div className="py-4 space-y-3">
+        <div className="py-3 space-y-2.5">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
             {t.settings_view.identity_section}
           </p>
 
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <IdentificationCard size={13} />
-              {t.settings_view.user_id}
-            </Label>
-            <p className="text-sm font-mono bg-muted rounded px-2 py-1 break-all select-all">{currentUser.id}</p>
-          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+              <Label className="text-[11px] leading-none text-muted-foreground flex items-center gap-1.5">
+                <IdentificationCard size={12} />
+                {t.settings_view.user_id}
+              </Label>
+              <p className="text-xs font-mono break-all select-all">{currentUser.id}</p>
+            </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <EnvelopeSimple size={13} />
-              {t.guests_view.form.email}
-            </Label>
-            <p className="text-sm bg-muted rounded px-2 py-1">{currentUser.email || userProfile.email || '—'}</p>
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+              <Label className="text-[11px] leading-none text-muted-foreground flex items-center gap-1.5">
+                <EnvelopeSimple size={12} />
+                {t.guests_view.form.email}
+              </Label>
+              <p className="text-xs break-all">{currentUser.email || userProfile.email || '—'}</p>
+            </div>
+
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+              <Label className="text-[11px] leading-none text-muted-foreground flex items-center gap-1.5">
+                <IdentificationCard size={12} />
+                {t.settings_view.tenant_label}
+              </Label>
+              <p className="text-xs break-all">{resolvedTenantName}</p>
+            </div>
+
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+              <Label className="text-[11px] leading-none text-muted-foreground flex items-center gap-1.5">
+                <IdentificationCard size={12} />
+                {t.settings_view.phone_label}
+              </Label>
+              <p className="text-xs break-all">{resolvedPhone}</p>
+            </div>
           </div>
         </div>
 

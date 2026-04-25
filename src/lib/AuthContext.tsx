@@ -4,8 +4,10 @@ import { supabase } from '@/lib/supabase'
 import { setSupabaseAuthState } from '@/lib/supabaseAuthState'
 import { logAppAudit } from '@/lib/appAudit'
 import { deriveUserRoleFromAccessProfileId, hasRequiredAccessLevel, normalizeAccessLevel, resolveDefaultAccessProfileId } from '@/lib/accessControl'
+import { fetchTenantUsagePlan } from '@/lib/usagePlans'
 import { ACCESS_ROLES } from '@/types'
 import type { AccessLevel, AccessProfile, AccessRoleId, UserProfile, UserRole, UserStatus } from '@/types'
+import type { TenantUsagePlan } from '@/lib/usagePlans'
 
 interface AuthContextType {
   currentUser: AppUser | null
@@ -22,8 +24,10 @@ interface AuthContextType {
   isBlocked: boolean
   accessProfile: AccessProfile | null
   accessLevels: Partial<Record<AccessRoleId, AccessLevel>>
+  tenantUsagePlan: TenantUsagePlan | null
   hasRole: (role: UserRole) => boolean
   hasAccess: (roleId: AccessRoleId, requiredLevel?: AccessLevel) => boolean
+  reloadTenantUsagePlan: () => Promise<void>
   updateUserRole: (login: string, role: UserRole, accessProfileId?: string | null) => Promise<void>
   updateUserStatus: (login: string, status: UserStatus) => Promise<void>
   updateUserProfile: (login: string, updates: { githubLogin?: string; email?: string; avatarUrl?: string }) => Promise<void>
@@ -73,6 +77,7 @@ function profileFromRow(row: any): UserProfile {
     role: row.role,
     status: row.status,
     email: row.email,
+    phone: row.phone || null,
     avatarUrl: row.avatar_url,
     accessProfileId: row.access_profile_id || null,
     createdAt: row.created_at,
@@ -203,6 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [accessProfile, setAccessProfile] = useState<AccessProfile | null>(null)
   const [accessLevels, setAccessLevels] = useState<Partial<Record<AccessRoleId, AccessLevel>>>({})
+  const [tenantUsagePlan, setTenantUsagePlan] = useState<TenantUsagePlan | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const loggedLoginSessionRef = useRef<string | null>(null)
 
@@ -278,7 +284,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentTenantId(tenantId)
     await loadTenantName(tenantId)
     await loadTenantProfiles(tenantId)
+    try {
+      const plan = await fetchTenantUsagePlan(tenantId)
+      setTenantUsagePlan(plan)
+    } catch (error) {
+      console.warn('Failed to load tenant usage plan:', error)
+      setTenantUsagePlan(null)
+    }
   }, [loadTenantName, loadTenantProfiles])
+
+  const reloadTenantUsagePlan = useCallback(async () => {
+    if (!currentTenantId) {
+      setTenantUsagePlan(null)
+      return
+    }
+
+    try {
+      const plan = await fetchTenantUsagePlan(currentTenantId)
+      setTenantUsagePlan(plan)
+    } catch (error) {
+      console.warn('Failed to reload tenant usage plan:', error)
+    }
+  }, [currentTenantId])
 
   const loadPlatformSessionTenant = useCallback(async (authUserId: string, fallbackTenantId: string) => {
     const localFallback = localStorage.getItem('platform-session-tenant') || fallbackTenantId
@@ -542,6 +569,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPlatformAdmin(false)
     setAccessProfile(null)
     setAccessLevels({})
+    setTenantUsagePlan(null)
   }, [])
 
   const getOAuthRedirectTo = useCallback(() => {
@@ -709,6 +737,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasAccess = (roleId: AccessRoleId, requiredLevel: AccessLevel = 'read') => {
     if (isPlatformAdmin) return true
+    const planRoles = tenantUsagePlan?.allowedAccessRoleIds || []
+    if (planRoles.length > 0 && !planRoles.includes(roleId)) return false
     return hasRequiredAccessLevel(accessLevels[roleId], requiredLevel)
   }
 
@@ -918,6 +948,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(mockUser)
     setCurrentTenantId(tenantId)
     setTenantName('Dev Organization')
+    setTenantUsagePlan({
+      tenantId,
+      planCode: 'enterprise',
+      planName: 'Enterprise',
+      allowedAccessRoleIds: ACCESS_ROLES.map((role) => role.id),
+      featureHighlights: [],
+      maxProperties: null,
+      maxUsers: null,
+    })
     setUserProfile(mockProfile)
     setTenantProfiles([mockProfile])
     setAccessProfile({
@@ -950,6 +989,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserProfile(null)
     setCurrentTenantId(null)
     setTenantName(null)
+    setTenantUsagePlan(null)
     setTenantProfiles([])
     setIsPlatformAdmin(false)
     localStorage.removeItem('dev-mode-user')
@@ -968,8 +1008,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isPlatformAdmin,
     accessProfile,
     accessLevels,
+    tenantUsagePlan,
     hasRole,
     hasAccess,
+    reloadTenantUsagePlan,
     isAdmin: userProfile?.role === 'admin',
     isGuest: userProfile?.role === 'guest',
     isApproved: !!userProfile && userProfile.status !== 'blocked',
