@@ -27,11 +27,51 @@ type RoomVariant = {
   capacity: number | null
 }
 
+const MODEL_PRICING: Record<string, [number, number]> = {
+  'claude-sonnet-4-6': [3.0, 15.0],
+  'claude-opus-4-7': [15.0, 75.0],
+  'claude-haiku-4-5-20251001': [0.8, 4.0],
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
+
+function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+  const [inputRate, outputRate] = MODEL_PRICING[model] ?? [3.0, 15.0]
+  return (inputTokens / 1_000_000) * inputRate + (outputTokens / 1_000_000) * outputRate
+}
+
+async function resolveTenantContext(adminClient: any, authUserId: string) {
+  const { data: profile } = await adminClient
+    .from('user_profiles')
+    .select('tenant_id, github_login, email')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle()
+
+  const { data: platformAdmin } = await adminClient
+    .from('platform_admins')
+    .select('auth_user_id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle()
+
+  let tenantId = profile?.tenant_id as string | undefined
+  if (platformAdmin) {
+    const { data: sessionTenant } = await adminClient
+      .from('platform_admin_session_tenants')
+      .select('tenant_id')
+      .eq('auth_user_id', authUserId)
+      .maybeSingle()
+    tenantId = sessionTenant?.tenant_id ?? tenantId
+  }
+
+  return {
+    tenantId: tenantId ?? null,
+    userLogin: profile?.github_login ?? profile?.email ?? '',
+  }
 }
 
 function normalizeUrl(input: string) {
@@ -459,10 +499,15 @@ async function extractWithAnthropic(anthropicApiKey: string, sourceUrl: string, 
     throw new Error('AI returned an invalid extraction format.')
   }
 
-  return parsed
+  return {
+    parsed,
+    model,
+    inputTokens: Number(payload?.usage?.input_tokens ?? 0),
+    outputTokens: Number(payload?.usage?.output_tokens ?? 0),
+  }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   try {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
     if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
@@ -470,24 +515,33 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     if (!supabaseUrl || !supabaseAnonKey) return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
     if (!anthropicApiKey) return jsonResponse({ error: 'ANTHROPIC_API_KEY is not configured' }, 500)
+    if (!supabaseServiceRoleKey) return jsonResponse({ error: 'SUPABASE_SERVICE_ROLE_KEY is not configured' }, 500)
 
     const authorization = req.headers.get('Authorization')
     if (!authorization) return jsonResponse({ error: 'Missing Authorization header' }, 401)
 
     const token = authorization.replace(/^Bearer\s+/i, '').trim()
     const authClient = createClient(supabaseUrl, supabaseAnonKey)
+    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
     const { data: userData, error: userError } = await authClient.auth.getUser(token)
     if (userError || !userData?.user) return jsonResponse({ error: 'Invalid authentication token' }, 401)
+
+    const authUserId = userData.user.id
+    const tenantContext = await resolveTenantContext(adminClient, authUserId)
 
     const body = await req.json().catch(() => ({})) as { url?: string }
     const sourceUrl = normalizeUrl(String(body?.url || ''))
     if (!sourceUrl) return jsonResponse({ error: 'A valid URL is required.' }, 400)
 
     const pageText = await fetchPageSnapshot(sourceUrl)
-    const aiResult = await extractWithAnthropic(anthropicApiKey, sourceUrl, pageText)
+    const aiResponse = await extractWithAnthropic(anthropicApiKey, sourceUrl, pageText)
+    const aiResult = aiResponse.parsed
 
     const pricePerNight = parsePriceToNumber(aiResult.pricePerNight)
     const pricePerMonth = parsePriceToNumber(aiResult.pricePerMonth) || (pricePerNight > 0 ? Math.round(pricePerNight * 30) : 0)
@@ -536,7 +590,24 @@ Deno.serve(async (req) => {
         aiResult.warning || 'Booking room table detected. Created 3 room imports for one-by-one review.',
         500,
       )
-      return jsonResponse({ draft: drafts[0], drafts, confidence, warning })
+      const costUsd = estimateCost(aiResponse.model, aiResponse.inputTokens, aiResponse.outputTokens)
+      if (tenantContext.tenantId) {
+        adminClient.from('ai_usage_logs').insert({
+          id: crypto.randomUUID(),
+          tenant_id: tenantContext.tenantId,
+          auth_user_id: authUserId,
+          user_login: tenantContext.userLogin,
+          model: aiResponse.model,
+          question_chars: sourceUrl.length,
+          input_tokens: aiResponse.inputTokens,
+          output_tokens: aiResponse.outputTokens,
+          total_tokens: aiResponse.inputTokens + aiResponse.outputTokens,
+          estimated_cost_usd: costUsd,
+        }).then(({ error }: any) => {
+          if (error) console.warn('ai_usage_logs insert failed:', error.message)
+        })
+      }
+      return jsonResponse({ draft: drafts[0], drafts, confidence, warning, model: aiResponse.model })
     }
 
     if (roomTypeHints.length > 1) {
@@ -545,11 +616,45 @@ Deno.serve(async (req) => {
         aiResult.warning || 'Multiple room types detected. Created 3 imports for one-by-one review.',
         500,
       )
-      return jsonResponse({ draft: drafts[0], drafts, confidence, warning })
+      const costUsd = estimateCost(aiResponse.model, aiResponse.inputTokens, aiResponse.outputTokens)
+      if (tenantContext.tenantId) {
+        adminClient.from('ai_usage_logs').insert({
+          id: crypto.randomUUID(),
+          tenant_id: tenantContext.tenantId,
+          auth_user_id: authUserId,
+          user_login: tenantContext.userLogin,
+          model: aiResponse.model,
+          question_chars: sourceUrl.length,
+          input_tokens: aiResponse.inputTokens,
+          output_tokens: aiResponse.outputTokens,
+          total_tokens: aiResponse.inputTokens + aiResponse.outputTokens,
+          estimated_cost_usd: costUsd,
+        }).then(({ error }: any) => {
+          if (error) console.warn('ai_usage_logs insert failed:', error.message)
+        })
+      }
+      return jsonResponse({ draft: drafts[0], drafts, confidence, warning, model: aiResponse.model })
     }
 
     const warning = safeText(aiResult.warning, 500)
-    return jsonResponse({ draft, confidence, warning })
+    const costUsd = estimateCost(aiResponse.model, aiResponse.inputTokens, aiResponse.outputTokens)
+    if (tenantContext.tenantId) {
+      adminClient.from('ai_usage_logs').insert({
+        id: crypto.randomUUID(),
+        tenant_id: tenantContext.tenantId,
+        auth_user_id: authUserId,
+        user_login: tenantContext.userLogin,
+        model: aiResponse.model,
+        question_chars: sourceUrl.length,
+        input_tokens: aiResponse.inputTokens,
+        output_tokens: aiResponse.outputTokens,
+        total_tokens: aiResponse.inputTokens + aiResponse.outputTokens,
+        estimated_cost_usd: costUsd,
+      }).then(({ error }: any) => {
+        if (error) console.warn('ai_usage_logs insert failed:', error.message)
+      })
+    }
+    return jsonResponse({ draft, confidence, warning, model: aiResponse.model })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error while importing listing.'
     return jsonResponse({ error: message }, 500)

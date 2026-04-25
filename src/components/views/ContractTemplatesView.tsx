@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Plus, Pencil, Trash, Copy, MagnifyingGlass, Question } from '@phosphor-icons/react'
+import { Plus, Pencil, Trash, Copy, MagnifyingGlass, Question, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Contract, ContractTemplate, Guest, Owner, Property, TEMPLATE_LANGUAGES, TemplateLanguage, TemplateType } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -22,6 +22,7 @@ import { useDateFormat } from '@/lib/DateFormatContext'
 import RichTextEditor, { plainTextToHTML, RichTextEditorHandle } from '@/components/RichTextEditor'
 import { buildTemplateXPathContext, renderContractTemplateContent, resolveTemplateXPath, TemplateXPathContext } from '@/lib/contractPDF'
 import { getContractSelectionLabel } from '@/lib/contractLabels'
+import { TemplateDocumentImportDialog, type TemplateDocumentImportResult } from '@/components/TemplateDocumentImportDialog'
 
 type XPathPreviewRow = {
   path: string
@@ -104,6 +105,7 @@ export default function ContractTemplatesView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [languageFilter, setLanguageFilter] = useState<TemplateLanguage | 'all'>(language === 'en' ? 'en' : 'pt')
   const [selectedPreviewContractId, setSelectedPreviewContractId] = useState(NO_PREVIEW_CONTRACT_VALUE)
+  const [isAiImportDialogOpen, setIsAiImportDialogOpen] = useState(false)
   const [editorTab, setEditorTab] = useState<'template' | 'preview'>('template')
   const [xpathInput, setXpathInput] = useState('')
   const [xpathTableFilter, setXpathTableFilter] = useState('')
@@ -484,6 +486,47 @@ export default function ContractTemplatesView() {
     )
   }, [selectedHelpContractData, formatCurrency, formatDate])
 
+  const templateAvailablePaths = useMemo(() => {
+    if (xpathPreviewRows.length > 0) {
+      return Array.from(new Set(xpathPreviewRows.map((row) => row.path))).slice(0, 300)
+    }
+
+    return [
+      'guest.name',
+      'guest.email',
+      'guest.phone',
+      'guest.documents{1}.number',
+      'owners{1}.name',
+      'owners{1}.documents{1}.number',
+      'properties{1}.name',
+      'properties{1}.address',
+      'contract.startDate',
+      'contract.endDate',
+      'contract.monthlyAmount',
+      'currentDate',
+    ]
+  }, [xpathPreviewRows])
+
+  const handleTemplateAiImportApplied = (result: TemplateDocumentImportResult) => {
+    setFormData((current) => ({
+      ...current,
+      content: result.content,
+    }))
+    setEditorTab('template')
+    restoreEditorFocus()
+    toast.success(`Conteúdo do template atualizado pela IA (${Math.round(result.confidence * 100)}%)`)
+  }
+
+  const handleOpenAiImportFromTemplatesScreen = () => {
+    if (!dialogOpen) {
+      resetForm()
+      setDialogOpen(true)
+    }
+
+    setEditorTab('template')
+    setTimeout(() => setIsAiImportDialogOpen(true), 80)
+  }
+
   const getTypeBadgeClass = (type: TemplateType) => {
     return type === 'monthly' 
       ? 'bg-primary text-primary-foreground' 
@@ -506,7 +549,11 @@ export default function ContractTemplatesView() {
             Gerencie modelos de contratos reutilizáveis
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 justify-end">
+          <Button variant="outline" onClick={handleOpenAiImportFromTemplatesScreen}>
+            <Brain weight="duotone" size={18} className="mr-2" />
+            Importar template por IA
+          </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open)
             if (!open) {
@@ -554,8 +601,8 @@ export default function ContractTemplatesView() {
                     }}>
                     <Tabs value={editorTab} onValueChange={(value) => setEditorTab(value as 'template' | 'preview')}>
                       {/* Single toolbar row */}
-                      <div className="flex items-end justify-between gap-3">
-                        <div className="flex items-end gap-2 min-w-0">
+                      <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div className="flex flex-wrap items-end gap-2 min-w-0">
                           <div className="space-y-1 w-40 shrink-0">
                             <Label htmlFor="type">Tipo de Contrato</Label>
                             <Select
@@ -605,7 +652,7 @@ export default function ContractTemplatesView() {
                           </div>
                         </div>
 
-                        <div className="ml-auto flex items-end gap-2 shrink-0">
+                        <div className="ml-auto flex flex-wrap items-end justify-end gap-2">
                           <div className="space-y-1">
                             <Label>Conteúdo do Contrato</Label>
                             <TabsList className="shrink-0">
@@ -785,6 +832,14 @@ export default function ContractTemplatesView() {
                   </Button>
                 </div>
               </form>
+
+              <TemplateDocumentImportDialog
+                open={isAiImportDialogOpen}
+                onOpenChange={setIsAiImportDialogOpen}
+                templateContent={formData.content}
+                availablePaths={templateAvailablePaths}
+                onApply={handleTemplateAiImportApplied}
+              />
             </DialogContent>
           </Dialog>
         </div>

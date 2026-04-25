@@ -6,26 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type PersonType = 'owner' | 'guest'
-
-type DraftDocument = {
-  type: string
-  number: string
-}
-
-type PersonDraft = {
-  name: string
-  email: string
-  phone: string
-  address: string
-  nationality: string
-  maritalStatus: string
-  profession: string
-  dateOfBirth: string
-  notes: string
-  documents: DraftDocument[]
-}
-
 type ParsedImageInput = {
   mediaType: string
   base64: string
@@ -78,78 +58,8 @@ async function resolveTenantContext(adminClient: any, authUserId: string) {
   }
 }
 
-function safeText(value: unknown, max = 500) {
+function safeText(value: unknown, max = 1000) {
   return String(value ?? '').trim().slice(0, max)
-}
-
-function normalizePhone(value: unknown) {
-  return safeText(value, 40)
-}
-
-function normalizeDate(value: unknown) {
-  const text = safeText(value, 30)
-  if (!text) return ''
-
-  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (isoMatch) return text
-
-  const brMatch = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (brMatch) {
-    const [, dd, mm, yyyy] = brMatch
-    return `${yyyy}-${mm}-${dd}`
-  }
-
-  return text
-}
-
-function normalizeDocumentType(value: unknown) {
-  const text = safeText(value, 80)
-  if (!text) return ''
-
-  const normalized = text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-
-  if (normalized.includes('passport')) return 'Passport'
-  if (normalized.includes('passaporte')) return 'Passport'
-  if (normalized.includes('cpf')) return 'CPF'
-  if (normalized.includes('cnpj')) return 'CNPJ'
-  if (normalized.includes('rg')) return 'RG'
-  if (normalized.includes('cnh')) return 'CNH'
-  if (normalized.includes('driver')) return 'Driver License'
-  if (normalized.includes('license')) return 'Driver License'
-  if (normalized.includes('carteira nacional de habilitacao')) return 'CNH'
-  if (normalized.includes('dni')) return 'DNI'
-  if (normalized.includes('nie')) return 'NIE'
-  if (normalized.includes('nif')) return 'NIF'
-  if (normalized.includes('tax id')) return 'Tax ID'
-  if (normalized.includes('residence permit')) return 'Residence Permit'
-  if (normalized.includes('residenc')) return 'Residence Permit'
-  if (normalized === 'id' || normalized.includes('identity') || normalized.includes('identidad')) return 'ID'
-
-  return text
-}
-
-function normalizeDocuments(value: unknown) {
-  if (!Array.isArray(value)) return []
-
-  const next: DraftDocument[] = []
-  const seen = new Set<string>()
-  for (const item of value) {
-    const docType = normalizeDocumentType((item as any)?.type)
-    const docNumber = safeText((item as any)?.number, 120)
-    if (!docNumber) continue
-
-    const key = `${docType.toLowerCase()}::${docNumber.toLowerCase()}`
-    if (seen.has(key)) continue
-    seen.add(key)
-
-    next.push({ type: docType, number: docNumber })
-    if (next.length >= 8) break
-  }
-
-  return next
 }
 
 function normalizeWarnings(value: unknown) {
@@ -157,13 +67,100 @@ function normalizeWarnings(value: unknown) {
 
   const next: string[] = []
   for (const item of value) {
-    const warning = safeText(item, 180)
+    const warning = safeText(item, 200)
     if (!warning) continue
     next.push(warning)
-    if (next.length >= 6) break
+    if (next.length >= 8) break
   }
 
   return next
+}
+
+function normalizeReplacements(value: unknown) {
+  if (!Array.isArray(value)) return []
+
+  const next: string[] = []
+  for (const item of value) {
+    const replacement = safeText(item, 220)
+    if (!replacement) continue
+    next.push(replacement)
+    if (next.length >= 12) break
+  }
+
+  return next
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function plainTextToHtml(text: string) {
+  const normalized = text.replace(/\r\n?/g, '\n').trim()
+  if (!normalized) return ''
+
+  const paragraphs = normalized.split(/\n{2,}/)
+  return paragraphs
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br/>')}</p>`)
+    .join('\n')
+}
+
+function normalizeModelTextOutput(text: string): string {
+  const trimmed = text.trim()
+  if (!trimmed) return ''
+
+  const codeBlockMatch = trimmed.match(/```(?:html|json|text)?\s*([\s\S]*?)\s*```/i)
+  return (codeBlockMatch ? codeBlockMatch[1] : trimmed).trim()
+}
+
+function stripContentEnvelopeHeuristic(text: string): string {
+  let next = text.trim()
+  if (!next) return ''
+
+  next = next
+    .replace(/^```(?:json|html|text)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .trim()
+
+  if (!/^\{\s*"content"\s*:\s*"/s.test(next)) {
+    return next
+  }
+
+  next = next
+    .replace(/^\{\s*"content"\s*:\s*"/s, '')
+    .replace(/"\s*(,\s*"confidence"[\s\S]*|\})\s*$/s, '')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+    .trim()
+
+  return next
+}
+
+function unwrapNestedContentCandidate(value: unknown): string {
+  let current = String(value ?? '').trim()
+  if (!current) return ''
+
+  for (let i = 0; i < 3; i += 1) {
+    const normalized = stripContentEnvelopeHeuristic(normalizeModelTextOutput(current))
+    const parsed = tryParseJson(normalized)
+    if (!parsed) return normalized
+
+    const nested = parsed.content
+    if (typeof nested !== 'string') return normalized
+
+    const next = nested.trim()
+    if (!next || next === current) return next || normalized
+    current = next
+  }
+
+  return stripContentEnvelopeHeuristic(normalizeModelTextOutput(current))
 }
 
 function parseDataUrl(input: string): ParsedImageInput | null {
@@ -182,12 +179,15 @@ function tryParseJson(text: string): Record<string, unknown> | null {
   const trimmed = text.trim()
   if (!trimmed) return null
 
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
+  const candidateText = codeBlockMatch ? codeBlockMatch[1].trim() : trimmed
+
   try {
-    const parsed = JSON.parse(trimmed)
+    const parsed = JSON.parse(candidateText)
     if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>
     return null
   } catch {
-    const match = trimmed.match(/\{[\s\S]*\}/)
+    const match = candidateText.match(/\{[\s\S]*\}/)
     if (!match) return null
 
     try {
@@ -200,54 +200,54 @@ function tryParseJson(text: string): Record<string, unknown> | null {
   }
 }
 
-async function extractWithAnthropicVision(anthropicApiKey: string, personType: PersonType, images: ParsedImageInput[]) {
+async function extractTemplateWithAnthropicVision(
+  anthropicApiKey: string,
+  templateContent: string,
+  availablePaths: string[],
+  images: ParsedImageInput[],
+  sourceText?: string,
+) {
   const model = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6'
+  const pathList = availablePaths.slice(0, 220).map((path) => `- ${path}`).join('\n')
 
   const prompt = [
-    `You are an OCR and data extraction engine for ${personType} registration forms.`,
-    'You will receive one or more images of IDs/documents or photos taken by phone camera.',
-    'Images may represent the same document front and back, multiple different documents, or casual phone photos of printed paperwork.',
-    'Extract structured person data conservatively and return ONLY strict JSON.',
+    'You are a legal-template OCR and tokenization engine.',
+    'You may receive photos/images of contract documents and/or extracted text from PDF/DOC/DOCX sources.',
+    'You also receive an existing HTML contract template that may contain literal names/document numbers and some {{xpath}} tokens.',
+    'Your goal is to rewrite the provided template content replacing literal personal data with the best matching {{xpath}} tokens from the allowed path list.',
+    '',
+    'Input template content (HTML):',
+    templateContent,
+    '',
+    'Extracted text source (when available):',
+    sourceText && sourceText.trim()
+      ? sourceText.slice(0, 120000)
+      : '[No extracted text provided. Use image OCR only.]',
+    '',
+    'Allowed template paths (source of truth):',
+    pathList || '- guest.name\n- guest.documents{1}.number\n- owners{1}.name\n- owners{1}.documents{1}.number\n- contract.startDate\n- contract.endDate\n- properties{1}.name\n- properties{1}.address',
+    '',
+    'Hard constraints:',
+    '- Return ONLY strict JSON',
+    '- Keep HTML structure valid and as close as possible to the original template',
+    '- Do not remove legal clauses that are unrelated to extracted identity/property/contract data',
+    '- Never invent new xpaths; use only allowed paths',
+    '- If you are not confident about a replacement, keep original text and add a warning',
+    '- Prefer replacing names and document numbers first (guest/owners)',
+    '- Also replace other fields when clearly mapped (address, dates, amounts, property name)',
+    '- Preserve existing {{xpath}} tokens already present unless they are clearly wrong and confidently replaceable by an allowed path',
     '',
     'Required JSON shape:',
     '{',
-    '  "name": string,',
-    '  "email": string,',
-    '  "phone": string,',
-    '  "address": string,',
-    '  "nationality": string,',
-    '  "maritalStatus": string,',
-    '  "profession": string,',
-    '  "dateOfBirth": string,',
-    '  "notes": string,',
-    '  "documents": [{ "type": string, "number": string }],',
+    '  "content": string,',
     '  "confidence": number,',
-    '  "warnings": string[]',
+    '  "warnings": string[],',
+    '  "replacements": string[]',
     '}',
     '',
-    'Rules:',
-    '- confidence must be 0..1',
-    '- dateOfBirth should be ISO YYYY-MM-DD when possible',
-    '- preserve the original language of names and document fields',
-    '- use empty string for unknown text fields',
-    '- if uncertain, still include best-effort value and add a warning',
-    '- documents can include CPF/RG/CNPJ/Passport/NIF/ID depending on source',
-    '- include up to 8 documents',
-    '- consolidate information across all images before answering',
-    '- if front and back of the same document are present, merge them into a single person and single document entry',
-    '- prefer text that is repeated consistently across multiple images',
-    '- prefer the main identified person in the documents, not relatives, parents, spouses, or secondary people mentioned in the document',
-    '- extract full legal name exactly as shown when readable',
-    '- email and phone should only be filled when explicitly visible in the images',
-    '- address should only be filled when it clearly belongs to the identified person',
-    '- do not invent or infer email, phone, address, profession, nationality, or marital status',
-    '- if there are multiple conflicting values for a field, choose the most plausible one and add a warning describing the conflict',
-    '- if the images are blurry, cropped, glared, rotated, or partially unreadable, add warnings for the affected fields',
-    '- if more than one person seems present in the uploaded images, extract the primary person only and add a warning',
-    '- use canonical document types when possible: CPF, RG, CNPJ, Passport, NIF, ID, CNH, Driver License, DNI, NIE, Residence Permit, Tax ID',
-    '- include document numbers exactly as visible, preserving useful separators when present',
-    '- if the same document number appears more than once across images, include it only once',
-    '- notes should contain only short relevant identity details not represented elsewhere, such as issuing authority or document country when useful',
+    'replacements should be short lines like:',
+    '- "Joao Silva -> {{guest.name}}"',
+    '- "CPF 000.000.000-00 -> {{guest.documents{1}.number}}"',
   ].join('\n')
 
   const content = [
@@ -271,7 +271,7 @@ async function extractWithAnthropicVision(anthropicApiKey: string, personType: P
     },
     body: JSON.stringify({
       model,
-      max_tokens: 1800,
+      max_tokens: 3000,
       temperature: 0,
       messages: [{ role: 'user', content }],
     }),
@@ -279,7 +279,7 @@ async function extractWithAnthropicVision(anthropicApiKey: string, personType: P
 
   if (!response.ok) {
     const detail = await response.text()
-    throw new Error(`AI extraction failed: ${detail}`)
+    throw new Error(`AI template extraction failed: ${detail}`)
   }
 
   const payload = await response.json()
@@ -291,12 +291,24 @@ async function extractWithAnthropicVision(anthropicApiKey: string, personType: P
     : ''
 
   const parsed = tryParseJson(text)
-  if (!parsed) {
-    throw new Error('AI returned an invalid extraction format.')
+  let parsedPayload = parsed
+  if (!parsedPayload) {
+    const normalizedText = normalizeModelTextOutput(text)
+    const looksLikeHtml = /<[a-z][\s\S]*>/i.test(normalizedText)
+    const fallbackContent = looksLikeHtml
+      ? normalizedText
+      : (plainTextToHtml(normalizedText) || templateContent)
+
+    parsedPayload = {
+      content: fallbackContent,
+      confidence: 0.45,
+      warnings: [],
+      replacements: [],
+    }
   }
 
   return {
-    parsed,
+    parsed: parsedPayload,
     model,
     inputTokens: Number(payload?.usage?.input_tokens ?? 0),
     outputTokens: Number(payload?.usage?.output_tokens ?? 0),
@@ -332,41 +344,42 @@ Deno.serve(async (req: Request) => {
     const tenantContext = await resolveTenantContext(adminClient, authUserId)
 
     const body = await req.json().catch(() => ({})) as {
-      personType?: PersonType
+      templateContent?: string
+      availablePaths?: string[]
       images?: string[]
+      sourceText?: string
     }
 
-    const personType = body.personType === 'owner' ? 'owner' : 'guest'
+    const templateContent = safeText(body.templateContent, 50000)
+    const availablePaths = Array.isArray(body.availablePaths)
+      ? body.availablePaths.map((path) => safeText(path, 160)).filter(Boolean)
+      : []
     const rawImages = Array.isArray(body.images) ? body.images : []
     const images = rawImages.map(parseDataUrl).filter(Boolean) as ParsedImageInput[]
+    const sourceText = safeText(body.sourceText, 120000)
 
-    if (images.length === 0) {
-      return jsonResponse({ error: 'At least one valid image is required.' }, 400)
-    }
+    if (!templateContent) return jsonResponse({ error: 'Template content is required.' }, 400)
+    if (images.length === 0 && !sourceText) return jsonResponse({ error: 'Send at least one valid image or extracted source text.' }, 400)
+    if (images.length > 6) return jsonResponse({ error: 'You can send up to 6 images per extraction.' }, 400)
 
-    if (images.length > 6) {
-      return jsonResponse({ error: 'You can send up to 6 images per extraction.' }, 400)
-    }
-
-    const aiResponse = await extractWithAnthropicVision(anthropicApiKey, personType, images)
+    const aiResponse = await extractTemplateWithAnthropicVision(
+      anthropicApiKey,
+      templateContent,
+      availablePaths,
+      images,
+      sourceText,
+    )
     const aiResult = aiResponse.parsed
 
-    const draft: PersonDraft = {
-      name: safeText(aiResult.name, 180),
-      email: safeText(aiResult.email, 180),
-      phone: normalizePhone(aiResult.phone),
-      address: safeText(aiResult.address, 260),
-      nationality: safeText(aiResult.nationality, 80),
-      maritalStatus: safeText(aiResult.maritalStatus, 80),
-      profession: safeText(aiResult.profession, 120),
-      dateOfBirth: normalizeDate(aiResult.dateOfBirth),
-      notes: safeText(aiResult.notes, 1200),
-      documents: normalizeDocuments(aiResult.documents),
-    }
-
+    const content = safeText(unwrapNestedContentCandidate(aiResult.content), 50000)
     const confidenceRaw = Number(aiResult.confidence)
     const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 0.6
     const warnings = normalizeWarnings(aiResult.warnings)
+    const replacements = normalizeReplacements(aiResult.replacements)
+
+    if (!content) {
+      return jsonResponse({ error: 'AI did not return template content.' }, 500)
+    }
 
     const costUsd = estimateCost(aiResponse.model, aiResponse.inputTokens, aiResponse.outputTokens)
     if (tenantContext.tenantId) {
@@ -376,7 +389,7 @@ Deno.serve(async (req: Request) => {
         auth_user_id: authUserId,
         user_login: tenantContext.userLogin,
         model: aiResponse.model,
-        question_chars: images.length,
+        question_chars: templateContent.length + sourceText.length,
         input_tokens: aiResponse.inputTokens,
         output_tokens: aiResponse.outputTokens,
         total_tokens: aiResponse.inputTokens + aiResponse.outputTokens,
@@ -386,9 +399,9 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    return jsonResponse({ draft, confidence, warnings, model: aiResponse.model })
+    return jsonResponse({ content, confidence, warnings, replacements, model: aiResponse.model })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unexpected error while extracting person data.'
+    const message = error instanceof Error ? error.message : 'Unexpected error while extracting template data.'
     return jsonResponse({ error: message }, 500)
   }
 })

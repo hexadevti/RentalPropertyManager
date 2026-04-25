@@ -76,6 +76,36 @@ function normalizePhone(raw: string): string {
   return raw.replace(/^whatsapp:\+?/i, '').replace(/\D/g, '')
 }
 
+function parseTenantSelection(message: string, optionCount: number): number | null {
+  const normalized = message.trim().toLowerCase()
+  const commandMatch = normalized.match(/^\/tenant\s+(\d{1,2})$/)
+  const directMatch = normalized.match(/^(\d{1,2})$/)
+  const raw = commandMatch?.[1] ?? directMatch?.[1]
+  if (!raw) return null
+
+  const selected = Number(raw)
+  if (!Number.isInteger(selected)) return null
+  if (selected < 1 || selected > optionCount) return null
+  return selected - 1
+}
+
+function buildTenantSelectionReply(
+  options: Array<{ tenantId: string; tenantName: string }>,
+  selectedTenantId?: string,
+) {
+  const rows = options.map((option, index) => {
+    const marker = option.tenantId === selectedTenantId ? ' (atual)' : ''
+    return `${index + 1}. ${option.tenantName}${marker}`
+  })
+
+  return [
+    '🏢 Você tem acesso a mais de um tenant.',
+    'Responda com o número do tenant para continuar (ex.: 1) ou use /tenant 1.',
+    '',
+    ...rows,
+  ].join('\n')
+}
+
 async function executeQueryTool(
   input: Record<string, any>,
   adminClient: any,
@@ -116,7 +146,7 @@ async function executeQueryTool(
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 })
   }
@@ -166,35 +196,178 @@ Deno.serve(async (req) => {
   // ── Identify user by phone ────────────────────────────────────────────────
   // Phone may be stored as "5511999990000" or "+5511999990000" — try both
   const phoneE164 = `+${phone}`
-  const { data: userProfile } = await adminClient
+  const { data: userProfiles } = await adminClient
     .from('user_profiles')
     .select('auth_user_id, tenant_id, role, status, github_login, email')
     .or(`phone.eq.${phone},phone.eq.${phoneE164}`)
-    .maybeSingle()
+    .limit(20)
 
-  if (!userProfile) {
+  const profiles = (userProfiles ?? []) as Array<{
+    auth_user_id: string | null
+    tenant_id: string | null
+    role: string
+    status: string
+    github_login: string | null
+    email: string | null
+  }>
+
+  if (profiles.length === 0) {
     const reply = '❌ Número não cadastrado no sistema RPM.\n\nSolicite a um administrador que cadastre seu telefone no seu perfil de usuário.'
     await log('not_found', reply)
     return twimlResponse(reply)
   }
 
-  const userLogin = userProfile.github_login || userProfile.email || phone
-  const tenantId  = userProfile.tenant_id as string
+  const primaryProfile = profiles.find((profile) => Boolean(profile.auth_user_id)) ?? profiles[0]
+  const userLogin = primaryProfile.github_login || primaryProfile.email || phone
+  const authUserId = String(primaryProfile.auth_user_id || '')
 
-  if (userProfile.status === 'pending') {
+  if (!authUserId) {
+    const reply = '❌ Seu usuário ainda não está vinculado a uma conta autenticada. Solicite ao administrador para concluir o vínculo de acesso.'
+    await log('blocked', reply, { userLogin })
+    return twimlResponse(reply)
+  }
+
+  const { data: platformAdmin } = await adminClient
+    .from('platform_admins')
+    .select('auth_user_id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle()
+
+  const scopedProfiles = profiles.filter((profile) => profile.auth_user_id === authUserId)
+  const approvedProfiles = scopedProfiles.filter((profile) => profile.status === 'approved' && profile.tenant_id)
+
+  if (!platformAdmin && approvedProfiles.length === 0) {
+    if (scopedProfiles.some((profile) => profile.status === 'pending')) {
+      const reply = '⏳ Seu acesso está pendente de aprovação pelo administrador.'
+      await log('pending', reply, { userLogin })
+      return twimlResponse(reply)
+    }
+
+    if (scopedProfiles.some((profile) => profile.status === 'blocked')) {
+      const reply = '🚫 Seu acesso está bloqueado. Entre em contato com o administrador.'
+      await log('blocked', reply, { userLogin })
+      return twimlResponse(reply)
+    }
+
+    const reply = '❌ Não encontrei um tenant aprovado para este usuário.'
+    await log('blocked', reply, { userLogin })
+    return twimlResponse(reply)
+  }
+
+  const tenantOptions: Array<{ tenantId: string; tenantName: string }> = []
+  if (platformAdmin) {
+    const { data: tenantRows } = await adminClient
+      .from('tenants')
+      .select('id, name')
+      .order('name', { ascending: true })
+
+    for (const row of (tenantRows ?? []) as Array<{ id: string; name: string | null }>) {
+      tenantOptions.push({ tenantId: row.id, tenantName: row.name || row.id })
+    }
+  } else {
+    const tenantIds = Array.from(new Set(approvedProfiles.map((profile) => String(profile.tenant_id))))
+    const { data: tenantRows } = await adminClient
+      .from('tenants')
+      .select('id, name')
+      .in('id', tenantIds)
+
+    const nameById = new Map<string, string>()
+    for (const row of (tenantRows ?? []) as Array<{ id: string; name: string | null }>) {
+      nameById.set(row.id, row.name || row.id)
+    }
+
+    for (const tenantId of tenantIds) {
+      tenantOptions.push({ tenantId, tenantName: nameById.get(tenantId) || tenantId })
+    }
+
+    tenantOptions.sort((a, b) => a.tenantName.localeCompare(b.tenantName, 'pt-BR'))
+  }
+
+  if (tenantOptions.length === 0) {
+    const reply = '❌ Não encontrei tenants disponíveis para este usuário.'
+    await log('blocked', reply, { userLogin })
+    return twimlResponse(reply)
+  }
+
+  const { data: selectedTenantSession } = await adminClient
+    .from('whatsapp_bot_tenant_sessions')
+    .select('tenant_id')
+    .eq('auth_user_id', authUserId)
+    .eq('phone', phone)
+    .maybeSingle()
+
+  let tenantId = tenantOptions.length === 1 ? tenantOptions[0].tenantId : null
+  const command = messageText.toLowerCase().trim()
+  const selectedIndex = parseTenantSelection(messageText, tenantOptions.length)
+  const selectedByCommand = selectedIndex !== null ? tenantOptions[selectedIndex] : null
+
+  if (selectedByCommand) {
+    tenantId = selectedByCommand.tenantId
+    await adminClient
+      .from('whatsapp_bot_tenant_sessions')
+      .upsert({
+        auth_user_id: authUserId,
+        phone,
+        tenant_id: tenantId,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'auth_user_id,phone' })
+
+    if (platformAdmin) {
+      await adminClient
+        .from('platform_admin_session_tenants')
+        .upsert({
+          auth_user_id: authUserId,
+          tenant_id: tenantId,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'auth_user_id' })
+    }
+
+    // If the user only sent a tenant selection command/number, confirm and stop here.
+    if (/^\d{1,2}$/.test(command) || /^\/tenant\s+\d{1,2}$/.test(command)) {
+      const reply = `✅ Tenant selecionado: ${selectedByCommand.tenantName}.\nAgora envie sua pergunta.`
+      await log('command', reply, { tenantId, userLogin })
+      return twimlResponse(reply)
+    }
+  }
+
+  if (!tenantId && selectedTenantSession?.tenant_id) {
+    const selectedTenantId = String(selectedTenantSession.tenant_id)
+    if (tenantOptions.some((option) => option.tenantId === selectedTenantId)) {
+      tenantId = selectedTenantId
+    }
+  }
+
+  if (!tenantId) {
+    const reply = buildTenantSelectionReply(tenantOptions)
+    await log('command', reply, { userLogin })
+    return twimlResponse(reply)
+  }
+
+  const tenantProfile = approvedProfiles.find((profile) => profile.tenant_id === tenantId)
+  if (!platformAdmin && !tenantProfile) {
+    const reply = buildTenantSelectionReply(tenantOptions, tenantId)
+    await log('command', reply, { tenantId, userLogin })
+    return twimlResponse(reply)
+  }
+
+  if (tenantProfile?.status === 'pending') {
     const reply = '⏳ Seu acesso está pendente de aprovação pelo administrador.'
     await log('pending', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
 
-  if (userProfile.status === 'blocked') {
+  if (tenantProfile?.status === 'blocked') {
     const reply = '🚫 Seu acesso está bloqueado. Entre em contato com o administrador.'
     await log('blocked', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
 
   // ── Handle commands ───────────────────────────────────────────────────────
-  const command = messageText.toLowerCase().trim()
+  if (command === '/tenant') {
+    const reply = buildTenantSelectionReply(tenantOptions, tenantId)
+    await log('command', reply, { tenantId, userLogin })
+    return twimlResponse(reply)
+  }
 
   if (command === '/limpar') {
     await adminClient
@@ -217,6 +390,7 @@ Deno.serve(async (req) => {
       '• Liste as tarefas pendentes\n\n' +
       '*Comandos:*\n' +
       '/limpar — apaga o histórico da conversa\n' +
+      '/tenant — mostra os tenants disponíveis\n' +
       '/ajuda — exibe esta mensagem'
     )
     await log('command', reply, { tenantId, userLogin })
@@ -256,7 +430,7 @@ Deno.serve(async (req) => {
   const { data: currencySetting } = await adminClient
     .from('user_settings')
     .select('value')
-    .eq('auth_user_id', userProfile.auth_user_id)
+    .eq('auth_user_id', authUserId)
     .eq('key', 'app-currency')
     .maybeSingle()
 
@@ -400,8 +574,8 @@ Deno.serve(async (req) => {
   adminClient.from('ai_usage_logs').insert({
     id:                 crypto.randomUUID(),
     tenant_id:          tenantId,
-    auth_user_id:       userProfile.auth_user_id,
-    user_login:         userProfile.github_login ?? userProfile.email ?? phone,
+    auth_user_id:       authUserId,
+    user_login:         userLogin,
     model:              CLAUDE_MODEL,
     question_chars:     messageText.length,
     input_tokens:       totalInputTokens,
