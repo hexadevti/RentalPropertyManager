@@ -520,14 +520,15 @@ export default function ContractTemplatesView() {
                 Novo Template
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-[min(96vw,1300px)] max-w-none max-h-[96vh] overflow-y-auto">
-              <DialogHeader>
+            <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[96vh] w-[min(96vw,1300px)] max-w-none">
+              <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                 <DialogTitle className="flex items-center gap-1">
                   {editingTemplate ? 'Editar Template' : 'Novo Template'}
                   <HelpButton docKey="form-template" title="Ajuda — Formulário de Template" />
                 </DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Nome do Template</Label>
                   <Input
@@ -771,7 +772,8 @@ export default function ContractTemplatesView() {
                   </Dialog>
                 </div>
 
-                <div className="flex justify-end gap-2">
+                </div>
+                <div className="flex justify-end gap-2 px-6 py-4 border-t shrink-0 bg-background">
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancelar
                   </Button>

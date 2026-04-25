@@ -184,14 +184,15 @@ export default function ContractDialogForm({
       onOpenChange(isOpen)
       if (!isOpen) resetForm()
     }}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[90vh] max-w-3xl">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-1">
             {editingContract ? t.contracts_view.form.title_edit : t.contracts_view.form.title_new}
-            <HelpButton docKey="form-contract" title="Ajuda â€” FormulÃ¡rio de Contrato" />
+            <HelpButton docKey="form-contract" title="Ajuda — Formulário de Contrato" />
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="col-span-2">
                 <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -381,7 +382,8 @@ export default function ContractDialogForm({
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          </div>
+          <div className="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-background">
             <Button type="button" variant="outline" onClick={() => {
               onOpenChange(false)
               resetForm()

@@ -307,13 +307,13 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm() }}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[92vh] sm:max-w-3xl">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>{editingProfileId ? 'Editar perfil' : 'Novo perfil'}</DialogTitle>
             <DialogDescription>Defina o nome do perfil e escolha a permissao de cada funcionalidade.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="access-profile-name">Nome</Label>
@@ -367,7 +367,7 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>Cancelar</Button>
             <Button onClick={() => void handleSave()} disabled={isSaving}>{isSaving ? 'Salvando...' : 'Salvar'}</Button>
           </DialogFooter>

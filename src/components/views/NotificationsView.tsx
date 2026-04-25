@@ -2173,11 +2173,12 @@ export default function NotificationsView() {
         setRuleDialogOpen(open)
         if (!open) resetRuleForm()
       }}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
+        <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[92vh] sm:max-w-4xl">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>{editingRule ? t.notifications_view.actions.edit_rule : t.notifications_view.actions.new_rule}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSaveRule} className="space-y-6">
+          <form onSubmit={handleSaveRule} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="rule-name">{t.notifications_view.rule.name_label}</Label>
@@ -2393,7 +2394,8 @@ export default function NotificationsView() {
               </Card>
             </div>
 
-            <div className="flex justify-end gap-2">
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t shrink-0 bg-background">
               <Button type="button" variant="outline" onClick={() => setRuleDialogOpen(false)}>
                 {t.notifications_view.actions.cancel}
               </Button>
@@ -2407,12 +2409,13 @@ export default function NotificationsView() {
         setTemplateDialogOpen(open)
         if (!open) resetTemplateForm()
       }}>
-        <DialogContent className="w-[min(96vw,1280px)] max-w-none max-h-[96vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[96vh] w-[min(96vw,1280px)] max-w-none">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>{editingTemplate ? t.notifications_view.actions.edit_template : t.notifications_view.actions.new_template}</DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSaveTemplate} className="space-y-4">
+          <form onSubmit={handleSaveTemplate} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_180px_180px_180px]">
               <div className="space-y-2">
                 <Label htmlFor="template-name">{t.notifications_view.template.name_label}</Label>
@@ -2638,7 +2641,8 @@ export default function NotificationsView() {
                 </TabsContent>
               </Tabs>
 
-            <div className="flex justify-end gap-2">
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t shrink-0 bg-background">
               <Button type="button" variant="outline" onClick={() => setTemplateDialogOpen(false)}>
                 {t.notifications_view.actions.cancel}
               </Button>
@@ -2649,8 +2653,8 @@ export default function NotificationsView() {
       </Dialog>
 
       <Dialog open={masterTemplateEditorOpen} onOpenChange={setMasterTemplateEditorOpen}>
-        <DialogContent className="w-[min(96vw,1280px)] max-w-none max-h-[96vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[96vh] w-[min(96vw,1280px)] max-w-none">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>
               {masterTemplateEditorSection === 'header'
                 ? t.notifications_view.template.master_header_label
@@ -2658,7 +2662,7 @@ export default function NotificationsView() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[180px_minmax(0,360px)]">
                 <div className="space-y-1">
@@ -2755,14 +2759,14 @@ export default function NotificationsView() {
               )}
             </div>
 
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setMasterTemplateEditorOpen(false)}>
-                {t.notifications_view.actions.cancel}
-              </Button>
-              <Button type="button" onClick={() => void handleSaveMasterTemplate()} disabled={masterTemplateSaving}>
-                {t.notifications_view.template.save_master}
-              </Button>
-            </div>
+          </div>
+          <div className="flex justify-end gap-2 px-6 py-4 border-t shrink-0 bg-background">
+            <Button type="button" variant="outline" onClick={() => setMasterTemplateEditorOpen(false)}>
+              {t.notifications_view.actions.cancel}
+            </Button>
+            <Button type="button" onClick={() => void handleSaveMasterTemplate()} disabled={masterTemplateSaving}>
+              {t.notifications_view.template.save_master}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -889,12 +889,12 @@ export default function FinancesView() {
       )}
 
       <Dialog open={isImportDialogOpen} onOpenChange={(open) => { setIsImportDialogOpen(open); if (!open) { setCsvParsedRows([]); setCsvError(null) } }}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[90vh] max-w-2xl">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>{t.finances_view.import_dialog_title}</DialogTitle>
             <DialogDescription>{t.finances_view.import_hint}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
               <DownloadSimple weight="bold" size={16} />
               {t.finances_view.import_download_template}
@@ -945,7 +945,7 @@ export default function FinancesView() {
               </div>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
             <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
               {t.finances_view.cancel}
             </Button>

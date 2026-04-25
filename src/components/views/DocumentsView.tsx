@@ -383,7 +383,7 @@ export default function DocumentsView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{labels.title}</h2>
-            <HelpButton docKey="documents" title="Ajuda â€” Documentos" />
+            <HelpButton docKey="documents" title="Ajuda — Documentos" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{labels.subtitle}</p>
         </div>
@@ -399,11 +399,11 @@ export default function DocumentsView() {
                 {labels.add}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
+            <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[90vh] max-w-2xl">
+              <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                 <DialogTitle className="flex items-center gap-1">
                   {labels.upload}
-                  <HelpButton docKey="form-document" title="Ajuda â€” Upload de Documento" />
+                  <HelpButton docKey="form-document" title="Ajuda — Upload de Documento" />
                 </DialogTitle>
                 <DialogDescription>{labels.subtitle}</DialogDescription>
               </DialogHeader>
@@ -412,8 +412,9 @@ export default function DocumentsView() {
                 onPaste={(event) => handlePasteFile(event)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => handleDropFile(event)}
-                className="space-y-4"
+                className="flex flex-col flex-1 min-h-0"
               >
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="document-file">{labels.file}</Label>
                   <Input
@@ -512,7 +513,8 @@ export default function DocumentsView() {
                   />
                 </div>
 
-                <DialogFooter>
+                </div>
+                <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
                   <Button type="button" variant="outline" onClick={resetForm}>
                     {labels.cancel}
                   </Button>

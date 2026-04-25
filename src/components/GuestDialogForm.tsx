@@ -400,14 +400,15 @@ export default function GuestDialogForm({
       onOpenChange(isOpen)
       if (!isOpen) resetForm()
     }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[90vh] max-w-4xl">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-1">
             {editingGuest ? t.guests_view.form.title_edit : t.guests_view.form.title_new}
-            <HelpButton docKey="form-guest" title="Ajuda â€” FormulÃ¡rio de HÃ³spede" />
+            <HelpButton docKey="form-guest" title="Ajuda — Formulário de Hóspede" />
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <Label htmlFor="guest-name">{t.guests_view.form.name}</Label>
@@ -546,7 +547,8 @@ export default function GuestDialogForm({
             )}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          </div>
+          <div className="flex justify-end gap-3 px-6 py-4 border-t shrink-0 bg-background">
             <Button type="button" variant="outline" onClick={() => {
               onOpenChange(false)
               resetForm()
