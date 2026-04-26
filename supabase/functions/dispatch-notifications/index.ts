@@ -1,5 +1,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  invalidDispatchSecret: 'edge_invalid_dispatch_secret',
+  loadPendingFailed: 'dispatch_notifications_load_pending_failed',
+  unexpectedError: 'edge_unexpected_error',
+} as const
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-dispatch-secret',
@@ -447,20 +455,20 @@ Deno.serve(async (req) => {
     }
 
     if (req.method !== 'POST') {
-      return jsonResponse({ error: 'Method not allowed' }, 405)
+      return jsonResponse({ error: 'Method not allowed', errorKey: ERROR_KEYS.methodNotAllowed }, 405)
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!supabaseUrl || !serviceRoleKey) {
-      return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
+      return jsonResponse({ error: 'Supabase environment is not configured', errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
     }
 
     const expectedSecret = Deno.env.get('NOTIFICATION_DISPATCH_SECRET')
     if (expectedSecret) {
       const providedSecret = req.headers.get('x-dispatch-secret') || ''
       if (providedSecret !== expectedSecret) {
-        return jsonResponse({ error: 'Invalid dispatch secret' }, 401)
+        return jsonResponse({ error: 'Invalid dispatch secret', errorKey: ERROR_KEYS.invalidDispatchSecret }, 401)
       }
     }
 
@@ -490,7 +498,7 @@ Deno.serve(async (req) => {
 
     const { data: pendingRows, error: pendingError } = await query
     if (pendingError) {
-      return jsonResponse({ error: pendingError.message }, 500)
+      return jsonResponse({ error: pendingError.message, errorKey: ERROR_KEYS.loadPendingFailed }, 500)
     }
 
     const deliveries = (pendingRows || []) as DeliveryRow[]
@@ -630,6 +638,6 @@ Deno.serve(async (req) => {
     })
   } catch (error) {
     console.error('dispatch-notifications unexpected error', error)
-    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected Edge Function error' }, 500)
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected Edge Function error', errorKey: ERROR_KEYS.unexpectedError }, 500)
   }
 })

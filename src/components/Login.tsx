@@ -14,7 +14,7 @@ interface LoginProps {
 }
 
 export function Login({ onBack }: LoginProps = {}) {
-  const { signInWithEmail, signInWithGitHub, signInWithGoogle, signInWithDevCredentials } = useAuth()
+  const { signInWithEmail, signInWithGitHub, signInWithGoogle } = useAuth()
   const { t } = useLanguage()
   const [showRegister, setShowRegister] = useState(() => new URLSearchParams(window.location.search).has('invite'))
   const [email, setEmail] = useState('')
@@ -22,27 +22,6 @@ export function Login({ onBack }: LoginProps = {}) {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const isDevMode = import.meta.env.VITE_DEV_MODE === 'true'
-  const devUserEmail = import.meta.env.VITE_DEV_USER_EMAIL || 'dev@dev.com'
-  const [isDevSigningIn, setIsDevSigningIn] = useState(false)
-  const [devSignInError, setDevSignInError] = useState<string | null>(null)
-
-  const tryDevSignIn = async () => {
-    setIsDevSigningIn(true)
-    setDevSignInError(null)
-    try {
-      await signInWithDevCredentials(devUserEmail)
-    } catch {
-      setDevSignInError(t.login_view.dev_auto_sign_in_failed)
-    } finally {
-      setIsDevSigningIn(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!isDevMode) return
-    void tryDevSignIn()
-  }, [isDevMode])
 
   useEffect(() => {
     const hasInvite = new URLSearchParams(window.location.search).has('invite')
@@ -50,34 +29,6 @@ export function Login({ onBack }: LoginProps = {}) {
       setShowRegister(true)
     }
   }, [])
-
-  if (isDevMode) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 flex items-center justify-center p-6">
-        <Card className="w-full max-w-md shadow-2xl border-2">
-          <CardHeader className="text-center space-y-2 pb-2">
-            <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <div className="h-7 w-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-            <CardTitle className="text-2xl font-bold">{t.login_view.dev_mode_title}</CardTitle>
-            <CardDescription>
-              {isDevSigningIn
-                ? t.login_view.dev_auto_signing_in_with_email.replace('{email}', devUserEmail)
-                : t.login_view.dev_auto_login_ready_with_email.replace('{email}', devUserEmail)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-2">
-            {devSignInError && (
-              <p className="text-sm text-destructive text-center mb-3">{devSignInError}</p>
-            )}
-            <Button className="w-full" onClick={tryDevSignIn} disabled={isDevSigningIn}>
-              {isDevSigningIn ? t.login_view.signing_in : t.login_view.try_again}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
 
   if (showRegister) {
     return <Register onBackToLogin={() => {

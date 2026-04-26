@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { extractPersonFromImageFiles, type PersonAIDraft, type PersonImportTarget } from '@/lib/aiPersonImport'
 import { useAuth } from '@/lib/AuthContext'
+import { getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { useLanguage } from '@/lib/LanguageContext'
 import { hasAiFeatures } from '@/lib/usagePlans'
 import { MobilePhotoCaptureDialog } from '@/components/MobilePhotoCaptureDialog'
@@ -212,7 +213,7 @@ export function PersonDocumentImportDialog({
       setConfidence(result.confidence)
       toast.success(`${labels.success} (${Math.round(result.confidence * 100)}%)`)
     } catch (error: any) {
-      toast.error(error?.message || labels.error)
+      toast.error(getEdgeFunctionMessage(error, t, labels.error))
     } finally {
       setIsExtracting(false)
     }

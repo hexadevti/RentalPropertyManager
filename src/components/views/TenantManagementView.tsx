@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
+import { getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -364,7 +365,7 @@ export default function TenantManagementView() {
 
       window.location.href = result.checkoutUrl
     } catch (error: any) {
-      toast.error(error?.message || 'Falha ao iniciar o checkout.')
+      toast.error(getEdgeFunctionMessage(error, t, 'Falha ao iniciar o checkout.'))
     } finally {
       setIsStartingCheckout(null)
     }

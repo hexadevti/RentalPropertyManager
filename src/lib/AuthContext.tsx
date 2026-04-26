@@ -602,67 +602,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       try {
-        if (import.meta.env.VITE_DEV_MODE === 'true') {
-          const email = import.meta.env.VITE_DEV_USER_EMAIL || 'dev@dev.com'
-          const password = import.meta.env.VITE_DEV_USER_PASSWORD
-          const userId = import.meta.env.VITE_DEV_USER_ID || 'dev-user'
-          const tenantId = import.meta.env.VITE_DEV_TENANT_ID || 'dev-tenant'
-
-          const { data: existingSession } = await supabase.auth.getSession()
-          if (existingSession.session?.user && isMounted) {
-            await loadOrCreateProfile(existingSession.session.user)
-            return
-          }
-
-          if (password) {
-            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-              email,
-              password,
-            })
-
-            if (signInError) {
-              console.error('Failed to sign in with development credentials:', signInError)
-            } else if (signInData.user && isMounted) {
-              await loadOrCreateProfile(signInData.user)
-              return
-            }
-          }
-
-          let devUserJson = localStorage.getItem('dev-mode-user')
-          if (!devUserJson) {
-            const mockUser = buildDevUser(email, userId)
-            localStorage.setItem('dev-mode-user', JSON.stringify(mockUser))
-            devUserJson = JSON.stringify(mockUser)
-          }
-
-          if (isMounted) {
-            const devUser = JSON.parse(devUserJson)
-            const mockProfile: UserProfile = {
-              githubLogin: devUser.login, role: 'admin', status: 'approved',
-              accessProfileId: resolveDefaultAccessProfileId('admin'),
-              email: devUser.email, avatarUrl: devUser.avatarUrl,
-              createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-            }
-            setCurrentUser(devUser)
-            setCurrentTenantId(tenantId)
-            setTenantName('Dev Organization')
-            setUserProfile(mockProfile)
-            setTenantProfiles([mockProfile])
-            setAccessProfile({
-              id: resolveDefaultAccessProfileId('admin'),
-              tenantId,
-              name: 'Administrador',
-              description: 'Acesso completo ao sistema.',
-              isSystem: true,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            })
-            setAccessLevels(buildFullWriteAccessLevels())
-            setIsLoading(false)
-          }
-          return
-        }
-
         const startedFromAuthCallback = hasAuthCallbackParams()
         if (startedFromAuthCallback) {
           try {

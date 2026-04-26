@@ -1,5 +1,19 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  actionRequired: 'mobile_capture_action_required',
+  missingAuthorization: 'edge_missing_authorization',
+  invalidAuthToken: 'edge_invalid_auth_token',
+  tenantContextNotFound: 'mobile_capture_tenant_context_not_found',
+  sessionIdRequired: 'mobile_capture_session_id_required',
+  sessionTokenImageRequired: 'mobile_capture_session_token_and_image_required',
+  sessionAndTokenRequired: 'mobile_capture_session_and_token_required',
+  unsupportedAction: 'mobile_capture_unsupported_action',
+  unexpectedError: 'edge_unexpected_error',
+} as const
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -445,7 +459,7 @@ Deno.serve(async (req: Request) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
-      return jsonResponse({ error: 'Supabase environment is not configured.' }, 500)
+      return jsonResponse({ error: 'Supabase environment is not configured.', errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
     }
 
     const body = await req.json().catch(() => ({})) as {
@@ -457,7 +471,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const action = safeText(body.action, 100)
-    if (!action) return jsonResponse({ error: 'Action is required.' }, 400)
+    if (!action) return jsonResponse({ error: 'Action is required.', errorKey: ERROR_KEYS.actionRequired }, 400)
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey)
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -470,14 +484,14 @@ Deno.serve(async (req: Request) => {
 
     if (action === 'createSession' || action === 'getSessionStatus' || action === 'consumeSession') {
       const token = parseBearerToken(req.headers.get('Authorization'))
-      if (!token) return jsonResponse({ error: 'Missing Authorization header.' }, 401)
+      if (!token) return jsonResponse({ error: 'Missing Authorization header.', errorKey: ERROR_KEYS.missingAuthorization }, 401)
 
       const { data: userData, error: userError } = await authClient.auth.getUser(token)
-      if (userError || !userData?.user) return jsonResponse({ error: 'Invalid authentication token.' }, 401)
+      if (userError || !userData?.user) return jsonResponse({ error: 'Invalid authentication token.', errorKey: ERROR_KEYS.invalidAuthToken }, 401)
 
       const authUserId = userData.user.id
       const tenantId = await resolveTenantContext(adminClient, authUserId)
-      if (!tenantId) return jsonResponse({ error: 'Tenant context not found for authenticated user.' }, 400)
+      if (!tenantId) return jsonResponse({ error: 'Tenant context not found for authenticated user.', errorKey: ERROR_KEYS.tenantContextNotFound }, 400)
 
       if (action === 'createSession') {
         const origin = safeText(body.origin, 400)
@@ -492,14 +506,14 @@ Deno.serve(async (req: Request) => {
 
       if (action === 'consumeSession') {
         const sessionId = safeText(body.sessionId, 120)
-        if (!sessionId) return jsonResponse({ error: 'sessionId is required.' }, 400)
+        if (!sessionId) return jsonResponse({ error: 'sessionId is required.', errorKey: ERROR_KEYS.sessionIdRequired }, 400)
 
         const consumed = await consumeSession({ adminClient, sessionId, authUserId })
         return jsonResponse(consumed)
       }
 
       const sessionId = safeText(body.sessionId, 120)
-      if (!sessionId) return jsonResponse({ error: 'sessionId is required.' }, 400)
+      if (!sessionId) return jsonResponse({ error: 'sessionId is required.', errorKey: ERROR_KEYS.sessionIdRequired }, 400)
       const status = await getSessionStatus({
         adminClient,
         sessionId,
@@ -514,7 +528,7 @@ Deno.serve(async (req: Request) => {
       const imageDataUrl = safeText(body.imageDataUrl, MAX_BASE64_CHARS + 64)
 
       if (!sessionId || !sessionToken || !imageDataUrl) {
-        return jsonResponse({ error: 'sessionId, token and imageDataUrl are required.' }, 400)
+        return jsonResponse({ error: 'sessionId, token and imageDataUrl are required.', errorKey: ERROR_KEYS.sessionTokenImageRequired }, 400)
       }
 
       const result = await uploadPhoto({
@@ -530,7 +544,7 @@ Deno.serve(async (req: Request) => {
       const sessionId = safeText(body.sessionId, 120)
       const sessionToken = safeText(body.token, 200)
       if (!sessionId || !sessionToken) {
-        return jsonResponse({ error: 'sessionId and token are required.' }, 400)
+        return jsonResponse({ error: 'sessionId and token are required.', errorKey: ERROR_KEYS.sessionAndTokenRequired }, 400)
       }
 
       const result = await completeSession({
@@ -541,9 +555,9 @@ Deno.serve(async (req: Request) => {
       return jsonResponse(result)
     }
 
-    return jsonResponse({ error: 'Unsupported action.' }, 400)
+    return jsonResponse({ error: 'Unsupported action.', errorKey: ERROR_KEYS.unsupportedAction }, 400)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected mobile capture error.'
-    return jsonResponse({ error: message }, 500)
+    return jsonResponse({ error: message, errorKey: ERROR_KEYS.unexpectedError }, 500)
   }
 })

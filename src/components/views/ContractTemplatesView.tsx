@@ -17,6 +17,7 @@ import { Plus, Pencil, Trash, Copy, MagnifyingGlass, Question, Brain } from '@ph
 import { toast } from 'sonner'
 import { Contract, ContractTemplate, Guest, Owner, Property, TEMPLATE_LANGUAGES, TemplateLanguage, TemplateType } from '@/types'
 import { useAuth } from '@/lib/AuthContext'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
@@ -182,8 +183,9 @@ export default function ContractTemplatesView() {
         },
       })
 
-      if (error) throw new Error(error.message || 'Falha ao traduzir')
-      if (data?.error) throw new Error(data.error)
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, t.notifications_view.messages.template_translation_error)
+      const responseError = getEdgeFunctionErrorFromPayload(data, t.notifications_view.messages.template_translation_error)
+      if (responseError) throw responseError
       if (!data?.translatedContent) throw new Error('A IA não retornou conteúdo traduzido')
 
       const alreadyExists = (templates || []).some(
@@ -208,7 +210,7 @@ export default function ContractTemplatesView() {
       setPendingTranslation(null)
       toast.success(`Tradução em ${getLanguageLabel(targetLanguage)} criada com IA`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao traduzir template')
+      toast.error(getEdgeFunctionMessage(err, t, 'Erro ao traduzir template'))
     } finally {
       setIsTranslating(false)
     }
@@ -317,14 +319,15 @@ export default function ContractTemplatesView() {
         },
       })
 
-      if (error) throw new Error(error.message || 'Falha ao traduzir')
-      if (data?.error) throw new Error(data.error)
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, t.notifications_view.messages.template_translation_error)
+      const responseError = getEdgeFunctionErrorFromPayload(data, t.notifications_view.messages.template_translation_error)
+      if (responseError) throw responseError
       if (!data?.translatedContent) throw new Error('A IA não retornou conteúdo traduzido')
 
       setFormData((current) => ({ ...current, content: data.translatedContent }))
       toast.success(`Tradução de ${getLanguageLabel(sourceTemplate.language)} aplicada`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao traduzir template')
+      toast.error(getEdgeFunctionMessage(err, t, 'Erro ao traduzir template'))
     } finally {
       setIsTranslating(false)
     }

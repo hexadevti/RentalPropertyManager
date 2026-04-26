@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
+import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,25 +26,9 @@ type ResolvedInvitation = {
   alreadyClaimed?: boolean
 }
 
-async function readFunctionErrorMessage(error: unknown) {
-  if (typeof error === 'object' && error !== null && 'context' in error) {
-    const context = (error as { context?: unknown }).context
-    if (typeof context === 'string' && context) return context
-    if (context instanceof Response) {
-      const bodyText = await context.text().catch(() => '')
-      try {
-        const parsed = bodyText ? JSON.parse(bodyText) : null
-        if (parsed?.error) return parsed.error
-      } catch {}
-      if (bodyText) return bodyText
-    }
-  }
-  if (error instanceof Error && error.message) return error.message
-  return 'Não foi possível resolver o convite.'
-}
-
 export default function Register({ onBackToLogin }: RegisterProps) {
   const { signUp, signInWithGitHub, signInWithGoogle } = useAuth()
+  const { t } = useLanguage()
   const invitationToken = useMemo(() => new URLSearchParams(window.location.search).get('invite') || '', [])
   const isInviteMode = invitationToken.length > 0
 
@@ -74,6 +60,8 @@ export default function Register({ onBackToLogin }: RegisterProps) {
           success?: boolean
           invitation?: ResolvedInvitation
           error?: string
+          errorKey?: string
+          errorParams?: Record<string, string | number>
         }>('tenant-user-invitations', {
           body: {
             action: 'resolve',
@@ -81,12 +69,9 @@ export default function Register({ onBackToLogin }: RegisterProps) {
           },
         })
 
-        if (error) {
-          throw new Error(await readFunctionErrorMessage(error))
-        }
-        if (data?.error) {
-          throw new Error(data.error)
-        }
+        if (error) throw await getEdgeFunctionErrorFromInvokeError(error, 'Não foi possível carregar o convite.')
+        const responseError = getEdgeFunctionErrorFromPayload(data, 'Não foi possível carregar o convite.')
+        if (responseError) throw responseError
         if (!data?.invitation) {
           throw new Error('Convite não encontrado.')
         }
@@ -98,7 +83,7 @@ export default function Register({ onBackToLogin }: RegisterProps) {
         setEmail(data.invitation.email)
       } catch (err: unknown) {
         if (cancelled) return
-        setInviteError(err instanceof Error ? err.message : 'Não foi possível carregar o convite.')
+        setInviteError(getEdgeFunctionMessage(err, t, 'Não foi possível carregar o convite.'))
       } finally {
         if (!cancelled) setIsLoadingInvitation(false)
       }
@@ -128,12 +113,15 @@ export default function Register({ onBackToLogin }: RegisterProps) {
           success?: boolean
           email?: string
           error?: string
+          errorKey?: string
+          errorParams?: Record<string, string | number>
         }>('tenant-user-invitations', {
           body: { action: 'claim-invite', token: invitationToken, login: name.trim(), password },
         })
 
-        if (fnError) throw new Error(await readFunctionErrorMessage(fnError))
-        if (data?.error) throw new Error(data.error)
+        if (fnError) throw await getEdgeFunctionErrorFromInvokeError(fnError, 'Não foi possível criar a conta.')
+        const responseError = getEdgeFunctionErrorFromPayload(data, 'Não foi possível criar a conta.')
+        if (responseError) throw responseError
 
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: resolvedInvitation.email,

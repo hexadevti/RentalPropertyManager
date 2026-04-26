@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, Compass, SquaresFour, UploadSimple, DownloadSimple, Image as ImageIcon, Star, Car, CalendarBlank, Copy, LinkSimple, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { hasAiFeatures } from '@/lib/usagePlans'
@@ -533,11 +534,13 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
     setUrlImportError(null)
     setIsFetchingImportData(true)
     try {
-      const { data, error } = await supabase.functions.invoke<{ draft?: ListingImportDraft; drafts?: ListingImportDraft[]; confidence?: number; warning?: string; error?: string }>('listing-import-ai', {
+      const { data, error } = await supabase.functions.invoke<{ draft?: ListingImportDraft; drafts?: ListingImportDraft[]; confidence?: number; warning?: string; error?: string; errorKey?: string; errorParams?: Record<string, string | number> }>('listing-import-ai', {
         body: { url: importUrl },
       })
 
-      if (error) throw error
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, propertiesViewText.url_import_capture_error)
+      const responseError = getEdgeFunctionErrorFromPayload(data, propertiesViewText.url_import_capture_error)
+      if (responseError) throw responseError
 
       const importedDrafts = (data?.drafts || []).filter((item) => item?.name).slice(0, 3)
       const warningMessage = data?.warning
@@ -574,7 +577,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
         setImportDraftQueue([])
         toast.success(propertiesViewText.url_import_capture_success)
       } catch {
-        setUrlImportError(error?.message || propertiesViewText.url_import_capture_error)
+        setUrlImportError(getEdgeFunctionMessage(error, t, propertiesViewText.url_import_capture_error))
       }
     } finally {
       setIsFetchingImportData(false)

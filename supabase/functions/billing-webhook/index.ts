@@ -1,5 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  invalidRequest: 'billing_webhook_invalid_request',
+} as const
+
 function parseStripeSignatureHeader(headerValue: string) {
   const entries = headerValue.split(',').map((s) => s.trim())
   const pairs = entries
@@ -271,7 +277,7 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405)
+    return jsonResponse({ error: 'Method not allowed', errorKey: ERROR_KEYS.methodNotAllowed }, 405)
   }
 
   try {
@@ -279,7 +285,7 @@ Deno.serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
+      return jsonResponse({ error: 'Supabase environment is not configured', errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
     }
 
     const rawBody = await req.text()
@@ -331,6 +337,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ success: true })
   } catch (error) {
     console.error('billing-webhook error', error)
-    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error' }, 400)
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error', errorKey: ERROR_KEYS.invalidRequest }, 400)
   }
 })

@@ -1,8 +1,103 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const STARTER_PLAN_CODE = 'starter'
-const AI_TOKEN_LIMIT_REACHED_MESSAGE = 'Limite mensal de tokens de IA atingido para o plano atual. Faça upgrade para continuar usando funcionalidades de IA.'
-const AI_BLOCKED_BY_PLAN_MESSAGE = 'Funcionalidades de IA estao bloqueadas para o plano atual. Ajuste o plano para habilitar o acesso.'
+type SupportedLanguage = 'pt' | 'en'
+
+// Hardcoded EN fallback used when the DB is unreachable and for pre-adminClient responses.
+const DEFAULT_EN_TRANSLATIONS: Record<string, string> = {
+  'system.methodNotAllowed':       'Method not allowed',
+  'system.serviceUnavailable':     'Service temporarily unavailable.',
+  'system.invalidNumber':          'Invalid number.',
+
+  'aiPlan.tokenLimitReached':      'Monthly AI token limit reached for the current plan. Upgrade to continue using AI features.',
+  'aiPlan.blockedByPlan':          'AI features are blocked for the current plan. Change the plan to enable access.',
+  'aiPlan.unavailable':            'AI access is unavailable for the current plan.',
+
+  'tenantSelection.title':         '🏢 You have access to more than one account.',
+  'tenantSelection.instruction':   'Reply with the account number to continue (for example: 1) or use /tenant 1.',
+  'tenantSelection.currentMarker': ' (current)',
+  'tenantSelection.selected':      '✅ Account selected: {tenantName}.\nNow send your question.',
+
+  'replies.phoneNotRegistered':    '❌ This number is not registered in the RPM system.\n\nAsk an administrator to add your phone number to your user profile.',
+  'replies.authNotLinked':         '❌ Your user is not linked to an authenticated account yet. Ask an administrator to finish the access setup.',
+  'replies.accessPendingApproval': '⏳ Your access is pending administrator approval.',
+  'replies.accessBlocked':         '🚫 Your access is blocked. Contact the administrator.',
+  'replies.noApprovedTenant':      '❌ I could not find an approved account for this user.',
+  'replies.noAvailableTenants':    '❌ I could not find available accounts for this user.',
+  'replies.clearConversation':     '🗑️ Conversation cleared. You can start a new request now.',
+  'replies.fallbackError':         'I could not generate a response. Please try again shortly.',
+  'replies.truncatedSuffix':       '\n\n_(response truncated)_',
+
+  'help.title':                    '🤖 *RPM Assistant - WhatsApp*',
+  'help.intro':                    'Ask questions about your portfolio in natural language. Examples:',
+  'help.examples':                 '• Which properties are available?\n• What is the financial balance for this month?\n• Are there contracts ending in the next 30 days?\n• List the pending tasks',
+  'help.commandsTitle':            '*Commands:*',
+  'help.commands':                 '/limpar - clears the conversation history\n/tenant - shows the available accounts\n/ajuda - shows this message',
+
+  'prompt.assistantRole':          'You are the RPM AI assistant - Rental Property Manager, replying through WhatsApp.',
+  'prompt.responseStyle':          'Reply in English, clearly and concisely.',
+  'prompt.todayLine':              'Today is {today}.',
+  'prompt.scopeTitle':             '## Required scope',
+  'prompt.activeAccountLine':      'Active account: "{tenantName}" (tenant_id = {tenantId}).',
+  'prompt.tenantRestricted':       'ALL queries are restricted to this account. Never mention the tenant_id in your answers.',
+  'prompt.formattingTitle':        '## WhatsApp formatting',
+  'prompt.formattingRules':        '- Use plain text; avoid markdown such as #, **, etc.\n- Use *single asterisks* for bold\n- For lists, use "•" or "-" at the start of the line\n- Be concise; shorter messages work better on WhatsApp\n- Maximum of 3-4 paragraphs per answer',
+  'prompt.instructionsTitle':      '## Instructions',
+  'prompt.instructionLines':       'Use the query_supabase tool to answer data questions.\nMake as many calls as needed for an accurate answer.\nDo not invent data; if you cannot find it, say so.',
+  'prompt.currencyTitle':          '## Currency',
+  'prompt.currencyLine':           '- Configured currency: {currencyCode} ({currencySymbol}) - always use this symbol for values',
+  'prompt.businessRulesTitle':     '## Business rules',
+  'prompt.businessRules':          '- transactions.type = "income" = Income | "expense" = Expense\n- Property occupied = active contract exists in contract_properties\n- For contract properties: query contract_properties filtered by contract_id',
+  'prompt.helpHint':               'Tell the user they can use /ajuda to see the available commands.',
+}
+
+// Loads translations for the requested language from the DB, with EN fallback.
+// If the DB query fails the in-process DEFAULT_EN_TRANSLATIONS are used as-is.
+async function loadBotTranslations(adminClient: any, language: string): Promise<Record<string, string>> {
+  const langs = language === 'en' ? ['en'] : ['en', language]
+  const { data } = await adminClient
+    .from('whatsapp_bot_translations')
+    .select('language, key, value')
+    .in('language', langs)
+
+  const result: Record<string, string> = { ...DEFAULT_EN_TRANSLATIONS }
+  if (data?.length) {
+    // Apply EN from DB (may have updated copy text)
+    for (const row of (data as Array<{ language: string; key: string; value: string }>)) {
+      if (row.language === 'en') result[row.key] = row.value
+    }
+    // Then overlay the requested language
+    if (language !== 'en') {
+      for (const row of (data as Array<{ language: string; key: string; value: string }>)) {
+        if (row.language === language) result[row.key] = row.value
+      }
+    }
+  }
+  return result
+}
+
+function t(translations: Record<string, string>, key: string): string {
+  return translations[key] ?? DEFAULT_EN_TRANSLATIONS[key] ?? ''
+}
+
+function tLines(translations: Record<string, string>, key: string): string[] {
+  const val = t(translations, key)
+  return val ? val.split('\n') : []
+}
+
+function formatMessage(template: string, values: Record<string, string>) {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.replaceAll(`{${key}}`, value),
+    template,
+  )
+}
+
+function resolveRequestLanguage(req: Request): SupportedLanguage {
+  const acceptLanguage = String(req.headers.get('Accept-Language') || '').toLowerCase()
+  if (acceptLanguage.includes('pt')) return 'pt'
+  if (acceptLanguage.includes('en')) return 'en'
+  return 'en'
+}
 
 function getUtcDateForAnchorDay(year: number, month: number, anchorDay: number) {
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
@@ -37,7 +132,7 @@ async function getEffectiveTenantPlanCode(adminClient: any, tenantId: string) {
   return String(data?.plan_code || STARTER_PLAN_CODE).trim().toLowerCase()
 }
 
-async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
+async function ensureAiPlanAccess(adminClient: any, tenantId: string, translations: Record<string, string>) {
   const planCode = await getEffectiveTenantPlanCode(adminClient, tenantId)
 
   const { data: planData, error: planError } = await adminClient
@@ -61,7 +156,7 @@ async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
     return {
       planCode,
       allowed: false,
-      message: AI_BLOCKED_BY_PLAN_MESSAGE,
+      message: t(translations, 'aiPlan.blockedByPlan'),
       maxAiTokens,
       usedAiTokens: 0,
       remainingAiTokens: maxAiTokens,
@@ -101,7 +196,7 @@ async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
     return {
       planCode,
       allowed: false,
-      message: AI_TOKEN_LIMIT_REACHED_MESSAGE,
+      message: t(translations, 'aiPlan.tokenLimitReached'),
       maxAiTokens,
       usedAiTokens,
       remainingAiTokens: 0,
@@ -210,19 +305,66 @@ function parseTenantSelection(message: string, optionCount: number): number | nu
 }
 
 function buildTenantSelectionReply(
+  translations: Record<string, string>,
   options: Array<{ tenantId: string; tenantName: string }>,
   selectedTenantId?: string,
 ) {
   const rows = options.map((option, index) => {
-    const marker = option.tenantId === selectedTenantId ? ' (atual)' : ''
+    const marker = option.tenantId === selectedTenantId ? t(translations, 'tenantSelection.currentMarker') : ''
     return `${index + 1}. ${option.tenantName}${marker}`
   })
 
   return [
-    '🏢 Você tem acesso a mais de um tenant.',
-    'Responda com o número do tenant para continuar (ex.: 1) ou use /tenant 1.',
+    t(translations, 'tenantSelection.title'),
+    t(translations, 'tenantSelection.instruction'),
     '',
     ...rows,
+  ].join('\n')
+}
+
+function buildHelpReply(translations: Record<string, string>) {
+  return [
+    t(translations, 'help.title'),
+    '',
+    t(translations, 'help.intro'),
+    '',
+    ...tLines(translations, 'help.examples'),
+    '',
+    t(translations, 'help.commandsTitle'),
+    ...tLines(translations, 'help.commands'),
+  ].join('\n')
+}
+
+function buildSystemPrompt(
+  translations: Record<string, string>,
+  tenantName: string,
+  tenantId: string,
+  today: string,
+  currencyCode: string,
+  currencySymbol: string,
+) {
+  return [
+    t(translations, 'prompt.assistantRole'),
+    t(translations, 'prompt.responseStyle'),
+    formatMessage(t(translations, 'prompt.todayLine'), { today }),
+    '',
+    t(translations, 'prompt.scopeTitle'),
+    formatMessage(t(translations, 'prompt.activeAccountLine'), { tenantName, tenantId }),
+    t(translations, 'prompt.tenantRestricted'),
+    '',
+    t(translations, 'prompt.formattingTitle'),
+    ...tLines(translations, 'prompt.formattingRules'),
+    '',
+    t(translations, 'prompt.instructionsTitle'),
+    ...tLines(translations, 'prompt.instructionLines'),
+    '',
+    t(translations, 'prompt.currencyTitle'),
+    formatMessage(t(translations, 'prompt.currencyLine'), { currencyCode, currencySymbol }),
+    '',
+    t(translations, 'prompt.businessRulesTitle'),
+    ...tLines(translations, 'prompt.businessRules'),
+    '',
+    t(translations, 'prompt.helpHint'),
   ].join('\n')
 }
 
@@ -267,8 +409,10 @@ async function executeQueryTool(
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
+  const requestLanguage = resolveRequestLanguage(req)
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
+    return new Response(DEFAULT_EN_TRANSLATIONS['system.methodNotAllowed'], { status: 405 })
   }
 
   const supabaseUrl      = Deno.env.get('SUPABASE_URL')
@@ -276,25 +420,29 @@ Deno.serve(async (req: Request) => {
   const anthropicApiKey  = Deno.env.get('ANTHROPIC_API_KEY')
 
   if (!supabaseUrl || !serviceRoleKey || !anthropicApiKey) {
-    return twimlResponse('Serviço temporariamente indisponível.')
+    return twimlResponse(DEFAULT_EN_TRANSLATIONS['system.serviceUnavailable'])
   }
 
   // ── Parse Twilio webhook (application/x-www-form-urlencoded) ─────────────
-  const bodyText   = await req.text()
-  const params     = new URLSearchParams(bodyText)
-  const fromRaw    = params.get('From') ?? ''
+  const bodyText    = await req.text()
+  const params      = new URLSearchParams(bodyText)
+  const fromRaw     = params.get('From') ?? ''
   const messageText = params.get('Body')?.trim() ?? ''
 
   if (!fromRaw || !messageText) return twimlResponse('')
 
   const phone = normalizePhone(fromRaw)
-  if (!phone || phone.length < 7) {
-    return twimlResponse('Número inválido.')
-  }
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
+
+  // ── Load bot message translations from DB (EN fallback built in) ──────────
+  const translations = await loadBotTranslations(adminClient, requestLanguage)
+
+  if (!phone || phone.length < 7) {
+    return twimlResponse(t(translations, 'system.invalidNumber'))
+  }
 
   // ── Helper: log every bot interaction (awaited — fire-and-forget breaks on Edge Functions) ──
   const log = async (
@@ -332,7 +480,7 @@ Deno.serve(async (req: Request) => {
   }>
 
   if (profiles.length === 0) {
-    const reply = '❌ Número não cadastrado no sistema RPM.\n\nSolicite a um administrador que cadastre seu telefone no seu perfil de usuário.'
+    const reply = t(translations, 'replies.phoneNotRegistered')
     await log('not_found', reply)
     return twimlResponse(reply)
   }
@@ -342,7 +490,7 @@ Deno.serve(async (req: Request) => {
   const authUserId = String(primaryProfile.auth_user_id || '')
 
   if (!authUserId) {
-    const reply = '❌ Seu usuário ainda não está vinculado a uma conta autenticada. Solicite ao administrador para concluir o vínculo de acesso.'
+    const reply = t(translations, 'replies.authNotLinked')
     await log('blocked', reply, { userLogin })
     return twimlResponse(reply)
   }
@@ -358,18 +506,18 @@ Deno.serve(async (req: Request) => {
 
   if (!platformAdmin && approvedProfiles.length === 0) {
     if (scopedProfiles.some((profile) => profile.status === 'pending')) {
-      const reply = '⏳ Seu acesso está pendente de aprovação pelo administrador.'
+      const reply = t(translations, 'replies.accessPendingApproval')
       await log('pending', reply, { userLogin })
       return twimlResponse(reply)
     }
 
     if (scopedProfiles.some((profile) => profile.status === 'blocked')) {
-      const reply = '🚫 Seu acesso está bloqueado. Entre em contato com o administrador.'
+      const reply = t(translations, 'replies.accessBlocked')
       await log('blocked', reply, { userLogin })
       return twimlResponse(reply)
     }
 
-    const reply = '❌ Não encontrei um tenant aprovado para este usuário.'
+    const reply = t(translations, 'replies.noApprovedTenant')
     await log('blocked', reply, { userLogin })
     return twimlResponse(reply)
   }
@@ -400,11 +548,11 @@ Deno.serve(async (req: Request) => {
       tenantOptions.push({ tenantId, tenantName: nameById.get(tenantId) || tenantId })
     }
 
-    tenantOptions.sort((a, b) => a.tenantName.localeCompare(b.tenantName, 'pt-BR'))
+    tenantOptions.sort((a, b) => a.tenantName.localeCompare(b.tenantName, requestLanguage === 'pt' ? 'pt-BR' : 'en'))
   }
 
   if (tenantOptions.length === 0) {
-    const reply = '❌ Não encontrei tenants disponíveis para este usuário.'
+    const reply = t(translations, 'replies.noAvailableTenants')
     await log('blocked', reply, { userLogin })
     return twimlResponse(reply)
   }
@@ -444,7 +592,7 @@ Deno.serve(async (req: Request) => {
 
     // If the user only sent a tenant selection command/number, confirm and stop here.
     if (/^\d{1,2}$/.test(command) || /^\/tenant\s+\d{1,2}$/.test(command)) {
-      const reply = `✅ Tenant selecionado: ${selectedByCommand.tenantName}.\nAgora envie sua pergunta.`
+      const reply = formatMessage(t(translations, 'tenantSelection.selected'), { tenantName: selectedByCommand.tenantName })
       await log('command', reply, { tenantId, userLogin })
       return twimlResponse(reply)
     }
@@ -458,40 +606,40 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!tenantId) {
-    const reply = buildTenantSelectionReply(tenantOptions)
+    const reply = buildTenantSelectionReply(translations, tenantOptions)
     await log('command', reply, { userLogin })
     return twimlResponse(reply)
   }
 
-  const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantId)
+  const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantId, translations)
   if (!aiPlanAccess.allowed) {
-    const reply = `🚫 ${aiPlanAccess.message || 'Acesso de IA indisponível para o plano atual.'}`
+    const reply = `🚫 ${aiPlanAccess.message || t(translations, 'aiPlan.unavailable')}`
     await log('blocked', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
 
   const tenantProfile = approvedProfiles.find((profile) => profile.tenant_id === tenantId)
   if (!platformAdmin && !tenantProfile) {
-    const reply = buildTenantSelectionReply(tenantOptions, tenantId)
+    const reply = buildTenantSelectionReply(translations, tenantOptions, tenantId)
     await log('command', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
 
   if (tenantProfile?.status === 'pending') {
-    const reply = '⏳ Seu acesso está pendente de aprovação pelo administrador.'
+    const reply = t(translations, 'replies.accessPendingApproval')
     await log('pending', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
 
   if (tenantProfile?.status === 'blocked') {
-    const reply = '🚫 Seu acesso está bloqueado. Entre em contato com o administrador.'
+    const reply = t(translations, 'replies.accessBlocked')
     await log('blocked', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
 
   // ── Handle commands ───────────────────────────────────────────────────────
   if (command === '/tenant') {
-    const reply = buildTenantSelectionReply(tenantOptions, tenantId)
+    const reply = buildTenantSelectionReply(translations, tenantOptions, tenantId)
     await log('command', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
@@ -502,24 +650,13 @@ Deno.serve(async (req: Request) => {
       .delete()
       .eq('tenant_id', tenantId)
       .eq('phone', phone)
-    const reply = '🗑️ Conversa limpa! Pode começar uma nova consulta.'
+    const reply = t(translations, 'replies.clearConversation')
     await log('command', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
 
   if (command === '/ajuda') {
-    const reply = (
-      '🤖 *Assistente RPM — WhatsApp*\n\n' +
-      'Faça perguntas sobre seu portfólio em linguagem natural. Exemplos:\n\n' +
-      '• Quais propriedades estão disponíveis?\n' +
-      '• Qual o saldo financeiro do mês?\n' +
-      '• Há contratos vencendo nos próximos 30 dias?\n' +
-      '• Liste as tarefas pendentes\n\n' +
-      '*Comandos:*\n' +
-      '/limpar — apaga o histórico da conversa\n' +
-      '/tenant — mostra os tenants disponíveis\n' +
-      '/ajuda — exibe esta mensagem'
-    )
+    const reply = buildHelpReply(translations)
     await log('command', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
@@ -571,37 +708,14 @@ Deno.serve(async (req: Request) => {
   const today = new Date().toISOString().slice(0, 10)
 
   // ── System prompt ─────────────────────────────────────────────────────────
-  const systemPrompt = [
-    'Você é o assistente de IA do RPM — Rental Property Manager, respondendo via WhatsApp.',
-    'Responda em português brasileiro, de forma objetiva e concisa.',
-    `Hoje é ${today}.`,
-    '',
-    '## Escopo obrigatório',
-    `Tenant ativo: "${tenantName}" (tenant_id = ${tenantId}).`,
-    'TODAS as consultas são restritas a este tenant. Nunca mencione o tenant_id nas respostas.',
-    '',
-    '## Formatação para WhatsApp',
-    '- Use texto simples — evite markdown como #, **, etc.',
-    '- Para negrito use *asteriscos simples*',
-    '- Para listas use "•" ou "-" no início da linha',
-    '- Seja conciso — mensagens curtas são melhores no WhatsApp',
-    '- Máximo 3-4 parágrafos por resposta',
-    '',
-    '## Instruções',
-    'Para responder perguntas sobre dados, use a tool query_supabase.',
-    'Faça quantas chamadas forem necessárias para uma resposta precisa.',
-    'Não invente dados — se não encontrar, diga que não encontrou.',
-    '',
-    '## Moeda',
-    `- Moeda configurada: ${currencyCode} (${currencySymbol}) — use sempre este símbolo nos valores`,
-    '',
-    '## Regras de negócio',
-    '- transactions.type = "income" = Receita | "expense" = Despesa',
-    '- Propriedade ocupada = contrato ativo em contract_properties',
-    '- Para propriedades de um contrato: query contract_properties filtrando por contract_id',
-    '',
-    'Informe ao usuário que pode usar /ajuda para ver os comandos disponíveis.',
-  ].join('\n')
+  const systemPrompt = buildSystemPrompt(
+    translations,
+    tenantName,
+    tenantId,
+    today,
+    currencyCode,
+    currencySymbol,
+  )
 
   // ── Save user message ─────────────────────────────────────────────────────
   await adminClient.from('whatsapp_chat_history').insert({
@@ -680,12 +794,12 @@ Deno.serve(async (req: Request) => {
 
   const hasError = !finalAnswer
   if (hasError) {
-    finalAnswer = 'Não consegui gerar uma resposta. Tente novamente em instantes.'
+    finalAnswer = t(translations, 'replies.fallbackError')
   }
 
   // Truncate if response is too long for WhatsApp
   if (finalAnswer.length > MAX_WA_LENGTH) {
-    finalAnswer = finalAnswer.slice(0, MAX_WA_LENGTH - 30) + '\n\n_(resposta truncada)_'
+    finalAnswer = finalAnswer.slice(0, MAX_WA_LENGTH - 30) + t(translations, 'replies.truncatedSuffix')
   }
 
   // ── Save assistant response ───────────────────────────────────────────────

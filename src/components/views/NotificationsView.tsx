@@ -33,6 +33,7 @@ import {
   renderNotificationTemplateContent,
 } from '@/lib/notifications/template'
 import { DEFAULT_EMAIL_FOOTER, DEFAULT_EMAIL_HEADER } from '@/lib/notifications/email-master-defaults'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { supabase } from '@/lib/supabase'
 import RichTextEditor, { plainTextToHTML, type RichTextEditorHandle } from '@/components/RichTextEditor'
 import { toast } from 'sonner'
@@ -499,7 +500,7 @@ export default function NotificationsView() {
 
     if (!value.trim()) return value
 
-    const { data, error } = await supabase.functions.invoke('ai-assistant', {
+    const { data, error } = await supabase.functions.invoke<{ translatedContent?: string; error?: string; errorKey?: string; errorParams?: Record<string, string | number> }>('ai-assistant', {
       body: {
         action: 'translate-template',
         content: value,
@@ -508,16 +509,12 @@ export default function NotificationsView() {
       },
     })
 
-    if (error) {
-      throw new Error(error.message || t.notifications_view.messages.template_translation_error)
-    }
-
-    if (data?.error) {
-      throw new Error(data.error)
-    }
+    if (error) throw await getEdgeFunctionErrorFromInvokeError(error, t.notifications_view.messages.template_translation_error)
+    const responseError = getEdgeFunctionErrorFromPayload(data, t.notifications_view.messages.template_translation_error)
+    if (responseError) throw responseError
 
     return String(data?.translatedContent || '')
-  }, [t.notifications_view.messages.template_translation_error, tenantUsagePlan?.planCode])
+  }, [t, t.notifications_view.messages.template_translation_error, tenantUsagePlan?.planCode])
 
   const notificationGroups = useMemo<NotificationRuleGroup[]>(() => {
     const grouped = new Map<string, NotificationRuleGroup>()
@@ -1448,7 +1445,7 @@ export default function NotificationsView() {
       setPendingTemplateTranslation(null)
       toast.success(t.notifications_view.messages.template_translation_created_ai.replace('{language}', getLanguageLabel(targetLanguage)))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t.notifications_view.messages.template_translation_error)
+      toast.error(getEdgeFunctionMessage(error, t, t.notifications_view.messages.template_translation_error))
     } finally {
       setIsTemplateTranslating(false)
     }
@@ -1473,7 +1470,7 @@ export default function NotificationsView() {
 
       toast.success(t.notifications_view.messages.template_translation_applied.replace('{language}', getLanguageLabel(sourceTemplate.language)))
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t.notifications_view.messages.template_translation_error)
+      toast.error(getEdgeFunctionMessage(error, t, t.notifications_view.messages.template_translation_error))
     } finally {
       setIsTemplateTranslating(false)
     }

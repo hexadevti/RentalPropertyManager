@@ -77,13 +77,6 @@ function isUuid(value: string) {
 async function getAuthUserId() {
   const authState = getSupabaseAuthState()
   if (authState.userId && isUuid(authState.userId)) return authState.userId
-  if (import.meta.env.VITE_DEV_MODE !== 'true') return null
-  try {
-    const devUser = localStorage.getItem('dev-mode-user')
-    if (!devUser) return null
-    const devUserId = (JSON.parse(devUser) as { id: string }).id
-    return isUuid(devUserId) ? devUserId : null
-  } catch {}
   return null
 }
 
@@ -94,11 +87,6 @@ async function getTenantId(): Promise<string | null> {
 
   if (authState.isAuthenticated && authState.isApproved) {
     cachedTenantId = authState.tenantId ?? null
-    return cachedTenantId ?? null
-  }
-
-  if (import.meta.env.VITE_DEV_MODE === 'true') {
-    cachedTenantId = import.meta.env.VITE_DEV_TENANT_ID || 'dev-tenant'
     return cachedTenantId ?? null
   }
 

@@ -7,6 +7,7 @@ import { ArrowsClockwise, Eye, FloppyDisk, ArrowCounterClockwise } from '@phosph
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/lib/AuthContext'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useKV } from '@/lib/useSupabaseKV'
 import { hasAiFeatures } from '@/lib/usagePlans'
@@ -1972,7 +1973,7 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
     setIsGenerating(true)
     setIsGenerated(false)
     try {
-      const { data, error } = await supabase.functions.invoke<{ copy?: GeneratedAdCopy; error?: string }>('generate-property-ad', {
+      const { data, error } = await supabase.functions.invoke<{ copy?: GeneratedAdCopy; error?: string; errorKey?: string; errorParams?: Record<string, string | number> }>('generate-property-ad', {
         body: {
           hasContactBox,
           hasPricingBox,
@@ -1984,8 +1985,9 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
         },
       })
 
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, t.properties_view.ad_generate_error)
+      const responseError = getEdgeFunctionErrorFromPayload(data, t.properties_view.ad_generate_error)
+      if (responseError) throw responseError
 
       const nextCopy = data?.copy || null
       if (nextCopy && hasContactBox) {
@@ -1999,7 +2001,7 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
       setIsGenerated(true)
     } catch (error: any) {
       setAdCopy(null)
-      toast.error(error?.message || t.properties_view.ad_generate_error)
+      toast.error(getEdgeFunctionMessage(error, t, t.properties_view.ad_generate_error))
     } finally {
       setIsGenerating(false)
     }

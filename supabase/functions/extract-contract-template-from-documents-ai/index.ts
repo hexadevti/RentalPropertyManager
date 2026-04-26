@@ -1,8 +1,80 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const STARTER_PLAN_CODE = 'starter'
-const AI_TOKEN_LIMIT_REACHED_MESSAGE = 'Limite mensal de tokens de IA atingido para o plano atual. Faça upgrade para continuar usando funcionalidades de IA.'
-const AI_BLOCKED_BY_PLAN_MESSAGE = 'Funcionalidades de IA estao bloqueadas para o plano atual. Ajuste o plano para habilitar o acesso.'
+type SupportedLanguage = 'pt' | 'en'
+
+const AI_PLAN_MESSAGES = {
+  pt: {
+    tokenLimitReached: 'Limite mensal de tokens de IA atingido para o plano atual. Faça upgrade para continuar usando funcionalidades de IA.',
+    blockedByPlan: 'Funcionalidades de IA estao bloqueadas para o plano atual. Ajuste o plano para habilitar o acesso.',
+  },
+  en: {
+    tokenLimitReached: 'Monthly AI token limit reached for the current plan. Upgrade to continue using AI features.',
+    blockedByPlan: 'AI features are blocked for the current plan. Change the plan to enable access.',
+  },
+} as const
+
+const AI_PLAN_ERROR_KEYS = {
+  tokenLimitReached: 'ai_token_limit_reached',
+  blockedByPlan: 'ai_blocked_by_plan',
+} as const
+
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  anthropicNotConfigured: 'edge_anthropic_not_configured',
+  serviceRoleNotConfigured: 'edge_service_role_not_configured',
+  missingAuthorization: 'edge_missing_authorization',
+  invalidAuthToken: 'edge_invalid_auth_token',
+  tenantContextMissing: 'ai_tenant_context_missing',
+  templateContentRequired: 'extract_template_content_required',
+  imageOrSourceRequired: 'extract_template_image_or_source_required',
+  maxImagesExceeded: 'extract_template_max_images_exceeded',
+  aiReturnedNoContent: 'extract_template_ai_returned_no_content',
+  unexpectedError: 'extract_template_unexpected_error',
+} as const
+
+const ERROR_MESSAGES = {
+  pt: {
+    methodNotAllowed: 'Metodo nao permitido',
+    supabaseNotConfigured: 'Ambiente do Supabase nao configurado',
+    anthropicNotConfigured: 'ANTHROPIC_API_KEY nao configurada',
+    serviceRoleNotConfigured: 'SUPABASE_SERVICE_ROLE_KEY nao configurada',
+    missingAuthorization: 'Cabecalho Authorization ausente',
+    invalidAuthToken: 'Token de autenticacao invalido',
+    tenantContextMissing: 'Contexto de conta nao encontrado para o usuario atual.',
+    templateContentRequired: 'Conteudo do template e obrigatorio.',
+    imageOrSourceRequired: 'Envie ao menos uma imagem valida ou texto-fonte extraido.',
+    maxImagesExceeded: 'Voce pode enviar no maximo 6 imagens por extracao.',
+    aiReturnedNoContent: 'A IA nao retornou conteudo do template.',
+    unexpectedExtractionError: 'Erro inesperado ao extrair dados do template.',
+  },
+  en: {
+    methodNotAllowed: 'Method not allowed',
+    supabaseNotConfigured: 'Supabase environment is not configured',
+    anthropicNotConfigured: 'ANTHROPIC_API_KEY is not configured',
+    serviceRoleNotConfigured: 'SUPABASE_SERVICE_ROLE_KEY is not configured',
+    missingAuthorization: 'Missing Authorization header',
+    invalidAuthToken: 'Invalid authentication token',
+    tenantContextMissing: 'Tenant context was not found for the current user.',
+    templateContentRequired: 'Template content is required.',
+    imageOrSourceRequired: 'Send at least one valid image or extracted source text.',
+    maxImagesExceeded: 'You can send up to 6 images per extraction.',
+    aiReturnedNoContent: 'AI did not return template content.',
+    unexpectedExtractionError: 'Unexpected error while extracting template data.',
+  },
+} as const
+
+function resolveRequestLanguage(req: Request, requestedLanguage?: unknown): SupportedLanguage {
+  const bodyLanguage = String(requestedLanguage ?? '').trim().toLowerCase()
+  if (bodyLanguage.startsWith('en')) return 'en'
+  if (bodyLanguage.startsWith('pt')) return 'pt'
+
+  const acceptLanguage = String(req.headers.get('Accept-Language') || '').toLowerCase()
+  if (acceptLanguage.includes('pt')) return 'pt'
+  if (acceptLanguage.includes('en')) return 'en'
+  return 'en'
+}
 
 function getUtcDateForAnchorDay(year: number, month: number, anchorDay: number) {
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
@@ -37,7 +109,7 @@ async function getEffectiveTenantPlanCode(adminClient: any, tenantId: string) {
   return String(data?.plan_code || STARTER_PLAN_CODE).trim().toLowerCase()
 }
 
-async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
+async function ensureAiPlanAccess(adminClient: any, tenantId: string, language: SupportedLanguage) {
   const planCode = await getEffectiveTenantPlanCode(adminClient, tenantId)
 
   const { data: planData, error: planError } = await adminClient
@@ -61,7 +133,8 @@ async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
     return {
       planCode,
       allowed: false,
-      message: AI_BLOCKED_BY_PLAN_MESSAGE,
+      message: AI_PLAN_MESSAGES[language].blockedByPlan,
+      messageKey: AI_PLAN_ERROR_KEYS.blockedByPlan,
       maxAiTokens,
       usedAiTokens: 0,
       remainingAiTokens: maxAiTokens,
@@ -101,7 +174,8 @@ async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
     return {
       planCode,
       allowed: false,
-      message: AI_TOKEN_LIMIT_REACHED_MESSAGE,
+      message: AI_PLAN_MESSAGES[language].tokenLimitReached,
+      messageKey: AI_PLAN_ERROR_KEYS.tokenLimitReached,
       maxAiTokens,
       usedAiTokens,
       remainingAiTokens: 0,
@@ -437,20 +511,22 @@ async function extractTemplateWithAnthropicVision(
 
 Deno.serve(async (req: Request) => {
   try {
+    let requestLanguage = resolveRequestLanguage(req)
+
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
-    if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
+    if (req.method !== 'POST') return jsonResponse({ error: ERROR_MESSAGES.en.methodNotAllowed, errorKey: ERROR_KEYS.methodNotAllowed }, 405)
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!supabaseUrl || !supabaseAnonKey) return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
-    if (!anthropicApiKey) return jsonResponse({ error: 'ANTHROPIC_API_KEY is not configured' }, 500)
-    if (!supabaseServiceRoleKey) return jsonResponse({ error: 'SUPABASE_SERVICE_ROLE_KEY is not configured' }, 500)
+    if (!supabaseUrl || !supabaseAnonKey) return jsonResponse({ error: ERROR_MESSAGES.en.supabaseNotConfigured, errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
+    if (!anthropicApiKey) return jsonResponse({ error: ERROR_MESSAGES.en.anthropicNotConfigured, errorKey: ERROR_KEYS.anthropicNotConfigured }, 500)
+    if (!supabaseServiceRoleKey) return jsonResponse({ error: ERROR_MESSAGES.en.serviceRoleNotConfigured, errorKey: ERROR_KEYS.serviceRoleNotConfigured }, 500)
 
     const authorization = req.headers.get('Authorization')
-    if (!authorization) return jsonResponse({ error: 'Missing Authorization header' }, 401)
+    if (!authorization) return jsonResponse({ error: ERROR_MESSAGES.en.missingAuthorization, errorKey: ERROR_KEYS.missingAuthorization }, 401)
 
     const token = authorization.replace(/^Bearer\s+/i, '').trim()
     const authClient = createClient(supabaseUrl, supabaseAnonKey)
@@ -458,22 +534,24 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
     const { data: userData, error: userError } = await authClient.auth.getUser(token)
-    if (userError || !userData?.user) return jsonResponse({ error: 'Invalid authentication token' }, 401)
+    if (userError || !userData?.user) return jsonResponse({ error: ERROR_MESSAGES.en.invalidAuthToken, errorKey: ERROR_KEYS.invalidAuthToken }, 401)
 
     const authUserId = userData.user.id
-    const tenantContext = await resolveTenantContext(adminClient, authUserId)
-    if (!tenantContext.tenantId) return jsonResponse({ error: 'Tenant context was not found for the current user.' }, 400)
-
-    const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantContext.tenantId)
-    if (!aiPlanAccess.allowed) {
-      return jsonResponse({ error: aiPlanAccess.message, code: aiPlanAccess.reason || 'ai_access_denied', planCode: aiPlanAccess.planCode }, 403)
-    }
-
     const body = await req.json().catch(() => ({})) as {
       templateContent?: string
       availablePaths?: string[]
       images?: string[]
       sourceText?: string
+      language?: string
+    }
+    requestLanguage = resolveRequestLanguage(req, body?.language)
+
+    const tenantContext = await resolveTenantContext(adminClient, authUserId)
+    if (!tenantContext.tenantId) return jsonResponse({ error: ERROR_MESSAGES.en.tenantContextMissing, errorKey: ERROR_KEYS.tenantContextMissing }, 400)
+
+    const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantContext.tenantId, requestLanguage)
+    if (!aiPlanAccess.allowed) {
+      return jsonResponse({ error: aiPlanAccess.message, errorKey: aiPlanAccess.messageKey, code: aiPlanAccess.reason || 'ai_access_denied', planCode: aiPlanAccess.planCode }, 403)
     }
 
     const templateContent = safeText(body.templateContent, 50000)
@@ -484,9 +562,9 @@ Deno.serve(async (req: Request) => {
     const images = rawImages.map(parseDataUrl).filter(Boolean) as ParsedImageInput[]
     const sourceText = safeText(body.sourceText, 120000)
 
-    if (!templateContent) return jsonResponse({ error: 'Template content is required.' }, 400)
-    if (images.length === 0 && !sourceText) return jsonResponse({ error: 'Send at least one valid image or extracted source text.' }, 400)
-    if (images.length > 6) return jsonResponse({ error: 'You can send up to 6 images per extraction.' }, 400)
+    if (!templateContent) return jsonResponse({ error: ERROR_MESSAGES.en.templateContentRequired, errorKey: ERROR_KEYS.templateContentRequired }, 400)
+    if (images.length === 0 && !sourceText) return jsonResponse({ error: ERROR_MESSAGES.en.imageOrSourceRequired, errorKey: ERROR_KEYS.imageOrSourceRequired }, 400)
+    if (images.length > 6) return jsonResponse({ error: ERROR_MESSAGES.en.maxImagesExceeded, errorKey: ERROR_KEYS.maxImagesExceeded }, 400)
 
     const aiResponse = await extractTemplateWithAnthropicVision(
       anthropicApiKey,
@@ -504,7 +582,7 @@ Deno.serve(async (req: Request) => {
     const replacements = normalizeReplacements(aiResult.replacements)
 
     if (!content) {
-      return jsonResponse({ error: 'AI did not return template content.' }, 500)
+      return jsonResponse({ error: ERROR_MESSAGES.en.aiReturnedNoContent, errorKey: ERROR_KEYS.aiReturnedNoContent }, 500)
     }
 
     const costUsd = estimateCost(aiResponse.model, aiResponse.inputTokens, aiResponse.outputTokens)
@@ -527,7 +605,8 @@ Deno.serve(async (req: Request) => {
 
     return jsonResponse({ content, confidence, warnings, replacements, model: aiResponse.model })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unexpected error while extracting template data.'
-    return jsonResponse({ error: message }, 500)
+    const requestLanguage = resolveRequestLanguage(req)
+    const message = error instanceof Error ? error.message : ERROR_MESSAGES[requestLanguage].unexpectedExtractionError
+    return jsonResponse({ error: message, errorKey: ERROR_KEYS.unexpectedError }, 500)
   }
 })

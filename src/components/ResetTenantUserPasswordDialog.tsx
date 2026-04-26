@@ -3,8 +3,10 @@ import type { FormEvent } from 'react'
 import { Key, PaperPlaneTilt } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { useLanguage } from '@/lib/LanguageContext'
 import { Textarea } from '@/components/ui/textarea'
 import { supabase } from '@/lib/supabase'
 
@@ -25,23 +27,6 @@ interface ResetTenantUserPasswordDialogProps {
   onSent?: () => void
 }
 
-async function readFunctionErrorMessage(error: unknown) {
-  if (typeof error === 'object' && error !== null && 'context' in error) {
-    const context = (error as { context?: unknown }).context
-    if (typeof context === 'string' && context) return context
-    if (context instanceof Response) {
-      const bodyText = await context.text().catch(() => '')
-      try {
-        const parsed = bodyText ? JSON.parse(bodyText) : null
-        if (parsed?.error) return parsed.error
-      } catch {}
-      if (bodyText) return bodyText
-    }
-  }
-  if (error instanceof Error && error.message) return error.message
-  return 'Failed to send password reset.'
-}
-
 export function ResetTenantUserPasswordDialog({
   tenantId,
   login,
@@ -58,6 +43,7 @@ export function ResetTenantUserPasswordDialog({
   errorMessage,
   onSent,
 }: ResetTenantUserPasswordDialogProps) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -70,6 +56,8 @@ export function ResetTenantUserPasswordDialog({
       const { data, error } = await supabase.functions.invoke<{
         success?: boolean
         error?: string
+        errorKey?: string
+        errorParams?: Record<string, string | number>
       }>('tenant-user-invitations', {
         body: {
           action: 'send-password-reset',
@@ -81,20 +69,16 @@ export function ResetTenantUserPasswordDialog({
         },
       })
 
-      if (error) {
-        throw new Error(await readFunctionErrorMessage(error))
-      }
-      if (data?.error) {
-        throw new Error(data.error)
-      }
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, errorMessage)
+      const responseError = getEdgeFunctionErrorFromPayload(data, errorMessage)
+      if (responseError) throw responseError
 
       toast.success(successMessage)
       setOpen(false)
       setMessage('')
       onSent?.()
     } catch (error: unknown) {
-      const message = error instanceof Error && error.message ? error.message : errorMessage
-      toast.error(message)
+      toast.error(getEdgeFunctionMessage(error, t, errorMessage))
     } finally {
       setIsSubmitting(false)
     }

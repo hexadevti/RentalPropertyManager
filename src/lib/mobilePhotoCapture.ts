@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload } from '@/lib/edgeFunctionMessages'
 
 export type MobileCaptureSession = {
   sessionId: string
@@ -22,14 +23,13 @@ export type MobileCaptureSessionStatus = {
 }
 
 async function invokeBridge<T>(body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke<T & { error?: string }>('mobile-photo-capture', {
+  const { data, error } = await supabase.functions.invoke<T & { error?: string; errorKey?: string; errorParams?: Record<string, string | number> }>('mobile-photo-capture', {
     body,
   })
 
-  if (error) throw new Error(error.message || 'Falha no fluxo de captura por celular.')
-  if (data && typeof data === 'object' && 'error' in data && data.error) {
-    throw new Error(String(data.error))
-  }
+  if (error) throw await getEdgeFunctionErrorFromInvokeError(error, 'Falha no fluxo de captura por celular.')
+  const responseError = getEdgeFunctionErrorFromPayload(data, 'Falha no fluxo de captura por celular.')
+  if (responseError) throw responseError
 
   return data as T
 }

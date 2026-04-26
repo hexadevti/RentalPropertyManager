@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { MagnifyingGlass, Plus, Pencil, Trash, FileText, CalendarBlank, CurrencyDollar, House, User, ArrowsClockwise, FilePdf, Eye, ClipboardText, UploadSimple, DownloadSimple, Warning, ArrowsCounterClockwise } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Contract, Guest, Inspection, Property, ContractStatus, RentalType, ContractTemplate, Owner, TEMPLATE_LANGUAGES, TemplateLanguage } from '@/types'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
@@ -476,8 +477,13 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
         fetchErrors: FetchError[]
         hasConfiguredFeeds?: boolean
         diagnostics?: SyncDiagnostics
+        error?: string
+        errorKey?: string
+        errorParams?: Record<string, string | number>
       }>('ical-sync', { body: {} })
-      if (error) throw new Error(error.message)
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, 'Erro ao buscar feeds iCal')
+      const responseError = getEdgeFunctionErrorFromPayload(data, 'Erro ao buscar feeds iCal')
+      if (responseError) throw responseError
       const events = data?.events ?? []
       const newUids = events.filter(e => e.status === 'new').map(e => e.uid)
       setSyncEvents(events)
@@ -490,7 +496,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
       )
       setSyncSelected(new Set(newUids))
     } catch (err: any) {
-      toast.error(err?.message ?? 'Erro ao buscar feeds iCal')
+      toast.error(getEdgeFunctionMessage(err, t, 'Erro ao buscar feeds iCal'))
       setSyncDialogOpen(false)
     } finally {
       setSyncLoading(false)

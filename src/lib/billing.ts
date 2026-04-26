@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload } from '@/lib/edgeFunctionMessages'
 
 export type BillingCheckoutInput = {
   tenantId: string
@@ -34,8 +35,11 @@ export async function createBillingCheckoutSession(input: BillingCheckoutInput) 
   })
 
   if (error) {
-    throw new Error(error.message || 'Failed to start checkout session')
+    throw await getEdgeFunctionErrorFromInvokeError(error, 'Failed to start checkout session')
   }
+
+  const responseError = getEdgeFunctionErrorFromPayload(data, 'Failed to start checkout session')
+  if (responseError) throw responseError
 
   if (!data?.success || !data?.checkoutUrl) {
     throw new Error(String(data?.error || 'Failed to start checkout session'))

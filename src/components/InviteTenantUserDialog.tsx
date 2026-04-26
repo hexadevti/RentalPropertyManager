@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
+import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 import { deriveUserRoleFromAccessProfileId } from '@/lib/accessControl'
 import type { AccessProfile } from '@/types'
@@ -31,23 +33,6 @@ interface InviteTenantUserDialogProps {
   onInvited?: () => void
 }
 
-async function readFunctionErrorMessage(error: unknown) {
-  if (typeof error === 'object' && error !== null && 'context' in error) {
-    const context = (error as { context?: unknown }).context
-    if (typeof context === 'string' && context) return context
-    if (context instanceof Response) {
-      const bodyText = await context.text().catch(() => '')
-      try {
-        const parsed = bodyText ? JSON.parse(bodyText) : null
-        if (parsed?.error) return parsed.error
-      } catch {}
-      if (bodyText) return bodyText
-    }
-  }
-  if (error instanceof Error && error.message) return error.message
-  return 'Failed to send invitation.'
-}
-
 export function InviteTenantUserDialog({
   tenantId,
   triggerLabel,
@@ -66,6 +51,7 @@ export function InviteTenantUserDialog({
   disabled = false,
   onInvited,
 }: InviteTenantUserDialogProps) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [accessProfiles, setAccessProfiles] = useState<AccessProfile[]>([])
@@ -145,6 +131,8 @@ export function InviteTenantUserDialog({
         success?: boolean
         invitationId?: string
         error?: string
+        errorKey?: string
+        errorParams?: Record<string, string | number>
       }>('tenant-user-invitations', {
         body: {
           action: 'send',
@@ -157,19 +145,15 @@ export function InviteTenantUserDialog({
         },
       })
 
-      if (error) {
-        throw new Error(await readFunctionErrorMessage(error))
-      }
-      if (data?.error) {
-        throw new Error(data.error)
-      }
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, errorMessage)
+      const responseError = getEdgeFunctionErrorFromPayload(data, errorMessage)
+      if (responseError) throw responseError
 
       toast.success(successMessage)
       handleOpenChange(false)
       onInvited?.()
     } catch (error: unknown) {
-      const message = error instanceof Error && error.message ? error.message : errorMessage
-      toast.error(message)
+      toast.error(getEdgeFunctionMessage(error, t, errorMessage))
     } finally {
       setIsSubmitting(false)
     }

@@ -2,8 +2,64 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { estimateCost } from './helpers.ts'
 
 const STARTER_PLAN_CODE = 'starter'
-const AI_TOKEN_LIMIT_REACHED_MESSAGE = 'Limite mensal de tokens de IA atingido para o plano atual. Faça upgrade para continuar usando funcionalidades de IA.'
-const AI_BLOCKED_BY_PLAN_MESSAGE = 'Funcionalidades de IA estao bloqueadas para o plano atual. Ajuste o plano para habilitar o acesso.'
+type SupportedLanguage = 'pt' | 'en'
+
+const AI_PLAN_ERROR_KEYS = {
+  tokenLimitReached: 'ai_token_limit_reached',
+  blockedByPlan: 'ai_blocked_by_plan',
+} as const
+
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  anthropicNotConfigured: 'edge_anthropic_not_configured',
+  anthropicApiError: 'edge_anthropic_api_error',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  missingAuthorization: 'edge_missing_authorization',
+  invalidAuthToken: 'edge_invalid_auth_token',
+  unexpectedError: 'edge_unexpected_error',
+  onlyApprovedAdmins: 'ai_assistant_only_approved_admins',
+  tenantContextMissing: 'ai_tenant_context_missing',
+  contentRequired: 'ai_assistant_content_required',
+  languagesRequired: 'ai_assistant_languages_required',
+  languagesMustDiffer: 'ai_assistant_languages_must_differ',
+  translateFailed: 'ai_assistant_translate_failed',
+  questionRequired: 'ai_assistant_question_required',
+  questionTooLong: 'ai_assistant_question_too_long',
+  restrictedAccess: 'ai_assistant_restricted_access',
+  writeAccess: 'ai_assistant_write_access',
+  noAnswerGenerated: 'ai_assistant_no_answer_generated',
+} as const
+
+const ERROR_FALLBACKS = {
+  en: {
+    methodNotAllowed: 'Method not allowed',
+    anthropicNotConfigured: 'ANTHROPIC_API_KEY is not configured',
+    anthropicApiError: 'AI provider API request failed.',
+    supabaseNotConfigured: 'Supabase environment is not configured',
+    missingAuthorization: 'Missing Authorization header',
+    invalidAuthToken: 'Invalid user token',
+    unexpectedError: 'Unexpected edge function error.',
+    onlyApprovedAdmins: 'Only approved administrators can use the AI assistant',
+    tenantContextMissing: 'Tenant context was not found for the current user',
+    contentRequired: 'content is required',
+    languagesRequired: 'fromLanguage and toLanguage are required',
+    languagesMustDiffer: 'Source and target languages must differ',
+    translateFailed: 'Failed to translate template',
+    questionRequired: 'Question is required',
+    questionTooLong: 'Question is too long',
+  },
+} as const
+
+function resolveRequestLanguage(req: Request, requestedLanguage?: unknown): SupportedLanguage {
+  const bodyLanguage = String(requestedLanguage ?? '').trim().toLowerCase()
+  if (bodyLanguage.startsWith('en')) return 'en'
+  if (bodyLanguage.startsWith('pt')) return 'pt'
+
+  const acceptLanguage = String(req.headers.get('Accept-Language') || '').toLowerCase()
+  if (acceptLanguage.includes('pt')) return 'pt'
+  if (acceptLanguage.includes('en')) return 'en'
+  return 'en'
+}
 
 function getUtcDateForAnchorDay(year: number, month: number, anchorDay: number) {
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
@@ -62,7 +118,8 @@ async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
     return {
       planCode,
       allowed: false,
-      message: AI_BLOCKED_BY_PLAN_MESSAGE,
+      message: 'AI features are blocked for the current plan. Change the plan to enable access.',
+      messageKey: AI_PLAN_ERROR_KEYS.blockedByPlan,
       maxAiTokens,
       usedAiTokens: 0,
       remainingAiTokens: maxAiTokens,
@@ -102,7 +159,8 @@ async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
     return {
       planCode,
       allowed: false,
-      message: AI_TOKEN_LIMIT_REACHED_MESSAGE,
+      message: 'Monthly AI token limit reached for the current plan. Upgrade to continue using AI features.',
+      messageKey: AI_PLAN_ERROR_KEYS.tokenLimitReached,
       maxAiTokens,
       usedAiTokens,
       remainingAiTokens: 0,
@@ -191,11 +249,6 @@ const RESTRICTED_TOPIC_PATTERNS = [
   /\bnotifica(?:ç|c)[aã]o(?:es)?\b/i,
 ]
 
-const RESTRICTED_ACCESS_MESSAGE = [
-  'Não posso consultar nem expor dados de usuários, tenants, permissões, logs de auditoria, bugs, fale conosco ou notificações.',
-  'Posso ajudar apenas com dados operacionais do negócio, como propriedades, contratos, hóspedes, transações, tarefas, agenda, documentos e vistorias.',
-].join(' ')
-
 const WRITE_REQUEST_PATTERNS = [
   /\balter(ar|e|acao|acoes)?\b/i,
   /\batualiz(ar|e|acao|acoes)?\b/i,
@@ -222,11 +275,6 @@ const WRITE_REQUEST_PATTERNS = [
   /\binsert\b/i,
   /\bcreate\b/i,
 ]
-
-const WRITE_ACCESS_MESSAGE = [
-  'Nao posso alterar informacoes no Supabase pelo chat.',
-  'Este assistente e somente leitura: posso consultar dados e orientar o passo a passo para voce fazer a alteracao na tela correta do sistema.',
-].join(' ')
 
 // Junction tables — queried without tenant_id (linked via FK)
 const JUNCTION_TABLES = new Set(['contract_properties', 'property_owners'])
@@ -355,24 +403,27 @@ async function executeQueryTool(
 
 Deno.serve(async (req) => {
   try {
+    let requestLanguage = resolveRequestLanguage(req)
+
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
-    if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
+    if (req.method !== 'POST') return jsonResponse({ error: ERROR_FALLBACKS.en.methodNotAllowed, errorKey: ERROR_KEYS.methodNotAllowed }, 405)
 
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!anthropicApiKey) return jsonResponse({ error: 'ANTHROPIC_API_KEY is not configured' }, 500)
+    if (!anthropicApiKey) return jsonResponse({ error: ERROR_FALLBACKS.en.anthropicNotConfigured, errorKey: ERROR_KEYS.anthropicNotConfigured }, 500)
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-      return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
+      return jsonResponse({ error: ERROR_FALLBACKS.en.supabaseNotConfigured, errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
     }
 
     const authorization = req.headers.get('Authorization')
-    if (!authorization) return jsonResponse({ error: 'Missing Authorization header' }, 401)
+    if (!authorization) return jsonResponse({ error: ERROR_FALLBACKS.en.missingAuthorization, errorKey: ERROR_KEYS.missingAuthorization }, 401)
     const userJwt = authorization.replace(/^Bearer\s+/i, '').trim()
 
     const body = await req.json().catch(() => null)
+    requestLanguage = resolveRequestLanguage(req, body?.language)
     const requestedModel = String(body?.model ?? '').trim()
     const configuredDefaultModel = Deno.env.get('ANTHROPIC_MODEL') ?? DEFAULT_MODEL
     const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : configuredDefaultModel
@@ -385,7 +436,7 @@ Deno.serve(async (req) => {
     // ── Auth + tenant resolution ──────────────────────────────────────────────
     const { data: authData, error: authError } = await authClient.auth.getUser(userJwt)
     if (authError || !authData.user) {
-      return jsonResponse({ error: authError?.message ?? 'Invalid user token' }, 401)
+      return jsonResponse({ error: authError?.message ?? ERROR_FALLBACKS.en.invalidAuthToken, errorKey: authError?.message ? undefined : ERROR_KEYS.invalidAuthToken }, 401)
     }
     const authUserId = authData.user.id
 
@@ -405,7 +456,7 @@ Deno.serve(async (req) => {
     const isPlatformAdmin = Boolean(platformAdmin)
     const isApprovedTenantAdmin = profile?.role === 'admin' && profile?.status === 'approved'
     if (!isPlatformAdmin && !isApprovedTenantAdmin) {
-      return jsonResponse({ error: 'Only approved administrators can use the AI assistant' }, 403)
+      return jsonResponse({ error: ERROR_FALLBACKS.en.onlyApprovedAdmins, errorKey: ERROR_KEYS.onlyApprovedAdmins }, 403)
     }
 
     let tenantId = profile?.tenant_id as string | undefined
@@ -417,11 +468,11 @@ Deno.serve(async (req) => {
         .maybeSingle()
       tenantId = sessionTenant?.tenant_id ?? tenantId
     }
-    if (!tenantId) return jsonResponse({ error: 'Tenant context was not found for the current user' }, 400)
+    if (!tenantId) return jsonResponse({ error: ERROR_FALLBACKS.en.tenantContextMissing, errorKey: ERROR_KEYS.tenantContextMissing }, 400)
 
     const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantId)
     if (!aiPlanAccess.allowed) {
-      return jsonResponse({ error: aiPlanAccess.message, code: aiPlanAccess.reason || 'ai_access_denied', planCode: aiPlanAccess.planCode }, 403)
+      return jsonResponse({ error: aiPlanAccess.message, errorKey: aiPlanAccess.messageKey, code: aiPlanAccess.reason || 'ai_access_denied', planCode: aiPlanAccess.planCode }, 403)
     }
 
     const { data: tenantData } = await adminClient
@@ -460,9 +511,9 @@ Deno.serve(async (req) => {
       const fromLang = String(body?.fromLanguage ?? '').trim()
       const toLang = String(body?.toLanguage ?? '').trim()
 
-      if (!contentToTranslate) return jsonResponse({ error: 'content is required' }, 400)
-      if (!fromLang || !toLang) return jsonResponse({ error: 'fromLanguage and toLanguage are required' }, 400)
-      if (fromLang === toLang) return jsonResponse({ error: 'Source and target languages must differ' }, 400)
+      if (!contentToTranslate) return jsonResponse({ error: ERROR_FALLBACKS.en.contentRequired, errorKey: ERROR_KEYS.contentRequired }, 400)
+      if (!fromLang || !toLang) return jsonResponse({ error: ERROR_FALLBACKS.en.languagesRequired, errorKey: ERROR_KEYS.languagesRequired }, 400)
+      if (fromLang === toLang) return jsonResponse({ error: ERROR_FALLBACKS.en.languagesMustDiffer, errorKey: ERROR_KEYS.languagesMustDiffer }, 400)
 
       const translationResponse = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -492,7 +543,7 @@ Deno.serve(async (req) => {
       const translationData = await translationResponse.json()
       if (!translationResponse.ok) {
         console.error('Anthropic translation error', translationData)
-        return jsonResponse({ error: translationData?.error?.message ?? 'Failed to translate template', model }, 500)
+        return jsonResponse({ error: translationData?.error?.message ?? ERROR_FALLBACKS.en.translateFailed, errorKey: translationData?.error?.message ? ERROR_KEYS.anthropicApiError : ERROR_KEYS.translateFailed, model }, 500)
       }
 
       const inputTokens = translationData?.usage?.input_tokens ?? 0
@@ -525,11 +576,12 @@ Deno.serve(async (req) => {
     const question = String(body?.question ?? '').trim()
     const history = Array.isArray(body?.history) ? (body.history as ChatMessage[]).slice(-8) : []
 
-    if (!question) return jsonResponse({ error: 'Question is required' }, 400)
-    if (question.length > 1200) return jsonResponse({ error: 'Question is too long' }, 400)
+    if (!question) return jsonResponse({ error: ERROR_FALLBACKS.en.questionRequired, errorKey: ERROR_KEYS.questionRequired }, 400)
+    if (question.length > 1200) return jsonResponse({ error: ERROR_FALLBACKS.en.questionTooLong, errorKey: ERROR_KEYS.questionTooLong }, 400)
     if (isRestrictedQuestion(question)) {
       return jsonResponse({
-        answer: RESTRICTED_ACCESS_MESSAGE,
+        answerKey: ERROR_KEYS.restrictedAccess,
+        answer: '',
         model,
         usage: {
           inputTokens: 0,
@@ -542,7 +594,8 @@ Deno.serve(async (req) => {
     }
     if (isWriteRequest(question)) {
       return jsonResponse({
-        answer: WRITE_ACCESS_MESSAGE,
+        answerKey: ERROR_KEYS.writeAccess,
+        answer: '',
         model,
         usage: {
           inputTokens: 0,
@@ -556,13 +609,17 @@ Deno.serve(async (req) => {
 
     const today = new Date().toISOString().slice(0, 10)
 
+    const responseLanguageInstruction = requestLanguage === 'pt'
+      ? 'Responda sempre em portugues brasileiro, de forma objetiva e util.'
+      : 'Always respond in English, clearly and concisely.'
+
     const systemPrompt = [
       '## Limite de acesso',
       'Este assistente e somente leitura.',
       'Nunca crie, edite, atualize, aprove, remova ou exclua dados no Supabase.',
       'Se o usuario pedir qualquer alteracao de dados, recuse brevemente e explique apenas o caminho para fazer isso manualmente no sistema.',
       'Você é um assistente de IA do sistema RPM — Rental Property Manager.',
-      'Responda sempre em português brasileiro, de forma objetiva e útil.',
+      responseLanguageInstruction,
       `Hoje é ${today}.`,
       '',
       '## Escopo obrigatório',
@@ -630,7 +687,8 @@ Deno.serve(async (req) => {
       if (!response.ok) {
         console.error('Anthropic API error', responseData)
         return jsonResponse({
-          error: responseData?.error?.message ?? 'Claude API error',
+          error: responseData?.error?.message ?? ERROR_FALLBACKS.en.anthropicApiError,
+          errorKey: ERROR_KEYS.anthropicApiError,
           model,
         }, 500)
       }
@@ -667,9 +725,7 @@ Deno.serve(async (req) => {
       break
     }
 
-    if (!finalAnswer) {
-      finalAnswer = 'Não consegui gerar uma resposta para essa pergunta.'
-    }
+    const answerKey = finalAnswer ? undefined : ERROR_KEYS.noAnswerGenerated
 
     const costUsd = estimateCost(model, totalInputTokens, totalOutputTokens)
 
@@ -689,7 +745,8 @@ Deno.serve(async (req) => {
     })
 
     return jsonResponse({
-      answer: finalAnswer,
+      answer: finalAnswer || '',
+      answerKey,
       model,
       usage: {
         inputTokens: totalInputTokens,
@@ -702,7 +759,8 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('ai-assistant unexpected error', error)
     return jsonResponse({
-      error: error instanceof Error ? error.message : 'Unexpected Edge Function error',
+      error: error instanceof Error ? error.message : ERROR_FALLBACKS.en.unexpectedError,
+      errorKey: ERROR_KEYS.unexpectedError,
     }, 500)
   }
 })

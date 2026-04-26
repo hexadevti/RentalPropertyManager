@@ -8,25 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/lib/AuthContext'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
-
-async function readFunctionErrorMessage(error: unknown) {
-  if (typeof error === 'object' && error !== null && 'context' in error) {
-    const context = (error as { context?: unknown }).context
-    if (typeof context === 'string' && context) return context
-    if (context instanceof Response) {
-      const bodyText = await context.text().catch(() => '')
-      try {
-        const parsed = bodyText ? JSON.parse(bodyText) : null
-        if (parsed?.error) return parsed.error
-      } catch {}
-      if (bodyText) return bodyText
-    }
-  }
-  if (error instanceof Error && error.message) return error.message
-  return 'Failed to send the message.'
-}
 
 export function ContactUsDialog({ fullWidth }: { fullWidth?: boolean } = {}) {
   const { currentUser, currentTenantId } = useAuth()
@@ -70,7 +54,7 @@ export function ContactUsDialog({ fullWidth }: { fullWidth?: boolean } = {}) {
     setIsSubmitting(true)
 
     try {
-      const { data, error } = await supabase.functions.invoke<{ success?: boolean; sentTo?: number; error?: string }>('contact-admins', {
+      const { data, error } = await supabase.functions.invoke<{ success?: boolean; sentTo?: number; error?: string; errorKey?: string; errorParams?: Record<string, string | number> }>('contact-admins', {
         body: {
           tenantId: currentTenantId,
           subject: subject.trim(),
@@ -81,22 +65,15 @@ export function ContactUsDialog({ fullWidth }: { fullWidth?: boolean } = {}) {
         },
       })
 
-      if (error) {
-        throw new Error(await readFunctionErrorMessage(error))
-      }
-
-      if (data?.error) {
-        throw new Error(data.error)
-      }
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, t.contact_us_dialog.create_error)
+      const responseError = getEdgeFunctionErrorFromPayload(data, t.contact_us_dialog.create_error)
+      if (responseError) throw responseError
 
       toast.success(t.contact_us_dialog.created_success)
       setOpen(false)
       resetForm()
     } catch (error: unknown) {
-      const message = error instanceof Error && error.message
-        ? error.message
-        : t.contact_us_dialog.create_error
-      toast.error(message)
+      toast.error(getEdgeFunctionMessage(error, t, t.contact_us_dialog.create_error))
     } finally {
       setIsSubmitting(false)
     }

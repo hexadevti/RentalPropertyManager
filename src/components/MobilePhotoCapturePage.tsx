@@ -17,6 +17,8 @@ import {
   fileToCompressedDataUrl,
   uploadMobileCapturePhoto,
 } from '@/lib/mobilePhotoCapture'
+import { getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
+import { useLanguage } from '@/lib/LanguageContext'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -154,6 +156,7 @@ function drawCropOverlay(
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function MobilePhotoCapturePage() {
+  const { t } = useLanguage()
   const [files, setFiles] = useState<File[]>([])
   const [previewUrls, setPreviewUrls] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)
@@ -490,7 +493,7 @@ export function MobilePhotoCapturePage() {
       toast.success('Fotos enviadas com sucesso para o desktop.')
       setStatusMessage('Concluido. Volte para o desktop.')
     } catch (error: any) {
-      const message = String(error?.message || 'Falha ao enviar as fotos.')
+      const message = getEdgeFunctionMessage(error, t, 'Falha ao enviar as fotos.')
       toast.error(message)
       setStatusMessage(message)
     } finally {

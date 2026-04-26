@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload } from '@/lib/edgeFunctionMessages'
 import * as mammoth from 'mammoth'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -176,28 +177,8 @@ function truncateForAi(value: string, maxLength: number) {
   ].join('')
 }
 
-async function getInvokeErrorMessage(error: any, fallback: string) {
-  const fallbackMessage = String(error?.message || fallback)
-  const response = error?.context
-
-  if (!response || typeof response.text !== 'function') {
-    return fallbackMessage
-  }
-
-  try {
-    const raw = await response.text()
-    if (!raw) return fallbackMessage
-
-    try {
-      const parsed = JSON.parse(raw)
-      const parsedMessage = String(parsed?.error || parsed?.message || '').trim()
-      return parsedMessage || raw
-    } catch {
-      return raw
-    }
-  } catch {
-    return fallbackMessage
-  }
+async function getInvokeError(error: any, fallback: string) {
+  return await getEdgeFunctionErrorFromInvokeError(error, fallback)
 }
 
 async function readFileAsArrayBuffer(file: File) {
@@ -385,6 +366,8 @@ async function extractTemplateFromSourceTextWithAI(templateContent: string, avai
     warnings?: unknown[]
     replacements?: unknown[]
     error?: string
+    errorKey?: string
+    errorParams?: Record<string, string | number>
   }>('extract-contract-template-from-documents-ai', {
     body: {
       templateContent: templateForAi,
@@ -394,7 +377,8 @@ async function extractTemplateFromSourceTextWithAI(templateContent: string, avai
   })
 
   if (error) {
-    const detailedMessage = await getInvokeErrorMessage(error, 'Falha ao processar o documento pela IA.')
+    const detailedError = await getInvokeError(error, 'Falha ao processar o documento pela IA.')
+    const detailedMessage = detailedError.message
 
     // Compatibility fallback: old edge deployments only accept images.
     if (/at least one valid image is required/i.test(detailedMessage)) {
@@ -410,11 +394,12 @@ async function extractTemplateFromSourceTextWithAI(templateContent: string, avai
       }
     }
 
-    throw new Error(detailedMessage)
+    throw detailedError
   }
 
-  if (data?.error) {
-    throw new Error(data.error)
+  const responseError = getEdgeFunctionErrorFromPayload(data, 'Falha ao processar o documento pela IA.')
+  if (responseError) {
+    throw responseError
   }
 
   const confidenceRaw = Number(data?.confidence)
@@ -455,6 +440,8 @@ async function extractTemplateFromImageDataUrls(templateContent: string, availab
     warnings?: unknown[]
     replacements?: unknown[]
     error?: string
+    errorKey?: string
+    errorParams?: Record<string, string | number>
   }>('extract-contract-template-from-documents-ai', {
     body: {
       templateContent: effectiveTemplateContent,
@@ -464,12 +451,12 @@ async function extractTemplateFromImageDataUrls(templateContent: string, availab
   })
 
   if (error) {
-    const detailedMessage = await getInvokeErrorMessage(error, 'Falha ao processar OCR por IA para PDF escaneado.')
-    throw new Error(detailedMessage)
+    throw await getInvokeError(error, 'Falha ao processar OCR por IA para PDF escaneado.')
   }
 
-  if (data?.error) {
-    throw new Error(data.error)
+  const responseError = getEdgeFunctionErrorFromPayload(data, 'Falha ao processar OCR por IA para PDF escaneado.')
+  if (responseError) {
+    throw responseError
   }
 
   const confidenceRaw = Number(data?.confidence)
@@ -625,6 +612,8 @@ export async function extractTemplateFromImageFiles(templateContent: string, ava
     warnings?: unknown[]
     replacements?: unknown[]
     error?: string
+    errorKey?: string
+    errorParams?: Record<string, string | number>
   }>('extract-contract-template-from-documents-ai', {
     body: {
       templateContent,
@@ -634,12 +623,12 @@ export async function extractTemplateFromImageFiles(templateContent: string, ava
   })
 
   if (error) {
-    const detailedMessage = await getInvokeErrorMessage(error, 'Falha ao extrair variaveis do template pelas imagens.')
-    throw new Error(detailedMessage)
+    throw await getInvokeError(error, 'Falha ao extrair variaveis do template pelas imagens.')
   }
 
-  if (data?.error) {
-    throw new Error(data.error)
+  const responseError = getEdgeFunctionErrorFromPayload(data, 'Falha ao extrair variaveis do template pelas imagens.')
+  if (responseError) {
+    throw responseError
   }
 
   const confidenceRaw = Number(data?.confidence)

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload } from '@/lib/edgeFunctionMessages'
 import type { GuestDocument } from '@/types'
 
 export type PersonImportTarget = 'owner' | 'guest'
@@ -83,16 +84,19 @@ export async function extractPersonFromImageFiles(personType: PersonImportTarget
     confidence?: number
     warnings?: unknown[]
     error?: string
+    errorKey?: string
+    errorParams?: Record<string, string | number>
   }>('extract-person-from-documents-ai', {
     body: { personType, images },
   })
 
   if (error) {
-    throw new Error(error.message || 'Failed to extract data from images.')
+    throw await getEdgeFunctionErrorFromInvokeError(error, 'Failed to extract data from images.')
   }
 
-  if (data?.error) {
-    throw new Error(data.error)
+  const responseError = getEdgeFunctionErrorFromPayload(data, 'Failed to extract data from images.')
+  if (responseError) {
+    throw responseError
   }
 
   const rawDraft = data?.draft || {}

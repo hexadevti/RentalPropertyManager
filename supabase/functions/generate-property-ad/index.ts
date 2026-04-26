@@ -2,8 +2,65 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { estimateCost } from './helpers.ts'
 
 const STARTER_PLAN_CODE = 'starter'
-const AI_TOKEN_LIMIT_REACHED_MESSAGE = 'Limite mensal de tokens de IA atingido para o plano atual. Faça upgrade para continuar usando funcionalidades de IA.'
-const AI_BLOCKED_BY_PLAN_MESSAGE = 'Funcionalidades de IA estao bloqueadas para o plano atual. Ajuste o plano para habilitar o acesso.'
+const AI_PLAN_ERROR_KEYS = {
+  tokenLimitReached: 'ai_token_limit_reached',
+  blockedByPlan: 'ai_blocked_by_plan',
+} as const
+
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  anthropicNotConfigured: 'edge_anthropic_not_configured',
+  anthropicApiError: 'edge_anthropic_api_error',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  missingAuthorization: 'edge_missing_authorization',
+  invalidAuthToken: 'edge_invalid_auth_token',
+  unexpectedError: 'edge_unexpected_error',
+  onlyApprovedAdmins: 'ai_assistant_only_approved_admins',
+  tenantContextMissing: 'ai_tenant_context_missing',
+  propertyRequired: 'generate_property_property_required',
+  generateCopyFailed: 'generate_property_copy_failed',
+  parseCopyFailed: 'generate_property_parse_failed',
+} as const
+
+const ERROR_FALLBACKS = {
+  methodNotAllowed: 'Method not allowed',
+  anthropicNotConfigured: 'ANTHROPIC_API_KEY is not configured',
+  anthropicApiError: 'AI provider API request failed.',
+  supabaseNotConfigured: 'Supabase environment is not configured',
+  missingAuthorization: 'Missing Authorization header',
+  invalidAuthToken: 'Invalid user token',
+  unexpectedError: 'Unexpected edge function error.',
+  onlyApprovedAdmins: 'Only approved administrators can use the ad generator',
+  tenantContextMissing: 'Tenant context was not found for the current user',
+  propertyRequired: 'property is required',
+  generateCopyFailed: 'Failed to generate ad copy',
+  parseCopyFailed: 'Failed to parse ad copy response',
+} as const
+
+const ERROR_MESSAGES = {
+  pt: {
+    methodNotAllowed: 'Metodo nao permitido',
+    anthropicNotConfigured: 'ANTHROPIC_API_KEY nao configurada',
+    supabaseNotConfigured: 'Ambiente do Supabase nao configurado',
+    missingAuthorization: 'Cabecalho Authorization ausente',
+    propertyRequired: 'property e obrigatorio',
+    onlyApprovedAdmins: 'Apenas administradores aprovados podem usar o gerador de anuncio',
+    tenantContextMissing: 'Contexto de conta nao encontrado para o usuario atual',
+    generateCopyFailed: 'Falha ao gerar copia do anuncio',
+    parseCopyFailed: 'Falha ao interpretar resposta de copia do anuncio',
+  },
+  en: {
+    methodNotAllowed: 'Method not allowed',
+    anthropicNotConfigured: 'ANTHROPIC_API_KEY is not configured',
+    supabaseNotConfigured: 'Supabase environment is not configured',
+    missingAuthorization: 'Missing Authorization header',
+    propertyRequired: 'property is required',
+    onlyApprovedAdmins: 'Only approved administrators can use the ad generator',
+    tenantContextMissing: 'Tenant context was not found for the current user',
+    generateCopyFailed: 'Failed to generate ad copy',
+    parseCopyFailed: 'Failed to parse ad copy response',
+  },
+} as const
 
 function getUtcDateForAnchorDay(year: number, month: number, anchorDay: number) {
   const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
@@ -38,7 +95,7 @@ async function getEffectiveTenantPlanCode(adminClient: any, tenantId: string) {
   return String(data?.plan_code || STARTER_PLAN_CODE).trim().toLowerCase()
 }
 
-async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
+async function ensureAiPlanAccess(adminClient: any, tenantId: string, language: SupportedLanguage) {
   const planCode = await getEffectiveTenantPlanCode(adminClient, tenantId)
 
   const { data: planData, error: planError } = await adminClient
@@ -62,7 +119,8 @@ async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
     return {
       planCode,
       allowed: false,
-      message: AI_BLOCKED_BY_PLAN_MESSAGE,
+      message: 'AI features are blocked for the current plan. Change the plan to enable access.',
+      messageKey: AI_PLAN_ERROR_KEYS.blockedByPlan,
       maxAiTokens,
       usedAiTokens: 0,
       remainingAiTokens: maxAiTokens,
@@ -102,7 +160,8 @@ async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
     return {
       planCode,
       allowed: false,
-      message: AI_TOKEN_LIMIT_REACHED_MESSAGE,
+      message: 'Monthly AI token limit reached for the current plan. Upgrade to continue using AI features.',
+      messageKey: AI_PLAN_ERROR_KEYS.tokenLimitReached,
       maxAiTokens,
       usedAiTokens,
       remainingAiTokens: 0,
@@ -175,31 +234,44 @@ function parseJsonObject(text: string) {
 }
 
 function resolveLanguage(language: string | undefined): SupportedLanguage {
-  return language === 'en' ? 'en' : 'pt'
+  return language === 'pt' ? 'pt' : 'en'
+}
+
+function resolveRequestLanguage(req: Request, language: string | undefined): SupportedLanguage {
+  const fromBody = resolveLanguage(language)
+  if (fromBody === 'pt') return 'pt'
+
+  const acceptLanguage = String(req.headers.get('Accept-Language') || '').toLowerCase()
+  if (acceptLanguage.includes('pt')) return 'pt'
+  if (acceptLanguage.includes('en')) return 'en'
+  return 'en'
 }
 
 Deno.serve(async (req) => {
   try {
+    let requestLanguage = resolveRequestLanguage(req, undefined)
+
     if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
-    if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
+    if (req.method !== 'POST') return jsonResponse({ error: ERROR_FALLBACKS.methodNotAllowed, errorKey: ERROR_KEYS.methodNotAllowed }, 405)
 
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
-    if (!anthropicApiKey) return jsonResponse({ error: 'ANTHROPIC_API_KEY is not configured' }, 500)
+    if (!anthropicApiKey) return jsonResponse({ error: ERROR_FALLBACKS.anthropicNotConfigured, errorKey: ERROR_KEYS.anthropicNotConfigured }, 500)
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-      return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
+      return jsonResponse({ error: ERROR_FALLBACKS.supabaseNotConfigured, errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
     }
 
     const authorization = req.headers.get('Authorization')
-    if (!authorization) return jsonResponse({ error: 'Missing Authorization header' }, 401)
+    if (!authorization) return jsonResponse({ error: ERROR_FALLBACKS.missingAuthorization, errorKey: ERROR_KEYS.missingAuthorization }, 401)
     const userJwt = authorization.replace(/^Bearer\s+/i, '').trim()
 
     const body = await req.json().catch(() => null)
+    requestLanguage = resolveRequestLanguage(req, String(body?.language ?? '').trim())
     const property = (body?.property ?? null) as PropertyInput | null
-    const language = resolveLanguage(String(body?.language ?? '').trim())
+    const language = requestLanguage
     const ownerContact = String(body?.ownerContact ?? '').trim()
     const hasContactBox = Boolean(body?.hasContactBox)
     const hasPricingBox = Boolean(body?.hasPricingBox)
@@ -210,7 +282,7 @@ Deno.serve(async (req) => {
     const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : configuredDefaultModel
 
     if (!property?.id || !property?.name) {
-      return jsonResponse({ error: 'property is required' }, 400)
+      return jsonResponse({ error: ERROR_FALLBACKS.propertyRequired, errorKey: ERROR_KEYS.propertyRequired }, 400)
     }
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey)
@@ -220,7 +292,7 @@ Deno.serve(async (req) => {
 
     const { data: authData, error: authError } = await authClient.auth.getUser(userJwt)
     if (authError || !authData.user) {
-      return jsonResponse({ error: authError?.message ?? 'Invalid user token' }, 401)
+      return jsonResponse({ error: authError?.message ?? ERROR_FALLBACKS.invalidAuthToken, errorKey: authError?.message ? undefined : ERROR_KEYS.invalidAuthToken }, 401)
     }
 
     const authUserId = authData.user.id
@@ -241,7 +313,7 @@ Deno.serve(async (req) => {
     const isPlatformAdmin = Boolean(platformAdmin)
     const isApprovedTenantAdmin = profile?.role === 'admin' && profile?.status === 'approved'
     if (!isPlatformAdmin && !isApprovedTenantAdmin) {
-      return jsonResponse({ error: 'Only approved administrators can use the ad generator' }, 403)
+      return jsonResponse({ error: ERROR_FALLBACKS.onlyApprovedAdmins, errorKey: ERROR_KEYS.onlyApprovedAdmins }, 403)
     }
 
     let tenantId = profile?.tenant_id as string | undefined
@@ -254,11 +326,11 @@ Deno.serve(async (req) => {
       tenantId = sessionTenant?.tenant_id ?? tenantId
     }
 
-    if (!tenantId) return jsonResponse({ error: 'Tenant context was not found for the current user' }, 400)
+    if (!tenantId) return jsonResponse({ error: ERROR_FALLBACKS.tenantContextMissing, errorKey: ERROR_KEYS.tenantContextMissing }, 400)
 
-    const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantId)
+    const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantId, language)
     if (!aiPlanAccess.allowed) {
-      return jsonResponse({ error: aiPlanAccess.message, code: aiPlanAccess.reason || 'ai_access_denied', planCode: aiPlanAccess.planCode }, 403)
+      return jsonResponse({ error: aiPlanAccess.message, errorKey: aiPlanAccess.messageKey, code: aiPlanAccess.reason || 'ai_access_denied', planCode: aiPlanAccess.planCode }, 403)
     }
 
     const { data: tenantData } = await adminClient
@@ -350,7 +422,7 @@ Deno.serve(async (req) => {
     const responseData = await anthropicResponse.json()
     if (!anthropicResponse.ok) {
       console.error('generate-property-ad anthropic error', responseData)
-      return jsonResponse({ error: responseData?.error?.message ?? 'Failed to generate ad copy' }, 500)
+      return jsonResponse({ error: responseData?.error?.message ?? ERROR_FALLBACKS.generateCopyFailed, errorKey: responseData?.error?.message ? ERROR_KEYS.anthropicApiError : ERROR_KEYS.generateCopyFailed }, 500)
     }
 
     const text = Array.isArray(responseData?.content)
@@ -359,7 +431,7 @@ Deno.serve(async (req) => {
 
     const parsed = parseJsonObject(text)
     if (!parsed) {
-      return jsonResponse({ error: 'Failed to parse ad copy response' }, 500)
+      return jsonResponse({ error: ERROR_FALLBACKS.parseCopyFailed, errorKey: ERROR_KEYS.parseCopyFailed }, 500)
     }
     if (!Array.isArray(parsed.marketingFrames)) {
       parsed.marketingFrames = []
@@ -397,7 +469,8 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('generate-property-ad unexpected error', error)
     return jsonResponse({
-      error: error instanceof Error ? error.message : 'Unexpected Edge Function error',
+      error: error instanceof Error ? error.message : ERROR_FALLBACKS.unexpectedError,
+      errorKey: ERROR_KEYS.unexpectedError,
     }, 500)
   }
 })

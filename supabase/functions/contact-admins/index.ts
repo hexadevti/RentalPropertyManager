@@ -1,5 +1,23 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  emailProviderNotConfigured: 'edge_email_provider_not_configured',
+  missingAuthorization: 'edge_missing_authorization',
+  tenantRequired: 'contact_admins_tenant_required',
+  subjectRequired: 'contact_admins_subject_required',
+  descriptionRequired: 'contact_admins_description_required',
+  subjectTooLong: 'contact_admins_subject_too_long',
+  descriptionTooLong: 'contact_admins_description_too_long',
+  unauthorized: 'edge_unauthorized',
+  forbidden: 'edge_forbidden',
+  loadAdminsFailed: 'contact_admins_load_admins_failed',
+  noAdminEmail: 'contact_admins_no_admin_email',
+  sendEmailFailed: 'contact_admins_send_email_failed',
+  unexpectedError: 'edge_unexpected_error',
+} as const
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -35,7 +53,7 @@ Deno.serve(async (req) => {
     }
 
     if (req.method !== 'POST') {
-      return jsonResponse({ error: 'Method not allowed' }, 405)
+      return jsonResponse({ error: 'Method not allowed', errorKey: ERROR_KEYS.methodNotAllowed }, 405)
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -45,16 +63,16 @@ Deno.serve(async (req) => {
     const resendFrom = Deno.env.get('RESEND_FROM_EMAIL')
 
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-      return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
+      return jsonResponse({ error: 'Supabase environment is not configured', errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
     }
 
     if (!resendKey || !resendFrom) {
-      return jsonResponse({ error: 'Email provider is not configured' }, 500)
+      return jsonResponse({ error: 'Email provider is not configured', errorKey: ERROR_KEYS.emailProviderNotConfigured }, 500)
     }
 
     const authorization = req.headers.get('Authorization')
     if (!authorization) {
-      return jsonResponse({ error: 'Missing Authorization header' }, 401)
+      return jsonResponse({ error: 'Missing Authorization header', errorKey: ERROR_KEYS.missingAuthorization }, 401)
     }
 
     const userJwt = authorization.replace(/^Bearer\s+/i, '').trim()
@@ -74,11 +92,11 @@ Deno.serve(async (req) => {
     const senderEmail = typeof body?.senderEmail === 'string' ? body.senderEmail.trim() : ''
     const currentUrl = String(body?.currentUrl || '').trim()
 
-    if (!tenantId) return jsonResponse({ error: 'tenantId is required' }, 400)
-    if (!subject) return jsonResponse({ error: 'subject is required' }, 400)
-    if (!description) return jsonResponse({ error: 'description is required' }, 400)
-    if (subject.length > 140) return jsonResponse({ error: 'subject is too long' }, 400)
-    if (description.length > 5000) return jsonResponse({ error: 'description is too long' }, 400)
+    if (!tenantId) return jsonResponse({ error: 'tenantId is required', errorKey: ERROR_KEYS.tenantRequired }, 400)
+    if (!subject) return jsonResponse({ error: 'subject is required', errorKey: ERROR_KEYS.subjectRequired }, 400)
+    if (!description) return jsonResponse({ error: 'description is required', errorKey: ERROR_KEYS.descriptionRequired }, 400)
+    if (subject.length > 140) return jsonResponse({ error: 'subject is too long', errorKey: ERROR_KEYS.subjectTooLong }, 400)
+    if (description.length > 5000) return jsonResponse({ error: 'description is too long', errorKey: ERROR_KEYS.descriptionTooLong }, 400)
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
@@ -99,7 +117,7 @@ Deno.serve(async (req) => {
 
     const { data: authData, error: authError } = await authClient.auth.getUser()
     if (authError || !authData.user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401)
+      return jsonResponse({ error: 'Unauthorized', errorKey: ERROR_KEYS.unauthorized }, 401)
     }
 
     const authUserId = authData.user.id
@@ -119,7 +137,7 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (!ownProfile && !platformAdmin) {
-      return jsonResponse({ error: 'Forbidden for the requested tenant' }, 403)
+      return jsonResponse({ error: 'Forbidden for the requested tenant', errorKey: ERROR_KEYS.forbidden }, 403)
     }
 
     const { data: tenantRow } = await adminClient
@@ -137,7 +155,7 @@ Deno.serve(async (req) => {
 
     if (adminRowsError) {
       console.error('Failed to load tenant administrators', adminRowsError)
-      return jsonResponse({ error: 'Failed to load tenant administrators' }, 500)
+      return jsonResponse({ error: 'Failed to load tenant administrators', errorKey: ERROR_KEYS.loadAdminsFailed }, 500)
     }
 
     const recipientEmails = Array.from(new Set(
@@ -147,7 +165,7 @@ Deno.serve(async (req) => {
     ))
 
     if (recipientEmails.length === 0) {
-      return jsonResponse({ error: 'No approved administrator email was found for this tenant' }, 400)
+      return jsonResponse({ error: 'No approved administrator email was found for this tenant', errorKey: ERROR_KEYS.noAdminEmail }, 400)
     }
 
     const { error: insertMessageError } = await adminClient
@@ -229,7 +247,7 @@ Deno.serve(async (req) => {
           .update({ delivery_error: providerError })
           .eq('id', storedMessageId)
       }
-      return jsonResponse({ error: providerError }, 500)
+      return jsonResponse({ error: providerError, errorKey: ERROR_KEYS.sendEmailFailed }, 500)
     }
 
     if (storedMessageId) {
@@ -251,6 +269,6 @@ Deno.serve(async (req) => {
     })
   } catch (error) {
     console.error('contact-admins unexpected error', error)
-    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500)
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error', errorKey: ERROR_KEYS.unexpectedError }, 500)
   }
 })

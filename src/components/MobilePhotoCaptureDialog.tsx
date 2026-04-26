@@ -11,6 +11,8 @@ import {
   type MobileCaptureSession,
   type MobileCaptureSessionStatus,
 } from '@/lib/mobilePhotoCapture'
+import { getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
+import { useLanguage } from '@/lib/LanguageContext'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -43,6 +45,7 @@ type MobilePhotoCaptureDialogProps = {
 }
 
 export function MobilePhotoCaptureDialog({ disabled, onFilesReady }: MobilePhotoCaptureDialogProps) {
+  const { t } = useLanguage()
   const [showOnDesktop, setShowOnDesktop] = useState(false)
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<MobileCaptureSession | null>(null)
@@ -129,7 +132,7 @@ export function MobilePhotoCaptureDialog({ disabled, onFilesReady }: MobilePhoto
           }
         }
       } catch (error: any) {
-        setLastError(String(error?.message || 'Falha ao sincronizar status da captura.'))
+        setLastError(getEdgeFunctionMessage(error, t, 'Falha ao sincronizar status da captura.'))
       }
     }
 
@@ -152,7 +155,7 @@ export function MobilePhotoCaptureDialog({ disabled, onFilesReady }: MobilePhoto
       const created = await createMobileCaptureSession(window.location.origin)
       setSession(created)
     } catch (error: any) {
-      const message = String(error?.message || 'Falha ao iniciar captura por celular.')
+      const message = getEdgeFunctionMessage(error, t, 'Falha ao iniciar captura por celular.')
       setLastError(message)
       toast.error(message)
     } finally {

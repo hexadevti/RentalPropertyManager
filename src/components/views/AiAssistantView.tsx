@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { getEdgeFunctionErrorFromInvokeError, getEdgeFunctionErrorFromPayload, getEdgeFunctionAnswerFromPayload, getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
+import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 
 type AssistantMessage = {
@@ -20,7 +22,11 @@ type AssistantMessage = {
 
 type AssistantResponse = {
   answer?: string
+  answerKey?: string
+  answerParams?: Record<string, string | number>
   error?: string
+  errorKey?: string
+  errorParams?: Record<string, string | number>
   details?: unknown
   model?: string
   usage?: {
@@ -68,20 +74,8 @@ function formatUsdCost(value: number | undefined) {
   }).format(value)
 }
 
-async function readFunctionError(error: any) {
-  if (!error?.context) return error?.message || 'Falha ao consultar o assistente de IA'
-  try {
-    const body = await error.context.json()
-    if (body?.error) return body.error
-    return JSON.stringify(body)
-  } catch {
-    try { return await error.context.text() } catch {
-      return error?.message || 'Falha ao consultar o assistente de IA'
-    }
-  }
-}
-
 export default function AiAssistantView() {
+  const { t } = useLanguage()
   const [messages, setMessages] = useState<AssistantMessage[]>(_messages)
   const [question, setQuestion] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -128,17 +122,18 @@ export default function AiAssistantView() {
         body: { question: trimmed, history: visibleHistory, model: selectedModel },
       })
 
-      if (error) throw new Error(await readFunctionError(error))
-      if (data?.error) throw new Error(data.error)
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, 'Falha ao consultar o assistente de IA')
+      const responseError = getEdgeFunctionErrorFromPayload(data, 'Falha ao consultar o assistente de IA')
+      if (responseError) throw responseError
 
-      const answer = data?.answer || 'Não consegui gerar uma resposta para essa pergunta.'
+      const answer = getEdgeFunctionAnswerFromPayload(data, t, 'Não consegui gerar uma resposta para essa pergunta.')
       setLastUsage(data?.usage || null)
       _lastUsage = data?.usage || null
       setLastModelUsed(data?.model || selectedModel)
       _lastModelUsed = data?.model || selectedModel
       updateMessages((prev) => [...prev, { id: `assistant-${Date.now()}`, role: 'assistant', content: answer }])
     } catch (error: any) {
-      const msg = error?.message || 'Falha ao consultar o assistente de IA'
+      const msg = getEdgeFunctionMessage(error, t, 'Falha ao consultar o assistente de IA')
       toast.error(msg)
       updateMessages((prev) => [...prev, {
         id: `assistant-error-${Date.now()}`,

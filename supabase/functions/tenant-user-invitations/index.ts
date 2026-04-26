@@ -1,5 +1,38 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  tokenRequired: 'tenant_invitation_token_required',
+  invitationNotFound: 'tenant_invitation_not_found',
+  invitationUnavailable: 'tenant_invitation_unavailable',
+  invitationProfileNotFound: 'tenant_invitation_profile_not_found',
+  passwordTooShort: 'tenant_invitation_password_too_short',
+  invitationAlreadyClaimed: 'tenant_invitation_already_claimed',
+  accountExists: 'tenant_invitation_account_exists',
+  createAccountFailed: 'tenant_invitation_create_account_failed',
+  invalidAction: 'tenant_invitation_invalid_action',
+  missingAuthorization: 'edge_missing_authorization',
+  unauthorized: 'edge_unauthorized',
+  tenantRequired: 'tenant_invitation_tenant_required',
+  emailRequired: 'tenant_invitation_email_required',
+  loginRequired: 'tenant_invitation_login_required',
+  appBaseUrlRequired: 'tenant_invitation_app_base_url_required',
+  invalidEmail: 'tenant_invitation_email_invalid',
+  loginTooLong: 'tenant_invitation_login_too_long',
+  messageTooLong: 'tenant_invitation_message_too_long',
+  forbidden: 'edge_forbidden',
+  tenantNotFound: 'tenant_invitation_tenant_not_found',
+  accessProfileNotFound: 'tenant_invitation_access_profile_not_found',
+  userRequiresActiveAccount: 'tenant_invitation_user_requires_active_account',
+  emailAlreadyLinked: 'tenant_invitation_email_already_linked',
+  createProfileFailed: 'tenant_invitation_create_profile_failed',
+  generateRecoveryFailed: 'tenant_invitation_generate_recovery_failed',
+  enqueueFailed: 'tenant_invitation_enqueue_failed',
+  noNotificationRule: 'tenant_invitation_no_notification_rule',
+  unexpectedError: 'edge_unexpected_error',
+} as const
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -93,14 +126,14 @@ Deno.serve(async (req) => {
     }
 
     if (req.method !== 'POST') {
-      return jsonResponse({ error: 'Method not allowed' }, 405)
+      return jsonResponse({ error: 'Method not allowed', errorKey: ERROR_KEYS.methodNotAllowed }, 405)
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-      return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
+      return jsonResponse({ error: 'Supabase environment is not configured', errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
     }
 
     const body = await req.json().catch(() => null) as SendInviteBody | SendPasswordResetBody | ResolveInviteBody | ClaimInviteBody | null
@@ -115,7 +148,7 @@ Deno.serve(async (req) => {
 
     if (action === 'resolve') {
       const token = String(body?.token || '').trim()
-      if (!token) return jsonResponse({ error: 'token is required' }, 400)
+      if (!token) return jsonResponse({ error: 'token is required', errorKey: ERROR_KEYS.tokenRequired }, 400)
 
       const { data: invitation, error: invitationError } = await adminClient
         .from('tenant_user_invitations')
@@ -124,7 +157,7 @@ Deno.serve(async (req) => {
         .maybeSingle()
 
       if (invitationError || !invitation) {
-        return jsonResponse({ error: 'Invitation not found' }, 404)
+        return jsonResponse({ error: 'Invitation not found', errorKey: ERROR_KEYS.invitationNotFound }, 404)
       }
 
       const expiresAt = invitation.expires_at ? new Date(invitation.expires_at).toISOString() : null
@@ -137,7 +170,7 @@ Deno.serve(async (req) => {
             .update({ status: 'expired' })
             .eq('id', invitation.id)
         }
-        return jsonResponse({ error: 'Invitation is no longer available' }, 410)
+        return jsonResponse({ error: 'Invitation is no longer available', errorKey: ERROR_KEYS.invitationUnavailable }, 410)
       }
 
       const { data: tenantRow } = await adminClient
@@ -176,8 +209,8 @@ Deno.serve(async (req) => {
       const claimLogin = String((body as ClaimInviteBody | null)?.login || '').trim()
       const claimPassword = String((body as ClaimInviteBody | null)?.password || '').trim()
 
-      if (!token) return jsonResponse({ error: 'token is required' }, 400)
-      if (claimPassword.length < 6) return jsonResponse({ error: 'password must be at least 6 characters' }, 400)
+      if (!token) return jsonResponse({ error: 'token is required', errorKey: ERROR_KEYS.tokenRequired }, 400)
+      if (claimPassword.length < 6) return jsonResponse({ error: 'password must be at least 6 characters', errorKey: ERROR_KEYS.passwordTooShort }, 400)
 
       const { data: invitation, error: invitationError } = await adminClient
         .from('tenant_user_invitations')
@@ -186,7 +219,7 @@ Deno.serve(async (req) => {
         .maybeSingle()
 
       if (invitationError || !invitation) {
-        return jsonResponse({ error: 'Invitation not found' }, 404)
+        return jsonResponse({ error: 'Invitation not found', errorKey: ERROR_KEYS.invitationNotFound }, 404)
       }
 
       const inviteExpiresAt = invitation.expires_at ? new Date(invitation.expires_at).toISOString() : null
@@ -196,11 +229,11 @@ Deno.serve(async (req) => {
         if (invitation.status === 'pending' && isExpired) {
           await adminClient.from('tenant_user_invitations').update({ status: 'expired' }).eq('id', invitation.id)
         }
-        return jsonResponse({ error: 'Invitation is no longer available' }, 410)
+        return jsonResponse({ error: 'Invitation is no longer available', errorKey: ERROR_KEYS.invitationUnavailable }, 410)
       }
 
       if (!invitation.invited_profile_id) {
-        return jsonResponse({ error: 'Invitation profile not found' }, 404)
+        return jsonResponse({ error: 'Invitation profile not found', errorKey: ERROR_KEYS.invitationProfileNotFound }, 404)
       }
 
       const { data: invitedProfile } = await adminClient
@@ -210,7 +243,7 @@ Deno.serve(async (req) => {
         .maybeSingle()
 
       if (invitedProfile?.auth_user_id) {
-        return jsonResponse({ error: 'This invitation has already been claimed. Please sign in instead.' }, 409)
+        return jsonResponse({ error: 'This invitation has already been claimed. Please sign in instead.', errorKey: ERROR_KEYS.invitationAlreadyClaimed }, 409)
       }
 
       // Use admin API to create the auth user — bypasses client-side rate limits on /auth/v1/signup.
@@ -225,13 +258,13 @@ Deno.serve(async (req) => {
       if (createUserError) {
         const alreadyExists = createUserError.message?.toLowerCase().includes('already')
         if (alreadyExists) {
-          return jsonResponse({ error: 'An account with this email already exists. Please sign in instead.' }, 409)
+          return jsonResponse({ error: 'An account with this email already exists. Please sign in instead.', errorKey: ERROR_KEYS.accountExists }, 409)
         }
-        return jsonResponse({ error: createUserError.message || 'Failed to create account' }, 500)
+        return jsonResponse({ error: createUserError.message || 'Failed to create account', errorKey: ERROR_KEYS.createAccountFailed }, 500)
       }
 
       if (!newUserData?.user) {
-        return jsonResponse({ error: 'Failed to create account' }, 500)
+        return jsonResponse({ error: 'Failed to create account', errorKey: ERROR_KEYS.createAccountFailed }, 500)
       }
 
       // The DB trigger (116) already set auth_user_id on the invited profile.
@@ -250,12 +283,12 @@ Deno.serve(async (req) => {
     }
 
     if (action !== 'send' && action !== 'send-password-reset') {
-      return jsonResponse({ error: 'Invalid action' }, 400)
+      return jsonResponse({ error: 'Invalid action', errorKey: ERROR_KEYS.invalidAction }, 400)
     }
 
     const authorization = req.headers.get('Authorization')
     if (!authorization) {
-      return jsonResponse({ error: 'Missing Authorization header' }, 401)
+      return jsonResponse({ error: 'Missing Authorization header', errorKey: ERROR_KEYS.missingAuthorization }, 401)
     }
 
     const userJwt = authorization.replace(/^Bearer\s+/i, '').trim()
@@ -271,7 +304,7 @@ Deno.serve(async (req) => {
 
     const { data: authData, error: authError } = await authClient.auth.getUser()
     if (authError || !authData.user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401)
+      return jsonResponse({ error: 'Unauthorized', errorKey: ERROR_KEYS.unauthorized }, 401)
     }
 
     const tenantId = String(body?.tenantId || '').trim()
@@ -282,13 +315,13 @@ Deno.serve(async (req) => {
     const message = String(body?.message || '').trim()
     const appBaseUrl = String(body?.appBaseUrl || '').trim()
 
-    if (!tenantId) return jsonResponse({ error: 'tenantId is required' }, 400)
-    if (!email) return jsonResponse({ error: 'email is required' }, 400)
-    if (action === 'send-password-reset' && !login) return jsonResponse({ error: 'login is required' }, 400)
-    if (!appBaseUrl) return jsonResponse({ error: 'appBaseUrl is required' }, 400)
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse({ error: 'Invalid email' }, 400)
-    if (login && login.length > 80) return jsonResponse({ error: 'login is too long' }, 400)
-    if (message.length > 5000) return jsonResponse({ error: 'message is too long' }, 400)
+    if (!tenantId) return jsonResponse({ error: 'tenantId is required', errorKey: ERROR_KEYS.tenantRequired }, 400)
+    if (!email) return jsonResponse({ error: 'email is required', errorKey: ERROR_KEYS.emailRequired }, 400)
+    if (action === 'send-password-reset' && !login) return jsonResponse({ error: 'login is required', errorKey: ERROR_KEYS.loginRequired }, 400)
+    if (!appBaseUrl) return jsonResponse({ error: 'appBaseUrl is required', errorKey: ERROR_KEYS.appBaseUrlRequired }, 400)
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return jsonResponse({ error: 'Invalid email', errorKey: ERROR_KEYS.invalidEmail }, 400)
+    if (login && login.length > 80) return jsonResponse({ error: 'login is too long', errorKey: ERROR_KEYS.loginTooLong }, 400)
+    if (message.length > 5000) return jsonResponse({ error: 'message is too long', errorKey: ERROR_KEYS.messageTooLong }, 400)
 
     const authUserId = authData.user.id
     const { data: ownProfile } = await adminClient
@@ -311,7 +344,7 @@ Deno.serve(async (req) => {
     )
 
     if (!canInviteForTenant) {
-      return jsonResponse({ error: 'Forbidden for the requested tenant' }, 403)
+      return jsonResponse({ error: 'Forbidden for the requested tenant', errorKey: ERROR_KEYS.forbidden }, 403)
     }
 
     const { data: tenantRow, error: tenantError } = await adminClient
@@ -321,7 +354,7 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (tenantError || !tenantRow) {
-      return jsonResponse({ error: 'Tenant not found' }, 404)
+      return jsonResponse({ error: 'Tenant not found', errorKey: ERROR_KEYS.tenantNotFound }, 404)
     }
 
     const { data: requestedAccessProfile } = action === 'send'
@@ -334,7 +367,7 @@ Deno.serve(async (req) => {
       : { data: null }
 
     if (action === 'send' && !requestedAccessProfile) {
-      return jsonResponse({ error: 'Access profile not found for this tenant' }, 404)
+      return jsonResponse({ error: 'Access profile not found for this tenant', errorKey: ERROR_KEYS.accessProfileNotFound }, 404)
     }
 
     const { data: existingProfile } = await adminClient
@@ -351,11 +384,11 @@ Deno.serve(async (req) => {
       : deriveRoleFromAccessProfileId(existingProfile?.access_profile_id || (existingProfile?.role === 'admin' ? 'system-administrator' : 'system-guest'))
 
     if (action === 'send-password-reset' && !existingProfile?.auth_user_id) {
-      return jsonResponse({ error: 'This user must already have an active account before password reset can be sent' }, 409)
+      return jsonResponse({ error: 'This user must already have an active account before password reset can be sent', errorKey: ERROR_KEYS.userRequiresActiveAccount }, 409)
     }
 
     if (action === 'send' && existingProfile?.auth_user_id) {
-      return jsonResponse({ error: 'This email is already linked to an existing user in this tenant' }, 409)
+      return jsonResponse({ error: 'This email is already linked to an existing user in this tenant', errorKey: ERROR_KEYS.emailAlreadyLinked }, 409)
     }
 
     const placeholderLogin = `invited-${crypto.randomUUID().slice(0, 8)}`
@@ -379,7 +412,7 @@ Deno.serve(async (req) => {
         .eq('id', existingProfile.id)
 
       if (updateProfileError) {
-        return jsonResponse({ error: updateProfileError.message }, 500)
+        return jsonResponse({ error: updateProfileError.message, errorKey: ERROR_KEYS.createProfileFailed }, 500)
       }
     } else if (action === 'send') {
       const { data: createdProfile, error: createProfileError } = await adminClient
@@ -399,7 +432,7 @@ Deno.serve(async (req) => {
         .single()
 
       if (createProfileError || !createdProfile) {
-        return jsonResponse({ error: createProfileError?.message || 'Failed to create invited profile' }, 500)
+        return jsonResponse({ error: createProfileError?.message || 'Failed to create invited profile', errorKey: ERROR_KEYS.createProfileFailed }, 500)
       }
       invitedProfileId = createdProfile.id
     }
@@ -431,7 +464,7 @@ Deno.serve(async (req) => {
         })
 
       if (insertInvitationError) {
-        return jsonResponse({ error: insertInvitationError.message }, 500)
+        return jsonResponse({ error: insertInvitationError.message, errorKey: ERROR_KEYS.createProfileFailed }, 500)
       }
     }
 
@@ -515,7 +548,7 @@ Deno.serve(async (req) => {
       })
 
       if (recoveryLinkError || !recoveryLinkData?.properties?.action_link) {
-        return jsonResponse({ error: recoveryLinkError?.message || 'Failed to generate password recovery link' }, 500)
+        return jsonResponse({ error: recoveryLinkError?.message || 'Failed to generate password recovery link', errorKey: ERROR_KEYS.generateRecoveryFailed }, 500)
       }
 
       const resetUrl = recoveryLinkData.properties.action_link
@@ -568,7 +601,7 @@ Deno.serve(async (req) => {
           .eq('id', invitationId)
       }
 
-      return jsonResponse({ error: enqueueError.message || 'Failed to enqueue notification delivery' }, 500)
+      return jsonResponse({ error: enqueueError.message || 'Failed to enqueue notification delivery', errorKey: ERROR_KEYS.enqueueFailed }, 500)
     }
 
     if (!Number(enqueuedCount)) {
@@ -581,7 +614,7 @@ Deno.serve(async (req) => {
           .eq('id', invitationId)
       }
 
-      return jsonResponse({ error: 'No active notification rule matched this event' }, 409)
+      return jsonResponse({ error: 'No active notification rule matched this event', errorKey: ERROR_KEYS.noNotificationRule }, 409)
     }
 
     if (invitationId) {
@@ -602,6 +635,6 @@ Deno.serve(async (req) => {
     })
   } catch (error) {
     console.error('tenant-user-invitations unexpected error', error)
-    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500)
+    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error', errorKey: ERROR_KEYS.unexpectedError }, 500)
   }
 })

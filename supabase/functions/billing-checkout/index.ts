@@ -1,5 +1,27 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const ERROR_KEYS = {
+  methodNotAllowed: 'edge_method_not_allowed',
+  supabaseNotConfigured: 'edge_supabase_not_configured',
+  missingAuthorization: 'edge_missing_authorization',
+  tenantRequired: 'billing_checkout_tenant_required',
+  paidPlanRequired: 'billing_checkout_paid_plan_required',
+  unauthorized: 'edge_unauthorized',
+  onlyAdmins: 'billing_checkout_only_admins',
+  unexpectedError: 'edge_unexpected_error',
+} as const
+
+const ERROR_FALLBACKS = {
+  methodNotAllowed: 'Method not allowed',
+  supabaseNotConfigured: 'Supabase environment is not configured',
+  missingAuthorization: 'Missing Authorization header',
+  tenantRequired: 'tenantId is required',
+  paidPlanRequired: 'planCode must be a paid plan (professional or enterprise)',
+  unauthorized: 'Unauthorized',
+  onlyAdmins: 'Only approved tenant administrators can manage billing',
+  unexpectedError: 'Unexpected error',
+} as const
+
 function isKnownPaidPlanCode(planCode?: string | null) {
   const normalized = String(planCode || '').trim().toLowerCase()
   return normalized === 'professional' || normalized === 'enterprise'
@@ -112,7 +134,7 @@ Deno.serve(async (req) => {
     }
 
     if (req.method !== 'POST') {
-      return jsonResponse({ error: 'Method not allowed' }, 405)
+      return jsonResponse({ error: ERROR_FALLBACKS.methodNotAllowed, errorKey: ERROR_KEYS.methodNotAllowed }, 405)
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -120,12 +142,12 @@ Deno.serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-      return jsonResponse({ error: 'Supabase environment is not configured' }, 500)
+      return jsonResponse({ error: ERROR_FALLBACKS.supabaseNotConfigured, errorKey: ERROR_KEYS.supabaseNotConfigured }, 500)
     }
 
     const authorization = req.headers.get('Authorization')
     if (!authorization) {
-      return jsonResponse({ error: 'Missing Authorization header' }, 401)
+      return jsonResponse({ error: ERROR_FALLBACKS.missingAuthorization, errorKey: ERROR_KEYS.missingAuthorization }, 401)
     }
 
     const userJwt = authorization.replace(/^Bearer\s+/i, '').trim()
@@ -135,11 +157,11 @@ Deno.serve(async (req) => {
     const requestedPlanCode = String(body?.planCode || '').trim().toLowerCase()
 
     if (!requestedTenantId) {
-      return jsonResponse({ error: 'tenantId is required' }, 400)
+      return jsonResponse({ error: ERROR_FALLBACKS.tenantRequired, errorKey: ERROR_KEYS.tenantRequired }, 400)
     }
 
     if (!isKnownPaidPlanCode(requestedPlanCode)) {
-      return jsonResponse({ error: 'planCode must be a paid plan (professional or enterprise)' }, 400)
+      return jsonResponse({ error: ERROR_FALLBACKS.paidPlanRequired, errorKey: ERROR_KEYS.paidPlanRequired }, 400)
     }
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -161,7 +183,7 @@ Deno.serve(async (req) => {
 
     const { data: authData, error: authError } = await authClient.auth.getUser()
     if (authError || !authData.user) {
-      return jsonResponse({ error: 'Unauthorized' }, 401)
+      return jsonResponse({ error: ERROR_FALLBACKS.unauthorized, errorKey: ERROR_KEYS.unauthorized }, 401)
     }
 
     const authUserId = authData.user.id
@@ -182,7 +204,7 @@ Deno.serve(async (req) => {
     if (!platformAdmin) {
       const isAllowedTenantAdmin = ownProfile && ownProfile.status === 'approved' && ownProfile.role === 'admin'
       if (!isAllowedTenantAdmin) {
-        return jsonResponse({ error: 'Only approved tenant administrators can manage billing' }, 403)
+        return jsonResponse({ error: ERROR_FALLBACKS.onlyAdmins, errorKey: ERROR_KEYS.onlyAdmins }, 403)
       }
     }
 
@@ -225,6 +247,6 @@ Deno.serve(async (req) => {
     })
   } catch (error) {
     console.error('billing-checkout error', error)
-    return jsonResponse({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500)
+    return jsonResponse({ error: error instanceof Error ? error.message : ERROR_FALLBACKS.unexpectedError, errorKey: ERROR_KEYS.unexpectedError }, 500)
   }
 })

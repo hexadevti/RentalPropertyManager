@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { importTemplateFromFiles } from '@/lib/aiTemplateImport'
 import { useAuth } from '@/lib/AuthContext'
+import { getEdgeFunctionMessage } from '@/lib/edgeFunctionMessages'
 import { useLanguage } from '@/lib/LanguageContext'
 import { hasAiFeatures } from '@/lib/usagePlans'
 import RichTextEditor, { plainTextToHTML } from '@/components/RichTextEditor'
@@ -207,7 +208,7 @@ export function TemplateDocumentImportDialog({
         toast.success(`Conteúdo processado com IA (${Math.round(result.confidence * 100)}%)`)
       }
     } catch (error: any) {
-      const message = String(error?.message || 'Nao foi possivel extrair dados para o template.')
+      const message = getEdgeFunctionMessage(error, t, 'Nao foi possivel extrair dados para o template.')
       setExtractionError(message)
       toast.error(message)
     } finally {
