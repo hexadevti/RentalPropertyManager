@@ -183,4 +183,21 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  [data-portal-reservas='true'] a,
+  [data-portal-reservas='true'] button,
+  [data-portal-reservas='true'] summary,
+  [data-portal-reservas='true'] [role='button'],
+  [data-portal-reservas='true'] input[type='button'],
+  [data-portal-reservas='true'] input[type='submit'],
+  [data-portal-reservas='true'] input[type='reset'] {
+    cursor: pointer;
+  }
+
+  [data-portal-reservas='true'] button:disabled,
+  [data-portal-reservas='true'] input:disabled,
+  [data-portal-reservas='true'] textarea:disabled,
+  [data-portal-reservas='true'] select:disabled {
+    cursor: not-allowed;
+  }
 }

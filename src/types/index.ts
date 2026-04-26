@@ -149,6 +149,7 @@ export interface Guest {
 export interface Contract {
   id: string
   guestId: string
+  bookingRequestId?: string
   propertyIds: string[]
   rentalType: RentalType
   startDate: string
@@ -156,6 +157,7 @@ export interface Contract {
   closeDate?: string
   paymentDueDay: number
   monthlyAmount: number
+  contractAmount: number
   specialPaymentCondition?: string
   status: ContractStatus
   notes?: string
@@ -243,7 +245,8 @@ export type AccessRoleId =
   | 'access-profiles'
   | 'audit-logs'
   | 'my-bug-reports'
-export type AccessLevel = 'none' | 'read' | 'write'
+    | 'portal-bookings'
+  export type AccessLevel = 'none' | 'read' | 'write'
 export type TemplateLanguage = 'pt' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'nl' | 'ar' | 'zh' | 'ja' | 'pl' | 'ru'
 
 export const ACCESS_ROLES: { id: AccessRoleId; label: string; description: string }[] = [
@@ -267,6 +270,7 @@ export const ACCESS_ROLES: { id: AccessRoleId; label: string; description: strin
   { id: 'access-profiles', label: 'Perfis de Acesso', description: 'Acesso ao gerenciamento de perfis de acesso' },
   { id: 'audit-logs', label: 'Log de Auditoria', description: 'Acesso ao log de auditoria' },
   { id: 'my-bug-reports', label: 'Bugs Reportados', description: 'Acesso à lista de bugs reportados pelo usuário' },
+  { id: 'portal-bookings', label: 'Solicitações de Reserva', description: 'Acesso às solicitações de reserva do portal' },
 ]
 
 export const TEMPLATE_LANGUAGES: { code: TemplateLanguage; nativeName: string }[] = [

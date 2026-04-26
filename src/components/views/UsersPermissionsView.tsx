@@ -19,6 +19,7 @@ import { Brain, BuildingOffice, ChartBar, Circle, CurrencyDollar, EnvelopeSimple
 import { toast } from 'sonner'
 import { InviteTenantUserDialog } from '@/components/InviteTenantUserDialog'
 import { ResetTenantUserPasswordDialog } from '@/components/ResetTenantUserPasswordDialog'
+import { PhoneInput } from '@/components/ui/phone-input'
 
 type TenantOption = {
   id: string
@@ -1084,11 +1085,10 @@ export default function UsersPermissionsView() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="profile-phone">{t.users_permissions_view.phone}</Label>
-              <Input
+              <PhoneInput
                 id="profile-phone"
-                type="tel"
                 value={draftPhone}
-                onChange={(event) => { setDraftPhone(event.target.value); setDraftPhoneError(null) }}
+                onValueChange={(value) => { setDraftPhone(value); setDraftPhoneError(null) }}
                 placeholder={t.users_permissions_view.phone_placeholder}
                 className={`font-mono ${draftPhoneError ? 'border-destructive' : ''}`}
               />

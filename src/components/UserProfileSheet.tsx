@@ -38,9 +38,9 @@ export function UserProfileSheet({ open, onOpenChange, activeTab = '', activeTab
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [newPhoneMask, setNewPhoneMask] = useState('')
 
-  const login = currentUser?.login || userProfile?.githubLogin || 'user'
+  const login = currentUser?.login || userProfile?.githubLogin || t.settings_view.default_login
   const initials = login.slice(0, 2).toUpperCase()
-  const roleLabel = accessProfile?.name || 'Perfil padrao'
+  const roleLabel = accessProfile?.name || t.settings_view.default_profile
   const roleColor = userProfile?.role === 'admin' ? 'default' : 'secondary'
   const resolvedTenantName = tenantName || currentTenantId || '—'
   const resolvedPhone = userProfile.phone || '—'

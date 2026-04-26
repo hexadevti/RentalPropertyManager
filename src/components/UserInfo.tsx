@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
+import { useLanguage } from '@/lib/LanguageContext'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { UserProfileSheet } from '@/components/UserProfileSheet'
@@ -12,6 +13,7 @@ interface UserInfoProps {
 
 export function UserInfo({ activeTab, activeTabLabel, tabTitleMap }: UserInfoProps = {}) {
   const { currentUser, userProfile, accessProfile, isLoading } = useAuth()
+  const { t } = useLanguage()
   const [sheetOpen, setSheetOpen] = useState(false)
 
   if (isLoading) {
@@ -30,9 +32,9 @@ export function UserInfo({ activeTab, activeTabLabel, tabTitleMap }: UserInfoPro
     return null
   }
 
-  const profileLabel = accessProfile?.name || 'Perfil padrao'
+  const profileLabel = accessProfile?.name || t.settings_view.default_profile
   const profileColor = userProfile.role === 'admin' ? 'default' : 'secondary'
-  const login = currentUser.login || userProfile.githubLogin || 'user'
+  const login = currentUser.login || userProfile.githubLogin || t.settings_view.default_login
   const initials = login.slice(0, 2).toUpperCase()
 
   return (

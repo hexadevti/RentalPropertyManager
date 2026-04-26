@@ -12,6 +12,7 @@ import ContractTemplatesView from './components/views/ContractTemplatesView'
 import NotificationsView from './components/views/NotificationsView'
 import ServiceProvidersView from './components/views/ServiceProvidersView'
 import AppointmentsView from './components/views/AppointmentsView'
+import BookingRequestsView from './components/views/BookingRequestsView'
 import OwnersView from './components/views/OwnersView'
 import UsersPermissionsView from './components/views/UsersPermissionsView'
 import AccessProfilesView from './components/views/AccessProfilesView'
@@ -124,7 +125,7 @@ function AuthCallbackPage() {
           <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
           <div className="space-y-1">
             <p className="text-lg font-semibold">{t.appName}</p>
-            <p className="text-muted-foreground">Validando link de redefinição...</p>
+            <p className="text-muted-foreground">{t.common.recovery_validating_link}</p>
           </div>
         </div>
       </div>
@@ -135,9 +136,9 @@ function AuthCallbackPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="w-full max-w-md rounded-2xl border bg-card p-6 text-center shadow-lg">
-          <h1 className="text-xl font-semibold text-foreground">Link inválido ou expirado</h1>
+          <h1 className="text-xl font-semibold text-foreground">{t.common.recovery_invalid_title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Não foi possível criar a sessão de recuperação. Solicite um novo e-mail de redefinição de senha.
+            {t.common.recovery_invalid_description}
           </p>
         </div>
       </div>
@@ -231,13 +232,14 @@ function AppContent() {
     notifications: t.tabs.notifications,
     providers: t.tabs.providers,
     appointments: t.tabs.appointments,
+    'portal-bookings': t.tabs['portal-bookings'],
     'bug-reports': t.tabs['bug-reports'],
     'my-bug-reports': t.tabs['my-bug-reports'],
     'contact-messages': t.tabs['contact-messages'],
-    'usage-plans': t.tabs['usage-plans'] || 'Planos de uso',
+    'usage-plans': t.tabs['usage-plans'],
     'users-permissions': t.tabs['users-permissions'],
     tenant: t.tabs.tenant,
-    'access-profiles': 'Perfis de acesso',
+    'access-profiles': t.tabs['access-profiles'],
     'audit-logs': t.tabs['audit-logs'],
   }
   
@@ -312,7 +314,7 @@ function AppContent() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-muted-foreground">Carregando...</p>
+          <p className="text-muted-foreground">{t.common.loading}</p>
         </div>
       </div>
     )
@@ -327,7 +329,7 @@ function AppContent() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-muted-foreground">Carregando...</p>
+          <p className="text-muted-foreground">{t.common.loading}</p>
         </div>
       </div>
     )
@@ -382,7 +384,7 @@ function AppContent() {
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-end">
                 {isPlatformAdmin && (
                   <div className="w-full min-w-0 xl:min-w-[260px]">
-                    <p className="mb-1 text-xs text-muted-foreground font-medium uppercase tracking-wider">Tenant da Sessao</p>
+                    <p className="mb-1 text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.common.tenant_session_label}</p>
                     <Select
                       value={currentTenantId || ''}
                       onValueChange={async (value) => {
@@ -391,9 +393,9 @@ function AppContent() {
                         try {
                           await setSessionTenant(value)
                           const selected = tenantOptions.find((tenant) => tenant.id === value)
-                          toast.success(`Sessao alterada para tenant: ${selected?.name || value}`)
+                          toast.success(t.common.tenant_session_changed.replace('{tenant}', selected?.name || value))
                         } catch (error: any) {
-                          toast.error(error?.message || 'Falha ao alterar tenant da sessao')
+                          toast.error(error?.message || t.common.tenant_session_change_failed)
                         } finally {
                           setIsChangingTenant(false)
                         }
@@ -401,7 +403,7 @@ function AppContent() {
                       disabled={isChangingTenant || tenantOptions.length === 0}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione um tenant" />
+                        <SelectValue placeholder={t.common.tenant_select_placeholder} />
                       </SelectTrigger>
                       <SelectContent>
                         {tenantOptions.map((tenant) => (
@@ -413,7 +415,7 @@ function AppContent() {
                 )}
                 {shouldShowUpgradeLink && (
                   <Button onClick={openUpgradeFlow} className="w-full xl:w-auto" size="sm">
-                    Fazer upgrade
+                    {t.common.upgrade_action}
                   </Button>
                 )}
                 <UserInfo
@@ -443,6 +445,7 @@ function AppContent() {
           {activeTab === 'notifications' && canRead('notifications') && <NotificationsView />}
           {activeTab === 'providers' && canRead('providers') && <ServiceProvidersView />}
           {activeTab === 'appointments' && canRead('appointments') && <AppointmentsView />}
+          {activeTab === 'portal-bookings' && canRead('portal-bookings') && <BookingRequestsView />}
           {activeTab === 'my-bug-reports' && canRead('my-bug-reports') && !isPlatformAdmin && <MyBugReportsView />}
           {activeTab === 'contact-messages' && isPlatformAdmin && <ContactMessagesView />}
           {activeTab === 'bug-reports' && isPlatformAdmin && <BugReportsView />}

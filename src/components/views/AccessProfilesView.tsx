@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ACCESS_ROLES, AccessLevel, AccessProfile, AccessProfileRole, AccessRoleId } from '@/types'
 import { useAuth } from '@/lib/AuthContext'
+import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Pencil, Plus, ShieldCheck, Trash } from '@phosphor-icons/react'
@@ -28,8 +29,10 @@ const EMPTY_LEVELS = ACCESS_ROLES.reduce((acc, role) => {
 
 export default function AccessProfilesView({ readOnly = false }: { readOnly?: boolean }) {
   const { currentTenantId } = useAuth()
+  const { t } = useLanguage()
   const [profiles, setProfiles] = useState<AccessProfile[]>([])
   const [profileRoles, setProfileRoles] = useState<AccessProfileRole[]>([])
+  const [availableRoleIds, setAvailableRoleIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -50,7 +53,11 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
     }
 
     setIsLoading(true)
-    const [{ data: profileRows, error: profilesError }, { data: roleRows, error: rolesError }] = await Promise.all([
+    const [
+      { data: profileRows, error: profilesError },
+      { data: roleRows, error: rolesError },
+      { data: accessRoleRows, error: accessRolesError },
+    ] = await Promise.all([
       supabase
         .from('access_profiles')
         .select('tenant_id, id, name, description, is_system, created_at, updated_at')
@@ -60,15 +67,21 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
         .from('access_profile_roles')
         .select('tenant_id, access_profile_id, access_role_id, access_level, created_at, updated_at')
         .eq('tenant_id', currentTenantId),
+      supabase
+        .from('access_roles')
+        .select('id'),
     ])
 
-    if (profilesError || rolesError) {
-      toast.error(profilesError?.message || rolesError?.message || 'Nao foi possivel carregar os perfis.')
+    if (profilesError || rolesError || accessRolesError) {
+      toast.error(profilesError?.message || rolesError?.message || accessRolesError?.message || t.access_profiles_view.load_error)
       setProfiles([])
       setProfileRoles([])
+      setAvailableRoleIds(new Set())
       setIsLoading(false)
       return
     }
+
+    setAvailableRoleIds(new Set((accessRoleRows || []).map((row: any) => String(row.id))))
 
     setProfiles((profileRows || []).map((row: any) => ({
       tenantId: row.tenant_id,
@@ -90,6 +103,11 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
     setIsLoading(false)
   }, [currentTenantId])
 
+  const effectiveAccessRoles = useMemo(() => {
+    if (availableRoleIds.size === 0) return ACCESS_ROLES
+    return ACCESS_ROLES.filter((role) => availableRoleIds.has(role.id))
+  }, [availableRoleIds])
+
   useEffect(() => {
     void loadAccessProfiles()
   }, [loadAccessProfiles])
@@ -97,14 +115,16 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
   const permissionSummary = useMemo(() => {
     return new Map(
       profiles.map((profile) => {
-        const levels = ACCESS_ROLES.map((role) => {
+        const levels = effectiveAccessRoles.map((role) => {
           const found = profileRoles.find((item) => item.accessProfileId === profile.id && item.accessRoleId === role.id)
-          return found ? `${role.label}: ${found.accessLevel === 'write' ? 'Leitura e gravacao' : 'Somente leitura'}` : null
+          return found
+            ? `${role.label}: ${found.accessLevel === 'write' ? t.access_profiles_view.permission_read_write : t.access_profiles_view.permission_read_only}`
+            : null
         }).filter(Boolean) as string[]
         return [profile.id, levels]
       })
     )
-  }, [profileRoles, profiles])
+  }, [effectiveAccessRoles, profileRoles, profiles, t])
 
   const resetForm = () => {
     setEditingProfileId(null)
@@ -144,7 +164,7 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
   const handleSave = async () => {
     if (!currentTenantId) return
     if (!formState.name.trim()) {
-      toast.error('Informe o nome do perfil.')
+      toast.error(t.access_profiles_view.name_required)
       return
     }
 
@@ -169,6 +189,7 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
 
       const selectedRoles = Object.entries(formState.accessLevels)
         .filter(([, level]) => level !== 'none')
+        .filter(([accessRoleId]) => availableRoleIds.has(accessRoleId))
         .map(([accessRoleId, accessLevel]) => ({
           tenant_id: currentTenantId,
           access_profile_id: profileId,
@@ -204,12 +225,12 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
         if (rolesError) throw rolesError
       }
 
-      toast.success(editingProfileId ? 'Perfil atualizado com sucesso.' : 'Perfil criado com sucesso.')
+      toast.success(editingProfileId ? t.access_profiles_view.updated_success : t.access_profiles_view.created_success)
       setIsDialogOpen(false)
       resetForm()
       await loadAccessProfiles()
     } catch (error: any) {
-      toast.error(error?.message || 'Nao foi possivel salvar o perfil.')
+      toast.error(error?.message || t.access_profiles_view.save_error)
     } finally {
       setIsSaving(false)
     }
@@ -217,10 +238,10 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
 
   const handleDelete = async (profile: AccessProfile) => {
     if (profile.id === 'system-administrator') {
-      toast.error('O perfil de Administrador nao pode ser apagado.')
+      toast.error(t.access_profiles_view.cannot_delete_admin)
       return
     }
-    if (!window.confirm(`Apagar o perfil ${profile.name}? Ele sera removido de todos os usuarios vinculados.`)) return
+    if (!window.confirm(t.access_profiles_view.delete_confirm.replace('{name}', profile.name))) return
     try {
       const nowIso = new Date().toISOString()
 
@@ -242,10 +263,10 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
         .eq('id', profile.id)
 
       if (error) throw error
-      toast.success('Perfil apagado com sucesso e removido dos usuarios vinculados.')
+      toast.success(t.access_profiles_view.deleted_success)
       await loadAccessProfiles()
     } catch (error: any) {
-      toast.error(error?.message || 'Nao foi possivel apagar o perfil.')
+      toast.error(error?.message || t.access_profiles_view.delete_error)
     }
   }
 
@@ -253,18 +274,18 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Perfis de acesso</h2>
-          <p className="text-sm text-muted-foreground">Crie perfis compostos por roles de leitura ou leitura e gravacao por funcionalidade.</p>
+          <h2 className="text-2xl font-semibold tracking-tight">{t.access_profiles_view.title}</h2>
+          <p className="text-sm text-muted-foreground">{t.access_profiles_view.subtitle}</p>
         </div>
         <Button onClick={openCreateDialog} className="gap-2" disabled={readOnly}>
           <Plus size={16} />
-          Novo perfil
+          {t.access_profiles_view.new_profile}
         </Button>
       </div>
 
       {isLoading ? (
         <Card>
-          <CardContent className="py-8 text-sm text-muted-foreground">Carregando perfis...</CardContent>
+          <CardContent className="py-8 text-sm text-muted-foreground">{t.access_profiles_view.loading}</CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -277,10 +298,10 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
                       <ShieldCheck size={18} />
                       {profile.name}
                     </CardTitle>
-                    <CardDescription>{profile.description || 'Sem descricao.'}</CardDescription>
+                    <CardDescription>{profile.description || t.access_profiles_view.no_description}</CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    {profile.isSystem && <Badge variant="outline">Sistema</Badge>}
+                    {profile.isSystem && <Badge variant="outline">{t.access_profiles_view.system_badge}</Badge>}
                     <Button variant="outline" size="icon" onClick={() => openEditDialog(profile)} disabled={readOnly}>
                       <Pencil size={16} />
                     </Button>
@@ -298,7 +319,7 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nenhuma role vinculada.</p>
+                  <p className="text-sm text-muted-foreground">{t.access_profiles_view.no_roles}</p>
                 )}
               </CardContent>
             </Card>
@@ -309,14 +330,14 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
       <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm() }}>
         <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[92vh] sm:max-w-3xl">
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
-            <DialogTitle>{editingProfileId ? 'Editar perfil' : 'Novo perfil'}</DialogTitle>
-            <DialogDescription>Defina o nome do perfil e escolha a permissao de cada funcionalidade.</DialogDescription>
+            <DialogTitle>{editingProfileId ? t.access_profiles_view.edit_title : t.access_profiles_view.create_title}</DialogTitle>
+            <DialogDescription>{t.access_profiles_view.dialog_description}</DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="access-profile-name">Nome</Label>
+                <Label htmlFor="access-profile-name">{t.access_profiles_view.name_label}</Label>
                 <Input
                   id="access-profile-name"
                   value={formState.name}
@@ -324,7 +345,7 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="access-profile-description">Descricao</Label>
+                <Label htmlFor="access-profile-description">{t.access_profiles_view.description_label}</Label>
                 <Input
                   id="access-profile-description"
                   value={formState.description}
@@ -334,9 +355,9 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
             </div>
 
             <div className="space-y-3">
-              <Label>Roles por funcionalidade</Label>
+              <Label>{t.access_profiles_view.roles_label}</Label>
               <div className="grid gap-3 md:grid-cols-2">
-                {ACCESS_ROLES.map((role) => (
+                {effectiveAccessRoles.map((role) => (
                   <div key={role.id} className="rounded-lg border p-3 space-y-2">
                     <div>
                       <p className="font-medium">{role.label}</p>
@@ -356,9 +377,9 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Sem acesso</SelectItem>
-                        <SelectItem value="read">Somente leitura</SelectItem>
-                        <SelectItem value="write">Leitura e gravacao</SelectItem>
+                        <SelectItem value="none">{t.access_profiles_view.no_access}</SelectItem>
+                        <SelectItem value="read">{t.access_profiles_view.permission_read_only}</SelectItem>
+                        <SelectItem value="write">{t.access_profiles_view.permission_read_write}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -368,8 +389,8 @@ export default function AccessProfilesView({ readOnly = false }: { readOnly?: bo
           </div>
 
           <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>Cancelar</Button>
-            <Button onClick={() => void handleSave()} disabled={isSaving}>{isSaving ? 'Salvando...' : 'Salvar'}</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>{t.access_profiles_view.cancel}</Button>
+            <Button onClick={() => void handleSave()} disabled={isSaving}>{isSaving ? t.access_profiles_view.saving : t.access_profiles_view.save}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

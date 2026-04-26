@@ -272,7 +272,7 @@ const content = {
         },
         {
           name: 'Profissional',
-          price: 'R$ 79',
+          price: 'R$ 49',
           description: 'Para administradoras e proprietários com múltiplos imóveis.',
           features: [
             'Imóveis ilimitados',

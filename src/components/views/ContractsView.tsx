@@ -115,6 +115,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
     closeDate: '',
     paymentDueDay: 5,
     monthlyAmount: 0,
+    contractAmount: 0,
     specialPaymentCondition: '',
     notes: '',
     templateId: '',
@@ -221,19 +222,30 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
   }
 
   const handleImportConfirm = () => {
-    const newContracts: Contract[] = csvParsedRows.map((row) => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      createdAt: new Date().toISOString(),
-      guestId: row.guestId,
-      propertyIds: row.propertyIds,
-      rentalType: row.rentalType,
-      startDate: row.startDate,
-      endDate: row.endDate,
-      paymentDueDay: row.paymentDueDay,
-      monthlyAmount: row.monthlyAmount,
-      notes: row.notes,
-      status: calculateStatus(row.startDate, row.endDate),
-    } as Contract))
+    const newContracts: Contract[] = csvParsedRows.map((row) => {
+      const shortTermNights = row.rentalType === 'short-term' ? getShortTermNights(row.startDate, row.endDate) : 0
+      const shortTermDailyRate = row.rentalType === 'short-term'
+        ? row.propertyIds.reduce((total, propertyId) => {
+            const property = (properties || []).find((item) => item.id === propertyId)
+            return total + (property?.pricePerNight || 0)
+          }, 0)
+        : 0
+
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        createdAt: new Date().toISOString(),
+        guestId: row.guestId,
+        propertyIds: row.propertyIds,
+        rentalType: row.rentalType,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        paymentDueDay: row.paymentDueDay,
+        monthlyAmount: row.monthlyAmount,
+        contractAmount: row.rentalType === 'short-term' ? shortTermNights * shortTermDailyRate : row.monthlyAmount,
+        notes: row.notes,
+        status: calculateStatus(row.startDate, row.endDate),
+      } as Contract
+    })
     setContracts((current) => [...(current ?? []), ...newContracts])
     toast.success(`${newContracts.length} ${t.contracts_view.import_success}`)
     setIsImportDialogOpen(false)
@@ -251,6 +263,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
       closeDate: '',
       paymentDueDay: 5,
       monthlyAmount: 0,
+      contractAmount: 0,
       specialPaymentCondition: '',
       notes: '',
       templateId: '',
@@ -279,6 +292,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
             ? { 
                 ...formData, 
                 id: c.id, 
+                bookingRequestId: c.bookingRequestId,
                 status: calculateStatus(formData.startDate, formData.endDate),
                 createdAt: c.createdAt,
                 templateId: formData.templateId || undefined
@@ -314,6 +328,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
       closeDate: contract.closeDate || '',
       paymentDueDay: contract.paymentDueDay,
       monthlyAmount: contract.monthlyAmount,
+      contractAmount: contract.contractAmount,
       specialPaymentCondition: contract.specialPaymentCondition || '',
       notes: contract.notes || '',
       templateId: contract.templateId || '',
@@ -361,6 +376,40 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
       .map(id => (properties || []).find(p => p.id === id)?.name)
       .filter(Boolean)
       .join(', ')
+  }
+
+  const getShortTermNights = (startDate: string, endDate: string) => {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const diffMs = end.getTime() - start.getTime()
+    const nights = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+    return Number.isFinite(nights) && nights > 0 ? nights : 0
+  }
+
+  const getShortTermDailyRate = (propertyIds: string[]) => {
+    return (propertyIds || []).reduce((total, propertyId) => {
+      const property = (properties || []).find((item) => item.id === propertyId)
+      return total + (property?.pricePerNight || 0)
+    }, 0)
+  }
+
+  useEffect(() => {
+    if (formData.rentalType !== 'short-term') return
+    const nights = getShortTermNights(formData.startDate, formData.endDate)
+    const dailyRate = getShortTermDailyRate(formData.propertyIds)
+    const autoAmount = nights * dailyRate
+    setFormData((current) => current.contractAmount === autoAmount
+      ? current
+      : { ...current, contractAmount: autoAmount }
+    )
+  }, [formData.rentalType, formData.startDate, formData.endDate, formData.propertyIds, properties])
+
+  const getContractDisplayAmount = (contract: Contract) => {
+    return {
+      label: 'Valor do contrato',
+      amount: contract.contractAmount,
+      detail: null as string | null,
+    }
   }
 
   const getStatusColor = (status: ContractStatus) => {
@@ -531,6 +580,7 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
           endDate: ev.endDate,
           paymentDueDay: 1,
           monthlyAmount: 0,
+          contractAmount: getShortTermNights(ev.startDate, ev.endDate) * ((properties || []).find((p) => p.id === ev.propertyId)?.pricePerNight || 0),
           status: 'active',
           notes: `[${ev.feedLabel}]`,
           icalUid: ev.uid,
@@ -740,6 +790,25 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                 </div>
 
                 <div className="col-span-2">
+                  <Label htmlFor="contract-total-amount">
+                    {formData.rentalType === 'short-term' ? 'Valor total da reserva' : 'Valor do contrato'}
+                  </Label>
+                  <DecimalInput
+                    id="contract-total-amount"
+                    min="0"
+                    value={formData.contractAmount || undefined}
+                    onValueChange={(value) => setFormData({ ...formData, contractAmount: value || 0 })}
+                    placeholder="Informe o valor total do contrato"
+                    required
+                  />
+                  {formData.rentalType === 'short-term' && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Calculado automaticamente a partir das diárias. Você pode editar.
+                    </p>
+                  )}
+                </div>
+
+                <div className="col-span-2">
                   <Label htmlFor="contract-special-payment">
                     {t.contracts_view.form.special_payment_condition} {t.contracts_view.form.optional}
                   </Label>
@@ -845,6 +914,9 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
         <div className="grid gap-4">
           {filteredContracts.map((contract) => (
             <Card key={contract.id} className="hover:shadow-lg transition-shadow">
+              {(() => {
+                const amountInfo = getContractDisplayAmount(contract)
+                return (
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -881,17 +953,22 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                       <div className="flex items-start gap-2">
                         <CurrencyDollar size={18} weight="duotone" className="text-primary mt-0.5" />
                         <div>
-                          <p className="text-xs text-muted-foreground">{t.contracts_view.monthly_amount}</p>
-                          <p className="text-sm font-medium">{formatCurrency(contract.monthlyAmount)}</p>
+                          <p className="text-xs text-muted-foreground">{amountInfo.label}</p>
+                          <p className="text-sm font-medium">{formatCurrency(amountInfo.amount)}</p>
+                          {amountInfo.detail && (
+                            <p className="text-xs text-muted-foreground">{amountInfo.detail}</p>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-start gap-2">
-                        <CalendarBlank size={18} weight="duotone" className="text-primary mt-0.5" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">{t.contracts_view.payment_due}</p>
-                          <p className="text-sm font-medium">{t.contracts_view.day} {contract.paymentDueDay}</p>
+                      {contract.rentalType !== 'short-term' && (
+                        <div className="flex items-start gap-2">
+                          <CalendarBlank size={18} weight="duotone" className="text-primary mt-0.5" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">{t.contracts_view.payment_due}</p>
+                            <p className="text-sm font-medium">{t.contracts_view.day} {contract.paymentDueDay}</p>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                     {contract.notes && (
                       <div className="mt-3 pt-3 border-t border-border">
@@ -958,6 +1035,8 @@ export default function ContractsView({ onNavigate }: ContractsViewProps) {
                   </div>
                 </div>
               </CardHeader>
+                )
+              })()}
             </Card>
           ))}
         </div>

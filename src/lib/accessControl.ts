@@ -48,6 +48,7 @@ export const APP_TABS_BY_ACCESS_ROLE: Partial<Record<AccessRoleId, string>> = {
   'users-permissions': 'users-permissions',
   'access-profiles': 'access-profiles',
   'audit-logs': 'audit-logs',
-}
+    'portal-bookings': 'portal-bookings',
+  }
 
 export const EXTRA_ACCESS_CONTROLLED_TABS: Array<{ tab: string; roleId: AccessRoleId }> = []

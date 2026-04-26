@@ -31,6 +31,7 @@ import {
   ArrowUp,
   ArrowDown,
   Brain,
+    BookOpen,
   ArrowSquareUpRightIcon,
   DotsThreeOutline
 } from '@phosphor-icons/react'
@@ -65,6 +66,7 @@ export const menuItems: MenuItem[] = [
   { id: 'notifications', icon: Bell, value: 'notifications', accessRoleId: 'notifications' },
   { id: 'providers', icon: Wrench, value: 'providers', accessRoleId: 'providers' },
   { id: 'appointments', icon: CalendarCheck, value: 'appointments', accessRoleId: 'appointments' },
+    { id: 'portal-bookings', icon: BookOpen, value: 'portal-bookings', accessRoleId: 'portal-bookings' },
   { id: 'tenant', icon: BuildingOffice, value: 'tenant', accessRoleId: 'tenant' },
   { id: 'usage-plans', icon: CurrencyDollar, value: 'usage-plans', platformAdminOnly: true },
   { id: 'my-bug-reports', icon: Bug, value: 'my-bug-reports', accessRoleId: 'my-bug-reports' },

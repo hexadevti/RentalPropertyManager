@@ -19,6 +19,8 @@ import { toast } from 'sonner'
 type TenantOption = {
   id: string
   name: string
+  slug: string
+  portal_enabled: boolean
   created_at: string
 }
 
@@ -94,6 +96,9 @@ export default function TenantManagementView() {
   const [tenants, setTenants] = useState<TenantOption[]>([])
   const [selectedTenantId, setSelectedTenantId] = useState<string>('')
   const [tenantDraft, setTenantDraft] = useState('')
+  const [portalSlugDraft, setPortalSlugDraft] = useState('')
+  const [portalEnabledDraft, setPortalEnabledDraft] = useState(false)
+  const [hasPortalSchema, setHasPortalSchema] = useState(true)
   const [isLoadingTenants, setIsLoadingTenants] = useState(false)
   const [isSavingTenant, setIsSavingTenant] = useState(false)
   const [isDeleteTenantConfirmOpen, setIsDeleteTenantConfirmOpen] = useState(false)
@@ -140,6 +145,8 @@ export default function TenantManagementView() {
 
   useEffect(() => {
     setTenantDraft(selectedTenant?.name || '')
+    setPortalSlugDraft(selectedTenant?.slug || '')
+    setPortalEnabledDraft(Boolean(selectedTenant?.portal_enabled))
   }, [selectedTenant])
 
   const loadAllTenantsUsage = useCallback(async (tenantList: TenantOption[]) => {
@@ -179,23 +186,53 @@ export default function TenantManagementView() {
 
   const loadTenants = useCallback(async () => {
     setIsLoadingTenants(true)
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('id, name, created_at')
-      .order('created_at', { ascending: true })
+    try {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('id, name, slug, portal_enabled, created_at')
+        .order('created_at', { ascending: true })
 
-    if (error) {
+      let loaded: TenantOption[] = []
+
+      if (error) {
+        const message = String(error.message || '').toLowerCase()
+        const missingPortalColumns = message.includes('slug') || message.includes('portal_enabled')
+
+        if (!missingPortalColumns) throw error
+
+        const legacyResult = await supabase
+          .from('tenants')
+          .select('id, name, created_at')
+          .order('created_at', { ascending: true })
+
+        if (legacyResult.error) throw legacyResult.error
+
+        loaded = ((legacyResult.data || []) as Array<{ id: string; name: string; created_at: string }>).map((tenant) => ({
+          ...tenant,
+          slug: '',
+          portal_enabled: false,
+        }))
+        setHasPortalSchema(false)
+      } else {
+        loaded = (data || []) as TenantOption[]
+        setHasPortalSchema(true)
+      }
+
+      setTenants(loaded)
+      setSelectedTenantId((current) => {
+        if (current && loaded.some((tenant) => tenant.id === current)) return current
+        if (currentTenantId && loaded.some((tenant) => tenant.id === currentTenantId)) return currentTenantId
+        return loaded[0]?.id || ''
+      })
+
+      if (isPlatformAdmin) void loadAllTenantsUsage(loaded)
+    } catch {
       toast.error(t.users_permissions_view.tenants_load_error)
       setTenants([])
+      setSelectedTenantId(currentTenantId || '')
+    } finally {
       setIsLoadingTenants(false)
-      return
     }
-
-    const loaded = (data || []) as TenantOption[]
-    setTenants(loaded)
-    setSelectedTenantId((current) => current || currentTenantId || loaded[0]?.id || '')
-    if (isPlatformAdmin) void loadAllTenantsUsage(loaded)
-    setIsLoadingTenants(false)
   }, [currentTenantId, isPlatformAdmin, loadAllTenantsUsage, t.users_permissions_view.tenants_load_error])
 
   const loadBillingData = useCallback(async () => {
@@ -376,20 +413,50 @@ export default function TenantManagementView() {
     setIsSavingTenant(true)
     try {
       const trimmed = tenantDraft.trim()
+      const normalizedSlug = portalSlugDraft
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+
       if (!trimmed) {
         toast.error(t.users_permissions_view.tenant_name_required)
         return
       }
 
+      if (hasPortalSchema && !normalizedSlug) {
+        toast.error('Slug do portal e obrigatorio.')
+        return
+      }
+
+      const updatePayload: Record<string, unknown> = {
+        name: trimmed,
+      }
+
+      if (hasPortalSchema) {
+        updatePayload.slug = normalizedSlug
+        updatePayload.portal_enabled = portalEnabledDraft
+      }
+
       const { error } = await supabase
         .from('tenants')
-        .update({ name: trimmed })
+        .update(updatePayload)
         .eq('id', selectedTenantId)
 
       if (error) throw error
 
       setTenants((current) => current.map((tenant) => (
-        tenant.id === selectedTenantId ? { ...tenant, name: trimmed } : tenant
+        tenant.id === selectedTenantId
+          ? {
+              ...tenant,
+              name: trimmed,
+              slug: hasPortalSchema ? normalizedSlug : tenant.slug,
+              portal_enabled: hasPortalSchema ? portalEnabledDraft : tenant.portal_enabled,
+            }
+          : tenant
       )))
 
       await logAppAudit({
@@ -509,7 +576,43 @@ export default function TenantManagementView() {
               <Label htmlFor="tenant-id">{t.users_permissions_view.tenant_id}</Label>
               <Input id="tenant-id" value={selectedTenantId || ''} disabled />
             </div>
+            {hasPortalSchema && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="tenant-portal-slug">Slug do portal publico</Label>
+                  <Input
+                    id="tenant-portal-slug"
+                    value={portalSlugDraft}
+                    onChange={(event) => setPortalSlugDraft(event.target.value)}
+                    placeholder="ex: minha-imobiliaria"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL: {window.location.origin}/{portalSlugDraft || 'slug-do-tenant'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tenant-portal-enabled">Portal publico</Label>
+                  <div className="flex h-10 items-center gap-2">
+                    <input
+                      id="tenant-portal-enabled"
+                      type="checkbox"
+                      checked={portalEnabledDraft}
+                      onChange={(event) => setPortalEnabledDraft(event.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {portalEnabledDraft ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+          {!hasPortalSchema && (
+            <p className="text-xs text-muted-foreground">
+              Recursos do portal publico ainda nao disponiveis neste ambiente. Aplique a migration 194 para habilitar slug e portal.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             {t.users_permissions_view.logged_user_tenant}: {currentTenantId || '-'}
           </p>

@@ -50,19 +50,6 @@ let _selectedModel = 'claude-sonnet-4-6'
 let _lastUsage: AssistantResponse['usage'] | null = null
 let _lastModelUsed = ''
 
-const SUGGESTIONS = [
-  'Qual é o saldo do mês atual e quais categorias mais impactaram?',
-  'Quais propriedades estão com contrato ativo?',
-  'Liste tarefas pendentes relacionadas a propriedades.',
-  'Existe algum contrato vencendo ou encerrado recentemente?',
-]
-
-const MODEL_OPTIONS: ModelOption[] = [
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', description: 'Equilíbrio ideal entre capacidade e custo — recomendado' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', description: 'Mais econômico, respostas rápidas para perguntas simples' },
-  { value: 'claude-opus-4-7', label: 'Claude Opus 4.7', description: 'Máxima capacidade de raciocínio, custo mais elevado' },
-]
-
 function formatUsdCost(value: number | undefined) {
   if (value === undefined || Number.isNaN(value)) return '$0.000000'
 
@@ -76,6 +63,29 @@ function formatUsdCost(value: number | undefined) {
 
 export default function AiAssistantView() {
   const { t } = useLanguage()
+  const suggestions = useMemo(() => ([
+    t.ai_assistant_view.suggestions.s1,
+    t.ai_assistant_view.suggestions.s2,
+    t.ai_assistant_view.suggestions.s3,
+    t.ai_assistant_view.suggestions.s4,
+  ]), [t])
+  const modelOptions: ModelOption[] = useMemo(() => ([
+    {
+      value: 'claude-sonnet-4-6',
+      label: t.ai_assistant_view.models.sonnet_label,
+      description: t.ai_assistant_view.models.sonnet_description,
+    },
+    {
+      value: 'claude-haiku-4-5-20251001',
+      label: t.ai_assistant_view.models.haiku_label,
+      description: t.ai_assistant_view.models.haiku_description,
+    },
+    {
+      value: 'claude-opus-4-7',
+      label: t.ai_assistant_view.models.opus_label,
+      description: t.ai_assistant_view.models.opus_description,
+    },
+  ]), [t])
   const [messages, setMessages] = useState<AssistantMessage[]>(_messages)
   const [question, setQuestion] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -122,23 +132,23 @@ export default function AiAssistantView() {
         body: { question: trimmed, history: visibleHistory, model: selectedModel },
       })
 
-      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, 'Falha ao consultar o assistente de IA')
-      const responseError = getEdgeFunctionErrorFromPayload(data, 'Falha ao consultar o assistente de IA')
+      if (error) throw await getEdgeFunctionErrorFromInvokeError(error, t.ai_assistant_view.consult_error)
+      const responseError = getEdgeFunctionErrorFromPayload(data, t.ai_assistant_view.consult_error)
       if (responseError) throw responseError
 
-      const answer = getEdgeFunctionAnswerFromPayload(data, t, 'Não consegui gerar uma resposta para essa pergunta.')
+      const answer = getEdgeFunctionAnswerFromPayload(data, t, t.ai_assistant_view.no_answer)
       setLastUsage(data?.usage || null)
       _lastUsage = data?.usage || null
       setLastModelUsed(data?.model || selectedModel)
       _lastModelUsed = data?.model || selectedModel
       updateMessages((prev) => [...prev, { id: `assistant-${Date.now()}`, role: 'assistant', content: answer }])
     } catch (error: any) {
-      const msg = getEdgeFunctionMessage(error, t, 'Falha ao consultar o assistente de IA')
+      const msg = getEdgeFunctionMessage(error, t, t.ai_assistant_view.consult_error)
       toast.error(msg)
       updateMessages((prev) => [...prev, {
         id: `assistant-error-${Date.now()}`,
         role: 'assistant',
-        content: `Não consegui responder agora.\n\nDetalhe técnico: ${msg}`,
+        content: `${t.ai_assistant_view.cannot_answer_now}\n\n${t.ai_assistant_view.technical_detail_prefix} ${msg}`,
       }])
     } finally {
       setIsSending(false)
@@ -184,12 +194,12 @@ export default function AiAssistantView() {
           <div className="flex items-center gap-2">
             <Brain size={28} weight="duotone" className="text-primary" />
             <div className="flex items-center gap-1">
-              <h2 className="text-3xl font-bold tracking-tight">Assistente IA</h2>
-              <HelpButton docKey="ai-assistant" title="Ajuda — Assistente IA" />
+              <h2 className="text-3xl font-bold tracking-tight">{t.ai_assistant_view.title}</h2>
+              <HelpButton docKey="ai-assistant" title={t.ai_assistant_view.help_title} />
             </div>
           </div>
           <p className="text-muted-foreground mt-1">
-            Faça perguntas sobre seus cadastros. O assistente consulta o banco dinamicamente conforme necessário.
+            {t.ai_assistant_view.subtitle}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -202,10 +212,10 @@ export default function AiAssistantView() {
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione o modelo" />
+                <SelectValue placeholder={t.ai_assistant_view.select_model_placeholder} />
               </SelectTrigger>
               <SelectContent>
-                {MODEL_OPTIONS.map((model) => (
+                {modelOptions.map((model) => (
                   <SelectItem key={model.value} value={model.value}>
                     {model.label}
                   </SelectItem>
@@ -216,12 +226,12 @@ export default function AiAssistantView() {
           {messages.length > 0 && (
             <Button variant="outline" size="sm" className="gap-2 text-muted-foreground" onClick={handleClear}>
               <Trash size={14} />
-              Limpar conversa
+              {t.ai_assistant_view.clear_conversation}
             </Button>
           )}
           <Badge variant="outline" className="w-fit gap-1.5">
             <Sparkle size={14} weight="fill" />
-            Claude via Supabase Edge Function
+            {t.ai_assistant_view.provider_badge}
           </Badge>
         </div>
       </div>
@@ -229,9 +239,9 @@ export default function AiAssistantView() {
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
         <Card className="min-h-[806px]">
           <CardHeader>
-            <CardTitle>Chat</CardTitle>
+            <CardTitle>{t.ai_assistant_view.chat_title}</CardTitle>
             <CardDescription>
-              O assistente consulta o banco dinamicamente: propriedades, contratos, hóspedes, finanças, tarefas, documentos, vistorias e agenda.
+              {t.ai_assistant_view.chat_description}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex h-[676px] flex-col gap-4">
@@ -242,9 +252,9 @@ export default function AiAssistantView() {
                   <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
                     <Brain size={30} weight="duotone" className="text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold">Pergunte sobre seus dados</h3>
+                    <h3 className="text-lg font-semibold">{t.ai_assistant_view.empty_title}</h3>
                   <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                    Exemplos: saldo do mês, contratos ativos, propriedades sem contrato, tarefas pendentes ou documentos vinculados.
+                      {t.ai_assistant_view.empty_description}
                   </p>
                 </div>
               ) : (
@@ -303,7 +313,7 @@ export default function AiAssistantView() {
                   {isSending && (
                     <div className="flex justify-start">
                       <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-                        Analisando cadastros e preparando resposta...
+                        {t.ai_assistant_view.sending_analysis}
                       </div>
                     </div>
                   )}
@@ -316,18 +326,18 @@ export default function AiAssistantView() {
                 ref={textareaRef}
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Ex.: Quais propriedades disponíveis geraram mais receita este mês?"
+                placeholder={t.ai_assistant_view.question_placeholder}
                 className="min-h-24 resize-none"
                 disabled={isSending}
                 onKeyDown={handleKeyDown}
               />
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">
-                  Enter para enviar · Ctrl+Enter para nova linha · Modelo atual: {selectedModel} · Não inclua dados sensíveis.
+                  {t.ai_assistant_view.input_hint.replace('{model}', selectedModel)}
                 </p>
                 <Button onClick={() => void askAssistant()} disabled={isSending || !question.trim()} className="gap-2">
                   <PaperPlaneTilt size={16} weight="fill" />
-                  {isSending ? 'Enviando...' : 'Enviar'}
+                  {isSending ? t.ai_assistant_view.sending : t.ai_assistant_view.send}
                 </Button>
               </div>
             </div>
@@ -337,50 +347,50 @@ export default function AiAssistantView() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Modelo e consumo</CardTitle>
+              <CardTitle className="text-base">{t.ai_assistant_view.model_and_usage_title}</CardTitle>
               <CardDescription>
-                O custo estimado considera o modelo usado na resposta mais recente.
+                {t.ai_assistant_view.model_and_usage_description}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-                <span className="font-medium">Modelo selecionado</span>
+                <span className="font-medium">{t.ai_assistant_view.selected_model}</span>
                 <Badge variant="secondary">{selectedModel}</Badge>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-                <span className="font-medium">Modelo usado</span>
+                <span className="font-medium">{t.ai_assistant_view.used_model}</span>
                 <Badge variant="outline">{lastModelUsed || '-'}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg border border-border px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Input tokens</p>
+                  <p className="text-xs text-muted-foreground">{t.ai_assistant_view.input_tokens}</p>
                   <p className="font-semibold">{lastUsage?.inputTokens ?? 0}</p>
                 </div>
                 <div className="rounded-lg border border-border px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Output tokens</p>
+                  <p className="text-xs text-muted-foreground">{t.ai_assistant_view.output_tokens}</p>
                   <p className="font-semibold">{lastUsage?.outputTokens ?? 0}</p>
                 </div>
                 <div className="rounded-lg border border-border px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Total tokens</p>
+                  <p className="text-xs text-muted-foreground">{t.ai_assistant_view.total_tokens}</p>
                   <p className="font-semibold">{lastUsage?.totalTokens ?? 0}</p>
                 </div>
                 <div className="rounded-lg border border-border px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Custo estimado</p>
+                  <p className="text-xs text-muted-foreground">{t.ai_assistant_view.estimated_cost}</p>
                   <p className="font-semibold">{formatUsdCost(lastUsage?.costUsd)}</p>
                 </div>
               </div>
               <div className="rounded-lg border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-                {MODEL_OPTIONS.find((model) => model.value === selectedModel)?.description}
+                {modelOptions.find((model) => model.value === selectedModel)?.description}
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Perguntas rápidas</CardTitle>
+              <CardTitle className="text-base">{t.ai_assistant_view.quick_questions_title}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {SUGGESTIONS.map((suggestion) => (
+              {suggestions.map((suggestion) => (
                 <Button
                   key={suggestion}
                   variant="outline"
@@ -398,21 +408,21 @@ export default function AiAssistantView() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <WarningCircle size={18} weight="duotone" />
-                Consultas realizadas
+                {t.ai_assistant_view.queries_made_title}
               </CardTitle>
               <CardDescription>
-                O assistente consulta o banco dinamicamente — cada iteração representa uma rodada de tool use.
+                {t.ai_assistant_view.queries_made_description}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               {lastUsage?.iterations != null ? (
                 <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2">
-                  <span className="font-medium">Iterações de consulta</span>
+                  <span className="font-medium">{t.ai_assistant_view.query_iterations}</span>
                   <Badge variant="secondary">{lastUsage.iterations}</Badge>
                 </div>
               ) : (
                 <p className="text-muted-foreground">
-                  Envie uma pergunta para ver quantas consultas foram realizadas.
+                  {t.ai_assistant_view.no_queries_yet}
                 </p>
               )}
             </CardContent>

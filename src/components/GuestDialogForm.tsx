@@ -106,6 +106,17 @@ export default function GuestDialogForm({
   const [newDocType, setNewDocType] = useState('')
   const [newDocNumber, setNewDocNumber] = useState('')
   const [aiImportFiles, setAiImportFiles] = useState<File[]>([])
+  const [portalPassword, setPortalPassword] = useState('')
+  const [portalPasswordConfirm, setPortalPasswordConfirm] = useState('')
+  const [isResettingPortalPassword, setIsResettingPortalPassword] = useState(false)
+
+  const validatePortalPassword = (password: string): string | null => {
+    if (password.length < 8) return 'A senha deve ter pelo menos 8 caracteres.'
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      return 'A senha deve conter pelo menos uma letra e um numero.'
+    }
+    return null
+  }
 
   const mergeDocuments = (current: GuestDocument[], incoming: GuestDocument[]) => {
     const next = [...current]
@@ -187,6 +198,9 @@ export default function GuestDialogForm({
     setNewDocType('')
     setNewDocNumber('')
     setAiImportFiles([])
+    setPortalPassword('')
+    setPortalPasswordConfirm('')
+    setIsResettingPortalPassword(false)
   }
 
   useEffect(() => {
@@ -329,6 +343,39 @@ export default function GuestDialogForm({
         )
       )
       toast.success(t.guests_view.form.updated_success)
+
+      if (portalPassword.trim()) {
+        if (!currentTenantId) {
+          toast.error(t.documents_view.tenant_required)
+          return
+        }
+
+        const passwordValidation = validatePortalPassword(portalPassword.trim())
+        if (passwordValidation) {
+          toast.error(passwordValidation)
+          return
+        }
+        if (portalPassword.trim() !== portalPasswordConfirm.trim()) {
+          toast.error('A confirmacao da senha do portal nao confere.')
+          return
+        }
+
+        setIsResettingPortalPassword(true)
+        const { data, error } = await supabase.rpc('portal_admin_reset_guest_password', {
+          p_tenant_id: currentTenantId,
+          p_guest_id: editingGuest.id,
+          p_new_password: portalPassword.trim(),
+        })
+        setIsResettingPortalPassword(false)
+
+        if (error || data !== true) {
+          toast.error(error?.message || 'Nao foi possivel redefinir a senha do portal para este hospede.')
+          return
+        }
+
+        toast.success('Senha do portal redefinida com sucesso para este hospede.')
+      }
+
       await saveImportedFilesAsDocuments(editingGuest.id, formData.name)
       onOpenChange(false)
       resetForm()
@@ -645,6 +692,39 @@ export default function GuestDialogForm({
                 rows={3}
               />
             </div>
+
+            {editingGuest && (
+              <div className="col-span-2 rounded-lg border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+                <div>
+                  <Label className="text-sm font-semibold text-blue-900">Acesso do portal de reservas</Label>
+                  <p className="text-xs text-blue-800 mt-1">
+                    Redefina a senha do portal para este hospede. Use 8+ caracteres com letra e numero.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="guest-portal-password">Nova senha do portal</Label>
+                    <Input
+                      id="guest-portal-password"
+                      type="password"
+                      value={portalPassword}
+                      onChange={(e) => setPortalPassword(e.target.value)}
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="guest-portal-password-confirm">Confirmar nova senha</Label>
+                    <Input
+                      id="guest-portal-password-confirm"
+                      type="password"
+                      value={portalPasswordConfirm}
+                      onChange={(e) => setPortalPasswordConfirm(e.target.value)}
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {renderRelatedPeopleSection(
               'sponsors',
