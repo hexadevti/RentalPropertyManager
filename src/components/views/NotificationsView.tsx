@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useKV } from '@/lib/useSupabaseKV'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useAuth } from '@/lib/AuthContext'
+import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
 import { useDateFormat } from '@/lib/DateFormatContext'
 import {
   buildDefaultNotificationConditions,
@@ -186,7 +187,7 @@ function DeliveryStatusBadge({ status, t }: { status: string; t: { status_pendin
 
 export default function NotificationsView() {
   const { t, language } = useLanguage()
-  const { currentTenantId } = useAuth()
+  const { currentTenantId, tenantUsagePlan } = useAuth()
   const { formatDate, formatDateTime } = useDateFormat()
   const [rules, setRules] = useKV<NotificationRule[]>('notification-rules', [])
   const [templates, setTemplates] = useKV<NotificationTemplate[]>('notification-templates', [])
@@ -492,6 +493,10 @@ export default function NotificationsView() {
     fromLanguage: TemplateLanguage,
     toLanguage: TemplateLanguage
   ) => {
+    if (!hasAiFeatures(tenantUsagePlan?.planCode)) {
+      throw new Error(AI_PLAN_UPGRADE_MESSAGE)
+    }
+
     if (!value.trim()) return value
 
     const { data, error } = await supabase.functions.invoke('ai-assistant', {
@@ -512,7 +517,7 @@ export default function NotificationsView() {
     }
 
     return String(data?.translatedContent || '')
-  }, [t.notifications_view.messages.template_translation_error])
+  }, [t.notifications_view.messages.template_translation_error, tenantUsagePlan?.planCode])
 
   const notificationGroups = useMemo<NotificationRuleGroup[]>(() => {
     const grouped = new Map<string, NotificationRuleGroup>()

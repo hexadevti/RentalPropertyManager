@@ -2,6 +2,8 @@ import type { AccessRoleId } from '@/types'
 import { supabase } from '@/lib/supabase'
 
 export type PlanCode = 'starter' | 'professional' | 'enterprise'
+export const STARTER_PLAN_CODE: PlanCode = 'starter'
+export const AI_PLAN_UPGRADE_MESSAGE = 'Funcionalidades de IA não estão disponíveis no plano Starter. Faça upgrade para Professional ou Enterprise.'
 
 export interface TenantUsagePlan {
   tenantId: string
@@ -29,6 +31,14 @@ export interface UsagePlanCatalogItem {
   allowedAccessRoleIds: AccessRoleId[]
   featureHighlights: string[]
   isActive: boolean
+}
+
+export function isStarterPlan(planCode?: string | null) {
+  return String(planCode || '').trim().toLowerCase() === STARTER_PLAN_CODE
+}
+
+export function hasAiFeatures(planCode?: string | null) {
+  return !isStarterPlan(planCode)
 }
 
 export async function fetchTenantUsagePlan(tenantId?: string | null) {

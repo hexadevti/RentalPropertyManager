@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { ensureAiPlanAccess } from '../_shared/aiPlan.ts'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -340,6 +341,13 @@ Deno.serve(async (req: Request) => {
   if (!tenantId) {
     const reply = buildTenantSelectionReply(tenantOptions)
     await log('command', reply, { userLogin })
+    return twimlResponse(reply)
+  }
+
+  const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantId)
+  if (!aiPlanAccess.allowed) {
+    const reply = '🚫 Funcionalidades de IA não estão disponíveis no plano Starter. Faça upgrade para Professional ou Enterprise.'
+    await log('blocked', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }
 

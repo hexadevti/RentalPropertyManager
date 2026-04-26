@@ -754,6 +754,7 @@
       import_col_phone: 'Telefone',
       import_col_nationality: 'Nacionalidade',
       import_col_document: 'Documento',
+      ai_import_title: 'Import documents with AI',
       ai_import_dialog_title: 'Importar Hóspede por Documentos/Fotos',
       ai_import_preview_title: 'Pré-visualização extraída',
       ai_import_review_btn: 'Revisar e editar',
@@ -767,7 +768,7 @@
       ai_import_confidence_high: 'alta',
       ai_import_confidence_medium: 'média',
       ai_import_confidence_low: 'baixa',
-      ai_import_warnings_title: 'Pontos para revisar',
+      ai_import_warnings_title: 'Pontos para revisar'
     },
 
     bug_reports_view: {
@@ -2686,6 +2687,7 @@
       ai_import_confidence_medium: 'medium',
       ai_import_confidence_low: 'low',
       ai_import_warnings_title: 'Review points',
+      ai_import_title: 'Import documento with AI'
     },
 
     bug_reports_view: {

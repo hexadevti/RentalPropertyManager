@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { ensureAiPlanAccess } from '../_shared/aiPlan.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -330,6 +331,12 @@ Deno.serve(async (req: Request) => {
 
     const authUserId = userData.user.id
     const tenantContext = await resolveTenantContext(adminClient, authUserId)
+    if (!tenantContext.tenantId) return jsonResponse({ error: 'Tenant context was not found for the current user.' }, 400)
+
+    const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantContext.tenantId)
+    if (!aiPlanAccess.allowed) {
+      return jsonResponse({ error: aiPlanAccess.message, code: 'ai_plan_upgrade_required', planCode: aiPlanAccess.planCode }, 403)
+    }
 
     const body = await req.json().catch(() => ({})) as {
       personType?: PersonType

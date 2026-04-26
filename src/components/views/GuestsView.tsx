@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise, Users, UploadSimple, DownloadSimple } from '@phosphor-icons/react'
+import { MagnifyingGlass, Plus, Pencil, Trash, User, Envelope, Phone, IdentificationCard, MapPin, Flag, Cake, ArrowsClockwise, Users, UploadSimple, DownloadSimple, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Guest, Contract } from '@/types'
 import { useLanguage } from '@/lib/LanguageContext'
@@ -196,7 +196,7 @@ export default function GuestsView() {
             {t.guests_view.import_csv}
           </Button>
           <Button variant="outline" className="gap-2" onClick={() => setIsAiImportDialogOpen(true)}>
-            <IdentificationCard weight="bold" size={16} />
+            <Brain weight="bold" size={16} />
             {t.guests_view.ai_import_title}
           </Button>
           <Dialog open={dialogOpen} onOpenChange={(open) => {

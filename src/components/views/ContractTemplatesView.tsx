@@ -16,9 +16,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Pencil, Trash, Copy, MagnifyingGlass, Question, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { Contract, ContractTemplate, Guest, Owner, Property, TEMPLATE_LANGUAGES, TemplateLanguage, TemplateType } from '@/types'
+import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
+import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
 import RichTextEditor, { plainTextToHTML, RichTextEditorHandle } from '@/components/RichTextEditor'
 import { buildTemplateXPathContext, renderContractTemplateContent, resolveTemplateXPath, TemplateXPathContext } from '@/lib/contractPDF'
 import { getContractSelectionLabel } from '@/lib/contractLabels'
@@ -89,6 +91,7 @@ function isHTML(content: string) {
 }
 
 export default function ContractTemplatesView() {
+  const { tenantUsagePlan } = useAuth()
   const { t, language } = useLanguage()
   const { formatCurrency } = useCurrency()
   const { formatDate } = useDateFormat()
@@ -163,6 +166,11 @@ export default function ContractTemplatesView() {
   }
 
   const handleAddTranslationWithAI = async (sourceTemplate: ContractTemplate, targetLanguage: TemplateLanguage) => {
+    if (!hasAiFeatures(tenantUsagePlan?.planCode)) {
+      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+      return
+    }
+
     setIsTranslating(true)
     try {
       const { data, error } = await supabase.functions.invoke('ai-assistant', {
@@ -290,6 +298,11 @@ export default function ContractTemplatesView() {
   }, [templates, editingTemplate, formData.translationGroupId, formData.language])
 
   const handleTranslateFrom = async (sourceTemplate: ContractTemplate) => {
+    if (!hasAiFeatures(tenantUsagePlan?.planCode)) {
+      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+      return
+    }
+
     setIsTranslating(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -415,6 +428,8 @@ export default function ContractTemplatesView() {
       id: editingTemplate?.id || 'preview-template',
       name: formData.name || editingTemplate?.name || 'Preview Template',
       type: formData.type,
+      language: formData.language,
+      translationGroupId: formData.translationGroupId || editingTemplate?.translationGroupId || 'preview-translation-group',
       content: formData.content || '',
       createdAt: editingTemplate?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),

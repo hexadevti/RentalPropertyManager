@@ -23,6 +23,7 @@ import { Plus, House, Bed, Buildings, Pencil, Trash, FileText, ArrowsClockwise, 
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
+import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
 import { getPropertyAvailabilityStatus } from '@/lib/propertyAvailability'
 import { fetchListingImportDraft, type ListingImportDraft } from '@/lib/listingImport'
 import ContractDialogForm from '@/components/ContractDialogForm'
@@ -75,6 +76,7 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
   const propertiesViewText = t.properties_view as Record<string, any>
   const { formatCurrency } = useCurrency()
   const { currentTenantId, tenantUsagePlan } = useAuth()
+  const aiFeaturesEnabled = hasAiFeatures(tenantUsagePlan?.planCode)
   const [properties, setProperties] = useKV<Property[]>('properties', [])
   const [contracts] = useKV<Contract[]>('contracts', [])
   const [owners] = useKV<Owner[]>('owners', [])
@@ -513,6 +515,11 @@ export default function PropertiesView({ readOnly = false }: { readOnly?: boolea
   }
 
   const handleCaptureListingData = async () => {
+    if (!aiFeaturesEnabled) {
+      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+      return
+    }
+
     if (!importOwnershipConfirmed) {
       setUrlImportError(propertiesViewText.url_import_disclaimer_required)
       return

@@ -3,6 +3,8 @@ import { Camera, Brain, UploadSimple, X, CircleNotch } from '@phosphor-icons/rea
 import { toast } from 'sonner'
 
 import { importTemplateFromFiles } from '@/lib/aiTemplateImport'
+import { useAuth } from '@/lib/AuthContext'
+import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
 import RichTextEditor, { plainTextToHTML } from '@/components/RichTextEditor'
 import { MobilePhotoCaptureDialog } from '@/components/MobilePhotoCaptureDialog'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +35,7 @@ export function TemplateDocumentImportDialog({
   availablePaths,
   onApply,
 }: TemplateDocumentImportDialogProps) {
+  const { tenantUsagePlan } = useAuth()
   const [files, setFiles] = useState<File[]>([])
   const [isExtracting, setIsExtracting] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
@@ -45,6 +48,7 @@ export function TemplateDocumentImportDialog({
   const [isDragOver, setIsDragOver] = useState(false)
   const filePickerRef = useRef<HTMLInputElement | null>(null)
   const cameraPickerRef = useRef<HTMLInputElement | null>(null)
+  const aiFeaturesEnabled = hasAiFeatures(tenantUsagePlan?.planCode)
 
   const imageFileEntries = useMemo(
     () => files
@@ -172,6 +176,11 @@ export function TemplateDocumentImportDialog({
   }
 
   const handleExtract = async () => {
+    if (!aiFeaturesEnabled) {
+      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+      return
+    }
+
     if (files.length === 0) {
       toast.error('Selecione ao menos um arquivo.')
       return
@@ -242,6 +251,12 @@ export function TemplateDocumentImportDialog({
             Envie imagens, PDF, DOC ou DOCX para importar o template. O sistema decide automaticamente quando usa IA e quando importa direto.
           </p>
 
+          {!aiFeaturesEnabled && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {AI_PLAN_UPGRADE_MESSAGE}
+            </div>
+          )}
+
           <input
             ref={filePickerRef}
             type="file"
@@ -249,6 +264,7 @@ export function TemplateDocumentImportDialog({
             multiple
             className="hidden"
             onChange={handleFileSelection}
+            disabled={!aiFeaturesEnabled}
           />
           <input
             ref={cameraPickerRef}
@@ -258,6 +274,7 @@ export function TemplateDocumentImportDialog({
             multiple
             className="hidden"
             onChange={handleFileSelection}
+            disabled={!aiFeaturesEnabled}
           />
 
           <div
@@ -279,16 +296,16 @@ export function TemplateDocumentImportDialog({
           >
             <Label>Documentos/Fotos</Label>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => filePickerRef.current?.click()}>
+              <Button type="button" variant="outline" onClick={() => filePickerRef.current?.click()} disabled={!aiFeaturesEnabled}>
                 <UploadSimple size={16} className="mr-2" />
                 Selecionar arquivos
               </Button>
-              <Button type="button" variant="outline" onClick={() => cameraPickerRef.current?.click()}>
+              <Button type="button" variant="outline" onClick={() => cameraPickerRef.current?.click()} disabled={!aiFeaturesEnabled}>
                 <Camera size={16} className="mr-2" />
                 Usar câmera
               </Button>
               <MobilePhotoCaptureDialog
-                disabled={isExtracting}
+                disabled={isExtracting || !aiFeaturesEnabled}
                 onFilesReady={(mobileFiles) => {
                   const addedCount = appendFileArray(mobileFiles)
                   if (addedCount > 0) {
@@ -307,7 +324,7 @@ export function TemplateDocumentImportDialog({
               >
                 Limpar
               </Button>
-              <Button type="button" onClick={() => void handleExtract()} disabled={files.length === 0 || isExtracting}>
+              <Button type="button" onClick={() => void handleExtract()} disabled={files.length === 0 || isExtracting || !aiFeaturesEnabled}>
                 <Brain size={16} className="mr-2" />
                 {isExtracting ? 'Extraindo...' : 'Extrair com IA'}
               </Button>

@@ -3,6 +3,8 @@ import { Camera, IdentificationCard, UploadSimple, X } from '@phosphor-icons/rea
 import { toast } from 'sonner'
 
 import { extractPersonFromImageFiles, type PersonAIDraft, type PersonImportTarget } from '@/lib/aiPersonImport'
+import { useAuth } from '@/lib/AuthContext'
+import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
 import { MobilePhotoCaptureDialog } from '@/components/MobilePhotoCaptureDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -65,6 +67,7 @@ export function PersonDocumentImportDialog({
   labels,
   onApply,
 }: PersonDocumentImportDialogProps) {
+  const { tenantUsagePlan } = useAuth()
   const [files, setFiles] = useState<File[]>([])
   const [isExtracting, setIsExtracting] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
@@ -74,6 +77,7 @@ export function PersonDocumentImportDialog({
   const [isDragOver, setIsDragOver] = useState(false)
   const filePickerRef = useRef<HTMLInputElement | null>(null)
   const cameraPickerRef = useRef<HTMLInputElement | null>(null)
+  const aiFeaturesEnabled = hasAiFeatures(tenantUsagePlan?.planCode)
 
   useEffect(() => {
     const nextPreviewUrls = files.map((file) => URL.createObjectURL(file))
@@ -186,6 +190,11 @@ export function PersonDocumentImportDialog({
   }
 
   const handleExtract = async () => {
+    if (!aiFeaturesEnabled) {
+      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+      return
+    }
+
     if (files.length === 0) {
       toast.error(labels.noFiles)
       return
@@ -242,6 +251,12 @@ export function PersonDocumentImportDialog({
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">{labels.hint}</p>
 
+          {!aiFeaturesEnabled && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {AI_PLAN_UPGRADE_MESSAGE}
+            </div>
+          )}
+
           <input
             ref={filePickerRef}
             type="file"
@@ -249,6 +264,7 @@ export function PersonDocumentImportDialog({
             multiple
             className="hidden"
             onChange={handleFileSelection}
+            disabled={!aiFeaturesEnabled}
           />
           <input
             ref={cameraPickerRef}
@@ -258,6 +274,7 @@ export function PersonDocumentImportDialog({
             multiple
             className="hidden"
             onChange={handleFileSelection}
+            disabled={!aiFeaturesEnabled}
           />
 
           <div
@@ -279,16 +296,16 @@ export function PersonDocumentImportDialog({
           >
             <Label>{labels.documents}</Label>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => filePickerRef.current?.click()}>
+              <Button type="button" variant="outline" onClick={() => filePickerRef.current?.click()} disabled={!aiFeaturesEnabled}>
                 <UploadSimple size={16} className="mr-2" />
                 {labels.selectFiles}
               </Button>
-              <Button type="button" variant="outline" onClick={() => cameraPickerRef.current?.click()}>
+              <Button type="button" variant="outline" onClick={() => cameraPickerRef.current?.click()} disabled={!aiFeaturesEnabled}>
                 <Camera size={16} className="mr-2" />
                 {labels.useCamera}
               </Button>
               <MobilePhotoCaptureDialog
-                disabled={isExtracting}
+                disabled={isExtracting || !aiFeaturesEnabled}
                 onFilesReady={(mobileFiles) => {
                   const addedCount = appendFileArray(mobileFiles)
                   if (addedCount > 0) {
@@ -307,7 +324,7 @@ export function PersonDocumentImportDialog({
               >
                 {labels.clearFiles}
               </Button>
-              <Button type="button" onClick={() => void handleExtract()} disabled={files.length === 0 || isExtracting}>
+              <Button type="button" onClick={() => void handleExtract()} disabled={files.length === 0 || isExtracting || !aiFeaturesEnabled}>
                 {isExtracting ? labels.extracting : labels.extract}
               </Button>
             </div>

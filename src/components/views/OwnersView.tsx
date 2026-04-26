@@ -15,7 +15,7 @@ import { PhoneInput } from '@/components/ui/phone-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Plus, User, Pencil, Trash, House, EnvelopeSimple, Phone, IdentificationCard, UploadSimple, DownloadSimple, ArrowsClockwise } from '@phosphor-icons/react'
+import { Plus, User, Pencil, Trash, House, EnvelopeSimple, Phone, IdentificationCard, UploadSimple, DownloadSimple, ArrowsClockwise, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/lib/LanguageContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
@@ -390,7 +390,7 @@ export default function OwnersView() {
             {labels.import_csv}
           </Button>
           <Button variant="outline" className="gap-2" onClick={() => setIsAiImportDialogOpen(true)}>
-            <IdentificationCard weight="bold" size={16} />
+            <Brain weight="bold" size={16} />
             {labels.doc_import_title}
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

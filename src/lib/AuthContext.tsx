@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { setSupabaseAuthState } from '@/lib/supabaseAuthState'
 import { logAppAudit } from '@/lib/appAudit'
 import { deriveUserRoleFromAccessProfileId, hasRequiredAccessLevel, normalizeAccessLevel, resolveDefaultAccessProfileId } from '@/lib/accessControl'
-import { fetchTenantUsagePlan } from '@/lib/usagePlans'
+import { fetchTenantUsagePlan, isStarterPlan } from '@/lib/usagePlans'
 import { ACCESS_ROLES } from '@/types'
 import type { AccessLevel, AccessProfile, AccessRoleId, UserProfile, UserRole, UserStatus } from '@/types'
 import type { TenantUsagePlan } from '@/lib/usagePlans'
@@ -523,7 +523,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const loginBase = appUser.login.toLowerCase().replace(/[^a-z0-9._-]/g, '') ||
       `user-${appUser.id.slice(0, 8)}`
     const now = new Date().toISOString()
-    let newProfile = null
+    let newProfile: any = null
     for (let attempt = 0; attempt <= 9; attempt++) {
       const loginAttempt = attempt === 0 ? loginBase : `${loginBase}-${attempt}`
       const { data, error } = await supabase
@@ -736,6 +736,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = (role: UserRole) => userProfile?.role === role
 
   const hasAccess = (roleId: AccessRoleId, requiredLevel: AccessLevel = 'read') => {
+    if (roleId === 'ai-assistant' && isStarterPlan(tenantUsagePlan?.planCode)) return false
     if (isPlatformAdmin) return true
     const planRoles = tenantUsagePlan?.allowedAccessRoleIds || []
     if (planRoles.length > 0 && !planRoles.includes(roleId)) return false

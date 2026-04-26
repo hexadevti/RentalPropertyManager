@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useKV } from '@/lib/useSupabaseKV'
+import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
 import { downloadPDF, openPDFInNewTab } from '@/lib/contractPDF'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -1391,8 +1392,9 @@ function generatePDFfromCanvas(
 }
 
 export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }: PropertyAdDialogProps) {
-  const { currentTenantId } = useAuth()
+  const { currentTenantId, tenantUsagePlan } = useAuth()
   const { t, language } = useLanguage()
+  const aiFeaturesEnabled = hasAiFeatures(tenantUsagePlan?.planCode)
   const [owners] = useKV<Owner[]>('owners', [])
   const [, setDocuments] = useKV<Document[]>('documents', [])
   const [isGenerating, setIsGenerating] = useState(false)
@@ -1962,6 +1964,10 @@ export function PropertyAdDialog({ open, onOpenChange, property, currentStatus }
 
   const generateAd = async () => {
     if (!property) return
+    if (!aiFeaturesEnabled) {
+      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+      return
+    }
 
     setIsGenerating(true)
     setIsGenerated(false)
