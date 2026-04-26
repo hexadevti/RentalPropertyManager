@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useKV } from '@/lib/useSupabaseKV'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useAuth } from '@/lib/AuthContext'
-import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
+import { hasAiFeatures } from '@/lib/usagePlans'
 import { useDateFormat } from '@/lib/DateFormatContext'
 import {
   buildDefaultNotificationConditions,
@@ -493,8 +493,8 @@ export default function NotificationsView() {
     fromLanguage: TemplateLanguage,
     toLanguage: TemplateLanguage
   ) => {
-    if (!hasAiFeatures(tenantUsagePlan?.planCode)) {
-      throw new Error(AI_PLAN_UPGRADE_MESSAGE)
+    if (!hasAiFeatures(tenantUsagePlan)) {
+      throw new Error(t.usage_plans_view.ai_upgrade_required_message)
     }
 
     if (!value.trim()) return value

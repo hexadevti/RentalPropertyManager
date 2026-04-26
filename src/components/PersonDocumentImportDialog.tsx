@@ -4,7 +4,8 @@ import { toast } from 'sonner'
 
 import { extractPersonFromImageFiles, type PersonAIDraft, type PersonImportTarget } from '@/lib/aiPersonImport'
 import { useAuth } from '@/lib/AuthContext'
-import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
+import { useLanguage } from '@/lib/LanguageContext'
+import { hasAiFeatures } from '@/lib/usagePlans'
 import { MobilePhotoCaptureDialog } from '@/components/MobilePhotoCaptureDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -68,6 +69,7 @@ export function PersonDocumentImportDialog({
   onApply,
 }: PersonDocumentImportDialogProps) {
   const { tenantUsagePlan } = useAuth()
+  const { t } = useLanguage()
   const [files, setFiles] = useState<File[]>([])
   const [isExtracting, setIsExtracting] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
@@ -77,7 +79,7 @@ export function PersonDocumentImportDialog({
   const [isDragOver, setIsDragOver] = useState(false)
   const filePickerRef = useRef<HTMLInputElement | null>(null)
   const cameraPickerRef = useRef<HTMLInputElement | null>(null)
-  const aiFeaturesEnabled = hasAiFeatures(tenantUsagePlan?.planCode)
+  const aiFeaturesEnabled = hasAiFeatures(tenantUsagePlan)
 
   useEffect(() => {
     const nextPreviewUrls = files.map((file) => URL.createObjectURL(file))
@@ -191,7 +193,7 @@ export function PersonDocumentImportDialog({
 
   const handleExtract = async () => {
     if (!aiFeaturesEnabled) {
-      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+      toast.error(t.usage_plans_view.ai_upgrade_required_message)
       return
     }
 
@@ -253,7 +255,7 @@ export function PersonDocumentImportDialog({
 
           {!aiFeaturesEnabled && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {AI_PLAN_UPGRADE_MESSAGE}
+              {t.usage_plans_view.ai_upgrade_required_message}
             </div>
           )}
 

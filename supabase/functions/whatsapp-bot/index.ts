@@ -1,5 +1,124 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { ensureAiPlanAccess } from '../_shared/aiPlan.ts'
+
+const STARTER_PLAN_CODE = 'starter'
+const AI_TOKEN_LIMIT_REACHED_MESSAGE = 'Limite mensal de tokens de IA atingido para o plano atual. Faça upgrade para continuar usando funcionalidades de IA.'
+const AI_BLOCKED_BY_PLAN_MESSAGE = 'Funcionalidades de IA estao bloqueadas para o plano atual. Ajuste o plano para habilitar o acesso.'
+
+function getUtcDateForAnchorDay(year: number, month: number, anchorDay: number) {
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+  const day = Math.min(Math.max(anchorDay, 1), daysInMonth)
+  return new Date(Date.UTC(year, month, day, 0, 0, 0, 0))
+}
+
+function resolveTenantCycleWindow(now: Date, anchorDay: number) {
+  const normalizedAnchorDay = Number.isFinite(anchorDay) && anchorDay > 0 ? Math.floor(anchorDay) : 1
+  let cycleStart = getUtcDateForAnchorDay(now.getUTCFullYear(), now.getUTCMonth(), normalizedAnchorDay)
+
+  if (now.getTime() < cycleStart.getTime()) {
+    const previousMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+    cycleStart = getUtcDateForAnchorDay(previousMonth.getUTCFullYear(), previousMonth.getUTCMonth(), normalizedAnchorDay)
+  }
+
+  const renewalDate = getUtcDateForAnchorDay(cycleStart.getUTCFullYear(), cycleStart.getUTCMonth() + 1, normalizedAnchorDay)
+  return { cycleStart, renewalDate }
+}
+
+async function getEffectiveTenantPlanCode(adminClient: any, tenantId: string) {
+  const { data, error } = await adminClient
+    .from('tenant_usage_plans')
+    .select('plan_code')
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message || 'Failed to resolve tenant usage plan.')
+  }
+
+  return String(data?.plan_code || STARTER_PLAN_CODE).trim().toLowerCase()
+}
+
+async function ensureAiPlanAccess(adminClient: any, tenantId: string) {
+  const planCode = await getEffectiveTenantPlanCode(adminClient, tenantId)
+
+  const { data: planData, error: planError } = await adminClient
+    .from('tenant_usage_plans')
+    .select('custom_max_ai_tokens, usage_plans(max_ai_tokens, ai_enabled)')
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+
+  if (planError) {
+    throw new Error(planError.message || 'Failed to resolve AI token limits for tenant plan.')
+  }
+
+  const customMaxAiTokens = Number(planData?.custom_max_ai_tokens ?? 0)
+  const baseMaxAiTokens = Number(planData?.usage_plans?.max_ai_tokens ?? 0)
+  const aiEnabled = planData?.usage_plans?.ai_enabled !== false
+  const maxAiTokens = Number.isFinite(customMaxAiTokens) && customMaxAiTokens > 0
+    ? customMaxAiTokens
+    : (Number.isFinite(baseMaxAiTokens) && baseMaxAiTokens > 0 ? baseMaxAiTokens : null)
+
+  if (!aiEnabled) {
+    return {
+      planCode,
+      allowed: false,
+      message: AI_BLOCKED_BY_PLAN_MESSAGE,
+      maxAiTokens,
+      usedAiTokens: 0,
+      remainingAiTokens: maxAiTokens,
+      reason: 'ai_blocked_by_plan',
+    }
+  }
+
+  const { data: tenantData, error: tenantError } = await adminClient
+    .from('tenants')
+    .select('created_at')
+    .eq('id', tenantId)
+    .maybeSingle()
+
+  if (tenantError) {
+    throw new Error(tenantError.message || 'Failed to resolve tenant creation date for AI cycle window.')
+  }
+
+  const anchorDay = tenantData?.created_at ? new Date(String(tenantData.created_at)).getUTCDate() : 1
+  const { cycleStart } = resolveTenantCycleWindow(new Date(), anchorDay)
+
+  const { data: usageRows, error: usageError } = await adminClient
+    .from('ai_usage_logs')
+    .select('total_tokens')
+    .eq('tenant_id', tenantId)
+    .gte('created_at', cycleStart.toISOString())
+
+  if (usageError) {
+    throw new Error(usageError.message || 'Failed to resolve tenant AI usage.')
+  }
+
+  const usedAiTokens = (usageRows || []).reduce((sum: number, row: any) => {
+    const total = Number(row?.total_tokens || 0)
+    return sum + (Number.isFinite(total) ? total : 0)
+  }, 0)
+
+  if (maxAiTokens !== null && usedAiTokens >= maxAiTokens) {
+    return {
+      planCode,
+      allowed: false,
+      message: AI_TOKEN_LIMIT_REACHED_MESSAGE,
+      maxAiTokens,
+      usedAiTokens,
+      remainingAiTokens: 0,
+      reason: 'ai_token_limit_reached',
+    }
+  }
+
+  return {
+    planCode,
+    allowed: true,
+    message: null,
+    maxAiTokens,
+    usedAiTokens,
+    remainingAiTokens: maxAiTokens === null ? null : Math.max(0, maxAiTokens - usedAiTokens),
+    reason: null,
+  }
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -346,7 +465,7 @@ Deno.serve(async (req: Request) => {
 
   const aiPlanAccess = await ensureAiPlanAccess(adminClient, tenantId)
   if (!aiPlanAccess.allowed) {
-    const reply = '🚫 Funcionalidades de IA não estão disponíveis no plano Starter. Faça upgrade para Professional ou Enterprise.'
+    const reply = `🚫 ${aiPlanAccess.message || 'Acesso de IA indisponível para o plano atual.'}`
     await log('blocked', reply, { tenantId, userLogin })
     return twimlResponse(reply)
   }

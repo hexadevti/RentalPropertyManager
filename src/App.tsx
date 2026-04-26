@@ -43,11 +43,13 @@ import { usePropertyMigration } from '@/hooks/use-property-migration'
 import { useUserPresence } from '@/hooks/use-user-presence'
 import { AppSidebar } from '@/components/AppSidebar'
 import { useTheme } from 'next-themes'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { detectRegionalPreferenceDefaults } from '@/lib/regionalPreferences'
 import { APP_TABS_BY_ACCESS_ROLE, EXTRA_ACCESS_CONTROLLED_TABS } from '@/lib/accessControl'
+import { hasAiFeatures } from '@/lib/usagePlans'
 import type { AccessRoleId } from './types'
 
 type TenantOption = {
@@ -175,6 +177,7 @@ function AppContent() {
     currentUser,
     currentTenantId,
     setSessionTenant,
+    tenantUsagePlan,
   } = useAuth()
   const { signInWithEmail } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
@@ -264,6 +267,15 @@ function AppContent() {
   
   const canRead = (roleId: AccessRoleId) => hasAccess(roleId, 'read')
   const canWrite = (roleId: AccessRoleId) => hasAccess(roleId, 'write')
+  const shouldShowUpgradeLink = !hasAiFeatures(tenantUsagePlan) && canRead('tenant')
+
+  const openUpgradeFlow = () => {
+    setActiveTab('tenant')
+    const nextUrl = new URL(window.location.href)
+    nextUrl.searchParams.set('tab', 'tenant')
+    nextUrl.searchParams.set('billing', 'upgrade')
+    window.history.replaceState({}, document.title, `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+  }
 
   useEffect(() => {
     const roleBasedTabs = [
@@ -398,6 +410,11 @@ function AppContent() {
                       </SelectContent>
                     </Select>
                   </div>
+                )}
+                {shouldShowUpgradeLink && (
+                  <Button onClick={openUpgradeFlow} className="w-full xl:w-auto" size="sm">
+                    Fazer upgrade
+                  </Button>
                 )}
                 <UserInfo
                   activeTab={activeTab}

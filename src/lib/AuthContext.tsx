@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { setSupabaseAuthState } from '@/lib/supabaseAuthState'
 import { logAppAudit } from '@/lib/appAudit'
 import { deriveUserRoleFromAccessProfileId, hasRequiredAccessLevel, normalizeAccessLevel, resolveDefaultAccessProfileId } from '@/lib/accessControl'
-import { fetchTenantUsagePlan, isStarterPlan } from '@/lib/usagePlans'
+import { fetchTenantUsagePlan } from '@/lib/usagePlans'
 import { ACCESS_ROLES } from '@/types'
 import type { AccessLevel, AccessProfile, AccessRoleId, UserProfile, UserRole, UserStatus } from '@/types'
 import type { TenantUsagePlan } from '@/lib/usagePlans'
@@ -736,8 +736,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasRole = (role: UserRole) => userProfile?.role === role
 
   const hasAccess = (roleId: AccessRoleId, requiredLevel: AccessLevel = 'read') => {
-    if (roleId === 'ai-assistant' && isStarterPlan(tenantUsagePlan?.planCode)) return false
+    if (roleId === 'ai-assistant' && tenantUsagePlan?.aiEnabled === false) return false
     if (isPlatformAdmin) return true
+    if (hasRole('admin')) {
+      return hasRequiredAccessLevel(accessLevels[roleId], requiredLevel)
+    }
     const planRoles = tenantUsagePlan?.allowedAccessRoleIds || []
     if (planRoles.length > 0 && !planRoles.includes(roleId)) return false
     return hasRequiredAccessLevel(accessLevels[roleId], requiredLevel)

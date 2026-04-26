@@ -22,6 +22,7 @@ type TenantPlanRow = {
   plan_code: string
   custom_max_properties: number | null
   custom_max_users: number | null
+  custom_max_ai_tokens: number | null
   notes: string | null
 }
 
@@ -41,11 +42,15 @@ export default function UsagePlansView() {
   const [selectedTenantId, setSelectedTenantId] = useState('')
   const [plans, setPlans] = useState<UsagePlanCatalogItem[]>([])
   const [selectedPlanCode, setSelectedPlanCode] = useState('starter')
+  const [planMaxAiTokens, setPlanMaxAiTokens] = useState('')
+  const [planAiEnabled, setPlanAiEnabled] = useState<'enabled' | 'blocked'>('enabled')
   const [customMaxProperties, setCustomMaxProperties] = useState('')
   const [customMaxUsers, setCustomMaxUsers] = useState('')
+  const [customMaxAiTokens, setCustomMaxAiTokens] = useState('')
   const [notes, setNotes] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isSavingPlanCatalog, setIsSavingPlanCatalog] = useState(false)
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan.code === selectedPlanCode) || null,
@@ -82,7 +87,7 @@ export default function UsagePlansView() {
     if (!tenantId) return
     const { data, error } = await supabase
       .from('tenant_usage_plans')
-      .select('tenant_id, plan_code, custom_max_properties, custom_max_users, notes')
+      .select('tenant_id, plan_code, custom_max_properties, custom_max_users, custom_max_ai_tokens, notes')
       .eq('tenant_id', tenantId)
       .maybeSingle()
 
@@ -96,6 +101,7 @@ export default function UsagePlansView() {
       setSelectedPlanCode('starter')
       setCustomMaxProperties('')
       setCustomMaxUsers('')
+      setCustomMaxAiTokens('')
       setNotes('')
       return
     }
@@ -103,6 +109,7 @@ export default function UsagePlansView() {
     setSelectedPlanCode(row.plan_code)
     setCustomMaxProperties(row.custom_max_properties ? String(row.custom_max_properties) : '')
     setCustomMaxUsers(row.custom_max_users ? String(row.custom_max_users) : '')
+    setCustomMaxAiTokens(row.custom_max_ai_tokens ? String(row.custom_max_ai_tokens) : '')
     setNotes(row.notes || '')
   }, [])
 
@@ -125,6 +132,11 @@ export default function UsagePlansView() {
     void loadTenantPlan(selectedTenantId)
   }, [selectedTenantId, loadTenantPlan])
 
+  useEffect(() => {
+    setPlanMaxAiTokens(selectedPlan?.maxAiTokens ? String(selectedPlan.maxAiTokens) : '')
+    setPlanAiEnabled(selectedPlan?.aiEnabled === false ? 'blocked' : 'enabled')
+  }, [selectedPlan])
+
   const handleSave = async () => {
     if (!selectedTenantId) {
       toast.error(t.usage_plans_view.select_tenant_error)
@@ -143,6 +155,7 @@ export default function UsagePlansView() {
         plan_code: selectedPlanCode,
         custom_max_properties: toNullablePositiveInt(customMaxProperties),
         custom_max_users: toNullablePositiveInt(customMaxUsers),
+        custom_max_ai_tokens: toNullablePositiveInt(customMaxAiTokens),
         notes: notes.trim() || null,
         updated_at: new Date().toISOString(),
       }
@@ -164,11 +177,45 @@ export default function UsagePlansView() {
     }
   }
 
+  const handleSavePlanCatalog = async () => {
+    if (!selectedPlanCode) {
+      toast.error(t.usage_plans_view.select_plan_error)
+      return
+    }
+
+    setIsSavingPlanCatalog(true)
+    try {
+      const { error } = await supabase
+        .from('usage_plans')
+        .update({
+          max_ai_tokens: toNullablePositiveInt(planMaxAiTokens),
+          ai_enabled: planAiEnabled === 'enabled',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('code', selectedPlanCode)
+
+      if (error) throw error
+
+      setPlans((current) => current.map((plan) => (
+        plan.code === selectedPlanCode
+          ? { ...plan, maxAiTokens: toNullablePositiveInt(planMaxAiTokens), aiEnabled: planAiEnabled === 'enabled' }
+          : plan
+      )))
+
+      toast.success(t.usage_plans_view.save_plan_ai_settings_success)
+    } catch (error: any) {
+      toast.error(error?.message || t.usage_plans_view.save_plan_ai_settings_error)
+    } finally {
+      setIsSavingPlanCatalog(false)
+    }
+  }
+
   const handlePlanCardSelect = (planCode: string) => {
     setSelectedPlanCode(planCode)
     // Reset overrides so selected plan baseline values are applied.
     setCustomMaxProperties('')
     setCustomMaxUsers('')
+    setCustomMaxAiTokens('')
     setNotes('')
   }
 
@@ -231,7 +278,36 @@ export default function UsagePlansView() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-border p-4 space-y-3">
+            <p className="text-sm font-medium">{t.usage_plans_view.plan_config_title}</p>
+            <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+              <div className="space-y-2">
+                <Label>{t.usage_plans_view.ai_feature_access_label}</Label>
+                <Select value={planAiEnabled} onValueChange={(value: 'enabled' | 'blocked') => setPlanAiEnabled(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="enabled">{t.usage_plans_view.ai_feature_enabled}</SelectItem>
+                    <SelectItem value="blocked">{t.usage_plans_view.ai_feature_blocked}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t.usage_plans_view.plan_max_ai_tokens_catalog}</Label>
+                <Input
+                  value={planMaxAiTokens}
+                  onChange={(event) => setPlanMaxAiTokens(event.target.value)}
+                  placeholder={t.usage_plans_view.unlimited}
+                />
+              </div>
+              <Button onClick={handleSavePlanCatalog} disabled={isSavingPlanCatalog || !selectedPlanCode}>
+                {isSavingPlanCatalog ? t.usage_plans_view.saving : t.usage_plans_view.save_plan_ai_settings}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label>{t.usage_plans_view.max_properties_override}</Label>
               <Input
@@ -246,6 +322,14 @@ export default function UsagePlansView() {
                 value={customMaxUsers}
                 onChange={(event) => setCustomMaxUsers(event.target.value)}
                 placeholder={selectedPlan?.maxUsers ? String(selectedPlan.maxUsers) : t.usage_plans_view.unlimited}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t.usage_plans_view.max_ai_tokens_override}</Label>
+              <Input
+                value={customMaxAiTokens}
+                onChange={(event) => setCustomMaxAiTokens(event.target.value)}
+                placeholder={selectedPlan?.maxAiTokens ? String(selectedPlan.maxAiTokens) : t.usage_plans_view.unlimited}
               />
             </div>
           </div>
@@ -290,6 +374,12 @@ export default function UsagePlansView() {
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {t.usage_plans_view.properties_count}: {plan.maxProperties ?? t.usage_plans_view.unlimited} | {t.usage_plans_view.users_count}: {plan.maxUsers ?? t.usage_plans_view.unlimited}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t.usage_plans_view.ai_tokens_per_month_label}: {plan.maxAiTokens?.toLocaleString() ?? t.usage_plans_view.unlimited}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t.usage_plans_view.ai_status_label}: {plan.aiEnabled === false ? t.usage_plans_view.ai_feature_blocked : t.usage_plans_view.ai_feature_enabled}
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">

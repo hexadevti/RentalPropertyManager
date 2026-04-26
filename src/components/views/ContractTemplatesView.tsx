@@ -20,7 +20,7 @@ import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useDateFormat } from '@/lib/DateFormatContext'
-import { AI_PLAN_UPGRADE_MESSAGE, hasAiFeatures } from '@/lib/usagePlans'
+import { hasAiFeatures } from '@/lib/usagePlans'
 import RichTextEditor, { plainTextToHTML, RichTextEditorHandle } from '@/components/RichTextEditor'
 import { buildTemplateXPathContext, renderContractTemplateContent, resolveTemplateXPath, TemplateXPathContext } from '@/lib/contractPDF'
 import { getContractSelectionLabel } from '@/lib/contractLabels'
@@ -166,8 +166,8 @@ export default function ContractTemplatesView() {
   }
 
   const handleAddTranslationWithAI = async (sourceTemplate: ContractTemplate, targetLanguage: TemplateLanguage) => {
-    if (!hasAiFeatures(tenantUsagePlan?.planCode)) {
-      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+    if (!hasAiFeatures(tenantUsagePlan)) {
+      toast.error(t.usage_plans_view.ai_upgrade_required_message)
       return
     }
 
@@ -298,8 +298,8 @@ export default function ContractTemplatesView() {
   }, [templates, editingTemplate, formData.translationGroupId, formData.language])
 
   const handleTranslateFrom = async (sourceTemplate: ContractTemplate) => {
-    if (!hasAiFeatures(tenantUsagePlan?.planCode)) {
-      toast.error(AI_PLAN_UPGRADE_MESSAGE)
+    if (!hasAiFeatures(tenantUsagePlan)) {
+      toast.error(t.usage_plans_view.ai_upgrade_required_message)
       return
     }
 
