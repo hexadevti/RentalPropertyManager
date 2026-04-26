@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Eye, EyeSlash, SignIn, GithubLogo, GoogleLogo, ArrowLeft } from '@phosphor-icons/react'
 import Register from '@/components/Register'
+import { useLanguage } from '@/lib/LanguageContext'
 
 interface LoginProps {
   onBack?: () => void
@@ -14,6 +15,7 @@ interface LoginProps {
 
 export function Login({ onBack }: LoginProps = {}) {
   const { signInWithEmail, signInWithGitHub, signInWithGoogle, signInWithDevCredentials } = useAuth()
+  const { t } = useLanguage()
   const [showRegister, setShowRegister] = useState(() => new URLSearchParams(window.location.search).has('invite'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -31,7 +33,7 @@ export function Login({ onBack }: LoginProps = {}) {
     try {
       await signInWithDevCredentials(devUserEmail)
     } catch {
-      setDevSignInError('Nao foi possivel entrar automaticamente no modo desenvolvimento.')
+      setDevSignInError(t.login_view.dev_auto_sign_in_failed)
     } finally {
       setIsDevSigningIn(false)
     }
@@ -57,9 +59,11 @@ export function Login({ onBack }: LoginProps = {}) {
             <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
               <div className="h-7 w-7 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
-            <CardTitle className="text-2xl font-bold">Modo Desenvolvimento</CardTitle>
+            <CardTitle className="text-2xl font-bold">{t.login_view.dev_mode_title}</CardTitle>
             <CardDescription>
-              {isDevSigningIn ? `Entrando automaticamente com ${devUserEmail}` : `Auto-login preparado para ${devUserEmail}`}
+              {isDevSigningIn
+                ? t.login_view.dev_auto_signing_in_with_email.replace('{email}', devUserEmail)
+                : t.login_view.dev_auto_login_ready_with_email.replace('{email}', devUserEmail)}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-2">
@@ -67,7 +71,7 @@ export function Login({ onBack }: LoginProps = {}) {
               <p className="text-sm text-destructive text-center mb-3">{devSignInError}</p>
             )}
             <Button className="w-full" onClick={tryDevSignIn} disabled={isDevSigningIn}>
-              {isDevSigningIn ? 'Entrando...' : 'Tentar novamente'}
+              {isDevSigningIn ? t.login_view.signing_in : t.login_view.try_again}
             </Button>
           </CardContent>
         </Card>
@@ -93,11 +97,11 @@ export function Login({ onBack }: LoginProps = {}) {
     } catch (err: any) {
       const msg = err?.message || ''
       if (msg.includes('Invalid login credentials') || msg.includes('invalid_credentials')) {
-        setError('E-mail ou senha incorretos.')
+        setError(t.login_view.invalid_credentials)
       } else if (msg.includes('Email not confirmed')) {
-        setError('Confirme seu e-mail antes de entrar.')
+        setError(t.login_view.email_not_confirmed)
       } else {
-        setError('Não foi possível entrar. Tente novamente.')
+        setError(t.login_view.sign_in_failed)
       }
     } finally {
       setIsSubmitting(false)
@@ -110,7 +114,7 @@ export function Login({ onBack }: LoginProps = {}) {
     try {
       await signInWithGitHub()
     } catch {
-      setError('Nao foi possivel entrar com GitHub.')
+      setError(t.login_view.github_sign_in_failed)
       setIsSubmitting(false)
     }
   }
@@ -121,7 +125,7 @@ export function Login({ onBack }: LoginProps = {}) {
     try {
       await signInWithGoogle()
     } catch {
-      setError('Nao foi possivel entrar com Google.')
+      setError(t.login_view.google_sign_in_failed)
       setIsSubmitting(false)
     }
   }
@@ -133,11 +137,17 @@ export function Login({ onBack }: LoginProps = {}) {
           <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
             <SignIn size={30} weight="duotone" className="text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Entrar no RPM - Rental Property Manager</CardTitle>
-          <CardDescription>Acesse sua conta para continuar</CardDescription>
+          <CardTitle className="text-2xl font-bold">{t.login_view.title}</CardTitle>
+          <CardDescription>{t.login_view.subtitle}</CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Separator className="flex-1" />
+            <span className="text-xs text-muted-foreground">{t.login_view.social_separator}</span>
+            <Separator className="flex-1" />
+          </div>
+
           <Button
             variant="outline"
             className="w-full gap-2"
@@ -146,7 +156,7 @@ export function Login({ onBack }: LoginProps = {}) {
             disabled={isSubmitting}
           >
             <GoogleLogo size={18} weight="bold" />
-            Entrar com Google
+            {t.login_view.sign_in_with_google}
           </Button>
 
           <Button
@@ -157,38 +167,38 @@ export function Login({ onBack }: LoginProps = {}) {
             disabled={isSubmitting}
           >
             <GithubLogo size={18} weight="bold" />
-            Entrar com GitHub
+            {t.login_view.sign_in_with_github}
           </Button>
 
           <div className="flex items-center gap-3">
             <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground">ou</span>
+            <span className="text-xs text-muted-foreground">{t.login_view.or}</span>
             <Separator className="flex-1" />
           </div>
 
           <form onSubmit={handleEmailLogin} className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="email">{t.login_view.email_label}</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
+                placeholder={t.login_view.email_placeholder}
                 required
                 autoComplete="email"
               />
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password">{t.login_view.password_label}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="********"
                   required
                   autoComplete="current-password"
                   className="pr-10"
@@ -207,23 +217,20 @@ export function Login({ onBack }: LoginProps = {}) {
             {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
             <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
-              {isSubmitting ? 'Entrando...' : 'Entrar'}
+              {isSubmitting ? t.login_view.signing_in : t.login_view.sign_in_button}
             </Button>
           </form>
         </CardContent>
 
         <CardFooter className="flex-col gap-2 pt-0">
           <p className="text-sm text-muted-foreground text-center">
-            Não tem conta?{' '}
+            {t.login_view.no_account}{' '}
             <button
               className="text-primary font-medium hover:underline"
               onClick={() => setShowRegister(true)}
             >
-              Criar conta
+              {t.login_view.create_account}
             </button>
-          </p>
-          <p className="text-xs text-muted-foreground text-center">
-            Novos cadastros aguardam aprovação de um administrador.
           </p>
           {onBack && (
             <button
@@ -231,7 +238,7 @@ export function Login({ onBack }: LoginProps = {}) {
               onClick={onBack}
             >
               <ArrowLeft size={12} />
-              Voltar ao site
+              {t.login_view.back_to_site}
             </button>
           )}
         </CardFooter>

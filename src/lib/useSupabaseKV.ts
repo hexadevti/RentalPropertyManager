@@ -31,6 +31,7 @@ const COLLECTION_KEYS = new Set([
 function isSettingKey(key: string) {
   return key === 'app-language'
     || key === 'app-currency'
+    || key === 'app-date-format'
     || key === 'app-decimal-separator'
     || key === 'app-phone-mask'
     || key === 'app-phone-masks'
@@ -270,6 +271,7 @@ async function loadProperties() {
     { data: propertyEnvironments, error: environmentsError },
     { data: propertyFurniture, error: furnitureError },
     { data: propertyInspectionItems, error: inspectionItemsError },
+    { data: propertyPhotos, error: propertyPhotosError },
   ] = await Promise.all([
     supabase
       .from('properties')
@@ -298,6 +300,13 @@ async function loadProperties() {
       .eq('tenant_id', tenantId)
       .order('property_id', { ascending: true })
       .order('item_order', { ascending: true }),
+    supabase
+      .from('property_photos')
+      .select('id, property_id, file_name, file_path, file_size, mime_type, is_cover, sort_order, created_at')
+      .eq('tenant_id', tenantId)
+      .order('property_id', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
   ])
 
   if (propertiesError) throw propertiesError
@@ -305,6 +314,13 @@ async function loadProperties() {
   if (environmentsError) throw environmentsError
   if (furnitureError) throw furnitureError
   if (inspectionItemsError) throw inspectionItemsError
+  if (propertyPhotosError) throw propertyPhotosError
+
+  // Load iCal feeds separately — table may not exist yet if migration 173 hasn't been applied
+  const { data: propertyICalFeeds } = await supabase
+    .from('property_ical_feeds')
+    .select('id, property_id, provider, label, url')
+    .eq('tenant_id', tenantId)
 
   const ownerMap = new Map<string, string[]>()
   for (const row of propertyOwners || []) {
@@ -332,6 +348,38 @@ async function loadProperties() {
     inspectionItemsMap.set(row.property_id, currentItems)
   }
 
+  const icalFeedsMap = new Map<string, { id: string; provider: string; label: string; url: string }[]>()
+  for (const row of propertyICalFeeds || []) {
+    const current = icalFeedsMap.get(row.property_id) || []
+    current.push({ id: row.id, provider: row.provider, label: row.label, url: row.url })
+    icalFeedsMap.set(row.property_id, current)
+  }
+
+  const photosMap = new Map<string, {
+    id: string
+    fileName: string
+    filePath: string
+    fileSize?: number
+    mimeType?: string
+    isCover: boolean
+    sortOrder: number
+    createdAt: string
+  }[]>()
+  for (const row of propertyPhotos || []) {
+    const currentItems = photosMap.get(row.property_id) || []
+    currentItems.push({
+      id: row.id,
+      fileName: row.file_name,
+      filePath: row.file_path,
+      fileSize: row.file_size || undefined,
+      mimeType: row.mime_type || undefined,
+      isCover: Boolean(row.is_cover),
+      sortOrder: row.sort_order ?? 0,
+      createdAt: row.created_at,
+    })
+    photosMap.set(row.property_id, currentItems)
+  }
+
   return (properties || []).map((property) => ({
     id: property.id,
     name: property.name,
@@ -339,7 +387,8 @@ async function loadProperties() {
     capacity: property.capacity,
     pricePerNight: property.price_per_night,
     pricePerMonth: property.price_per_month,
-    status: property.status,
+    // Property availability is derived from active contracts, not persisted.
+    status: 'available',
     address: property.address || undefined,
     city: property.city || undefined,
     conservationState: property.conservation_state || undefined,
@@ -348,6 +397,8 @@ async function loadProperties() {
     inspectionItems: inspectionItemsMap.get(property.id) || [],
     description: property.description,
     ownerIds: ownerMap.get(property.id) || [],
+    photos: photosMap.get(property.id) || [],
+    icalFeeds: icalFeedsMap.get(property.id) || [],
     createdAt: property.created_at,
   }))
 }
@@ -483,6 +534,7 @@ async function loadContracts() {
     status: contract.status,
     notes: contract.notes || undefined,
     templateId: contract.template_id || undefined,
+    icalUid: contract.ical_uid || undefined,
     createdAt: contract.created_at,
   }))
 }
@@ -613,6 +665,8 @@ async function loadTemplates() {
     id: template.id,
     name: template.name,
     type: template.type,
+    language: template.language || 'pt',
+    translationGroupId: template.translation_group_id || template.id,
     content: template.content,
     createdAt: template.created_at,
     updatedAt: template.updated_at,
@@ -637,6 +691,8 @@ async function loadNotificationTemplates() {
     channel: template.channel,
     eventType: template.event_type || 'general',
     contentType: template.content_type || 'html',
+    language: template.language || 'pt',
+    translationGroupId: template.translation_group_id || template.id,
     description: template.description || undefined,
     subject: template.subject || undefined,
     content: template.content,
@@ -942,7 +998,6 @@ async function persistProperties(value: any[]) {
     capacity: property.capacity,
     price_per_night: property.pricePerNight,
     price_per_month: property.pricePerMonth,
-    status: property.status,
     address: property.address || null,
     city: property.city || null,
     conservation_state: property.conservationState || null,
@@ -1039,6 +1094,59 @@ async function persistProperties(value: any[]) {
 
   if (propertyInspectionItems.length > 0) {
     const { error } = await supabase.from('property_inspection_items').insert(propertyInspectionItems)
+    if (error) throw error
+  }
+
+  // Save iCal feeds — table may not exist yet if migration 173 hasn't been applied
+  const icalFeedRows = value.flatMap((property) =>
+    (property.icalFeeds || []).map((feed: any) => ({
+      id: feed.id,
+      tenant_id: tenantId,
+      property_id: property.id,
+      provider: feed.provider,
+      label: feed.label || '',
+      url: feed.url,
+    }))
+  )
+
+  const { error: deleteICalFeedsError } = await supabase
+    .from('property_ical_feeds')
+    .delete()
+    .eq('tenant_id', tenantId)
+
+  if (deleteICalFeedsError) {
+    console.error('property_ical_feeds table not available (migration 173 not applied?):', deleteICalFeedsError.message)
+  } else if (icalFeedRows.length > 0) {
+    const { error: insertICalFeedsError } = await supabase.from('property_ical_feeds').insert(icalFeedRows)
+    if (insertICalFeedsError) {
+      console.error('Failed to save iCal feeds:', insertICalFeedsError.message)
+    }
+  }
+
+  const { error: deletePhotosError } = await supabase
+    .from('property_photos')
+    .delete()
+    .eq('tenant_id', tenantId)
+
+  if (deletePhotosError) throw deletePhotosError
+
+  const propertyPhotos = value.flatMap((property) =>
+    (property.photos || []).map((photo: any, index: number) => ({
+      tenant_id: tenantId,
+      id: photo.id,
+      property_id: property.id,
+      file_name: photo.fileName,
+      file_path: photo.filePath,
+      file_size: photo.fileSize || null,
+      mime_type: photo.mimeType || null,
+      is_cover: Boolean(photo.isCover),
+      sort_order: Number.isFinite(photo.sortOrder) ? photo.sortOrder : index,
+      created_at: photo.createdAt,
+    }))
+  )
+
+  if (propertyPhotos.length > 0) {
+    const { error } = await supabase.from('property_photos').insert(propertyPhotos)
     if (error) throw error
   }
 }
@@ -1145,6 +1253,7 @@ async function persistContracts(value: any[]) {
     status: contract.status,
     notes: contract.notes || null,
     template_id: contract.templateId || null,
+    ical_uid: contract.icalUid || null,
     created_at: contract.createdAt,
   })))
 
@@ -1259,6 +1368,8 @@ async function persistTemplates(value: any[]) {
     id: template.id,
     name: template.name,
     type: template.type,
+    language: template.language || 'pt',
+    translation_group_id: template.translationGroupId || template.id,
     content: template.content,
     created_at: template.createdAt,
     updated_at: template.updatedAt,
@@ -1276,6 +1387,8 @@ async function persistNotificationTemplates(value: any[]) {
     channel: template.channel,
     event_type: template.eventType || 'general',
     content_type: template.contentType || 'html',
+    language: template.language || 'pt',
+    translation_group_id: template.translationGroupId || template.id,
     description: template.description || null,
     subject: template.subject || null,
     content: template.content,

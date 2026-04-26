@@ -9,23 +9,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { useAuth } from '@/lib/AuthContext'
 import { useLanguage } from '@/lib/LanguageContext'
-import { useCurrency, currencies, Currency } from '@/lib/CurrencyContext'
+import { useCurrency, Currency } from '@/lib/CurrencyContext'
 import { useNumberFormat } from '@/lib/NumberFormatContext'
 import { usePhoneFormat } from '@/lib/PhoneFormatContext'
 import { useDateFormat, dateFormats, DateFormat } from '@/lib/DateFormatContext'
 import type { DecimalSeparator } from '@/lib/numberFormat'
 import { SignOut, Globe, CurrencyCircleDollar, CalendarBlank, IdentificationCard, EnvelopeSimple, MoonStars } from '@phosphor-icons/react'
 import { toast } from 'sonner'
+import { BugReportDialog } from '@/components/BugReportDialog'
+import { ContactUsDialog } from '@/components/ContactUsDialog'
 
 interface UserProfileSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  activeTab?: string
+  activeTabLabel?: string
+  tabTitleMap?: Record<string, string>
 }
 
-export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) {
-  const { currentUser, userProfile, signOut } = useAuth()
+export function UserProfileSheet({ open, onOpenChange, activeTab = '', activeTabLabel = '', tabTitleMap = {} }: UserProfileSheetProps) {
+  const { currentUser, userProfile, accessProfile, tenantName, currentTenantId, signOut } = useAuth()
   const { t, setLanguage, language } = useLanguage()
-  const { currency, setCurrency } = useCurrency()
+  const { currency, setCurrency, availableCurrencies } = useCurrency()
   const { decimalSeparator, setDecimalSeparator } = useNumberFormat()
   const { validPhoneMasks, setValidPhoneMasks } = usePhoneFormat()
   const { dateFormat, setDateFormat } = useDateFormat()
@@ -35,8 +40,10 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
 
   const login = currentUser?.login || userProfile?.githubLogin || 'user'
   const initials = login.slice(0, 2).toUpperCase()
-  const roleLabel = userProfile?.role === 'admin' ? (t.roles?.admin || 'Administrator') : (t.roles?.guest || 'Guest')
+  const roleLabel = accessProfile?.name || 'Perfil padrao'
   const roleColor = userProfile?.role === 'admin' ? 'default' : 'secondary'
+  const resolvedTenantName = tenantName || currentTenantId || '—'
+  const resolvedPhone = userProfile.phone || '—'
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -88,11 +95,6 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
   }
 
   const handleRemovePhoneMask = (mask: string) => {
-    if (validPhoneMasks.length <= 1) {
-      toast.error(t.settings_view.phone_mask_keep_one)
-      return
-    }
-
     setValidPhoneMasks(validPhoneMasks.filter((item) => item !== mask))
   }
 
@@ -118,25 +120,43 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
 
         <Separator />
 
-        <div className="py-4 space-y-3">
+        <div className="py-3 space-y-2.5">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">
             {t.settings_view.identity_section}
           </p>
 
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <IdentificationCard size={13} />
-              {t.settings_view.user_id}
-            </Label>
-            <p className="text-sm font-mono bg-muted rounded px-2 py-1 break-all select-all">{currentUser.id}</p>
-          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+              <Label className="text-[11px] leading-none text-muted-foreground flex items-center gap-1.5">
+                <IdentificationCard size={12} />
+                {t.settings_view.user_id}
+              </Label>
+              <p className="text-xs font-mono break-all select-all">{currentUser.id}</p>
+            </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-              <EnvelopeSimple size={13} />
-              {t.guests_view.form.email}
-            </Label>
-            <p className="text-sm bg-muted rounded px-2 py-1">{currentUser.email || userProfile.email || '—'}</p>
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+              <Label className="text-[11px] leading-none text-muted-foreground flex items-center gap-1.5">
+                <EnvelopeSimple size={12} />
+                {t.guests_view.form.email}
+              </Label>
+              <p className="text-xs break-all">{currentUser.email || userProfile.email || '—'}</p>
+            </div>
+
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+              <Label className="text-[11px] leading-none text-muted-foreground flex items-center gap-1.5">
+                <IdentificationCard size={12} />
+                {t.settings_view.tenant_label}
+              </Label>
+              <p className="text-xs break-all">{resolvedTenantName}</p>
+            </div>
+
+            <div className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+              <Label className="text-[11px] leading-none text-muted-foreground flex items-center gap-1.5">
+                <IdentificationCard size={12} />
+                {t.settings_view.phone_label}
+              </Label>
+              <p className="text-xs break-all">{resolvedPhone}</p>
+            </div>
           </div>
         </div>
 
@@ -189,7 +209,7 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(currencies).map(([code, config]) => (
+                {Object.entries(availableCurrencies).map(([code, config]) => (
                   <SelectItem key={code} value={code}>
                     {config.symbol} - {config.name}
                   </SelectItem>
@@ -243,16 +263,22 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
               <p className="text-xs font-medium text-muted-foreground">
                 {t.settings_view.valid_masks}
               </p>
-              <div className="space-y-2">
-                {validPhoneMasks.map((mask) => (
-                  <div key={mask} className="flex items-center justify-between gap-2 rounded bg-muted px-2 py-1 text-sm">
-                    <span className="font-mono">{mask}</span>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => handleRemovePhoneMask(mask)}>
-                      {t.settings_view.remove_mask}
-                    </Button>
-                  </div>
-                ))}
-              </div>
+              {validPhoneMasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma mascara cadastrada. O campo de telefone ficara livre para digitacao.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {validPhoneMasks.map((mask) => (
+                    <div key={mask} className="flex items-center justify-between gap-2 rounded bg-muted px-2 py-1 text-sm">
+                      <span className="font-mono">{mask}</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => handleRemovePhoneMask(mask)}>
+                        {t.settings_view.remove_mask}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   value={newPhoneMask}
@@ -271,7 +297,14 @@ export function UserProfileSheet({ open, onOpenChange }: UserProfileSheetProps) 
 
         <Separator />
 
-        <div className="pt-4">
+        <div className="pt-4 space-y-2">
+          <BugReportDialog
+            activeTab={activeTab}
+            activeTabLabel={activeTabLabel}
+            tabTitleMap={tabTitleMap}
+            fullWidth
+          />
+          <ContactUsDialog fullWidth />
           <Button
             variant="outline"
             className="w-full gap-2 text-destructive hover:text-destructive"

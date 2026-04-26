@@ -20,6 +20,7 @@ type BugReportDialogProps = {
   activeTab: string
   activeTabLabel: string
   tabTitleMap: Record<string, string>
+  fullWidth?: boolean
 }
 
 type RecordOption = {
@@ -42,7 +43,7 @@ function isUuid(value: string | null | undefined) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
-export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugReportDialogProps) {
+export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap, fullWidth }: BugReportDialogProps) {
   const { currentUser, currentTenantId } = useAuth()
   const { t } = useLanguage()
   const [properties] = useKV<Property[]>('properties', [])
@@ -216,20 +217,21 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
+        <Button variant="outline" size="sm" className={`gap-2${fullWidth ? ' w-full' : ''}`}>
           <Bug size={16} weight="duotone" />
           {t.bug_report_dialog.trigger_label}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[90vh] max-w-2xl">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle>{t.bug_report_dialog.title}</DialogTitle>
           <DialogDescription>
             {t.bug_report_dialog.description}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} onPaste={handlePaste} className="space-y-4">
+        <form onSubmit={handleSubmit} onPaste={handlePaste} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="bug-screen">{t.bug_report_dialog.screen}</Label>
@@ -300,7 +302,8 @@ export function BugReportDialog({ activeTab, activeTabLabel, tabTitleMap }: BugR
             )}
           </div>
 
-          <DialogFooter>
+          </div>
+          <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isSubmitting}>
               {t.bug_report_dialog.cancel}
             </Button>

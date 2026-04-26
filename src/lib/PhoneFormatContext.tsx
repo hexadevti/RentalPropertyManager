@@ -1,12 +1,12 @@
-import { createContext, ReactNode, useContext } from 'react'
+import { createContext, ReactNode, useContext, useMemo } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { formatPhoneByMasks, isValidPhoneByMasks, sanitizeMasks } from '@/lib/phoneFormat'
 
 export const phoneMasks = [
   { value: '(xx) xxxxx-xxxx', label: '(xx) xxxxx-xxxx' },
   { value: '(xx) xxxx-xxxx', label: '(xx) xxxx-xxxx' },
-  { value: 'xxxxx-xxxx', label: 'xxxxx-xxxx' },
-  { value: 'xxxx-xxxx', label: 'xxxx-xxxx' },
+  { value: '+1 (xxx) xxx-xxxx', label: '+1 (xxx) xxx-xxxx' },
+  { value: '+xx xx xxxx xxxx', label: '+xx xx xxxx xxxx' },
 ] as const
 
 export type PhoneMask = typeof phoneMasks[number]['value']
@@ -21,9 +21,14 @@ interface PhoneFormatContextType {
 const PhoneFormatContext = createContext<PhoneFormatContextType | undefined>(undefined)
 
 export function PhoneFormatProvider({ children }: { children: ReactNode }) {
-  const [savedPhoneMasks, setSavedPhoneMasks] = useKV<string[]>('app-phone-masks', phoneMasks.map((mask) => mask.value))
+  const [savedPhoneMasks, setSavedPhoneMasks] = useKV<string[]>('app-phone-masks', [])
 
-  const validPhoneMasks = sanitizeMasks(savedPhoneMasks?.length ? savedPhoneMasks : phoneMasks.map((mask) => mask.value))
+  const normalizedSavedPhoneMasks = useMemo(
+    () => sanitizeMasks(savedPhoneMasks?.length ? savedPhoneMasks : []),
+    [savedPhoneMasks]
+  )
+
+  const validPhoneMasks = normalizedSavedPhoneMasks
 
   return (
     <PhoneFormatContext.Provider

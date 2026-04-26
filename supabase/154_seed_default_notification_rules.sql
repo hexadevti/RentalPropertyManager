@@ -46,7 +46,7 @@ begin
     '["admin"]'::jsonb,
     '[]'::jsonb,
     rule_defaults.days_before,
-    true,
+    rule_defaults.event_type = 'user-access',
     v_now,
     v_now
   from (

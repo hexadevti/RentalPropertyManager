@@ -260,7 +260,7 @@ function findWhitespaceBreakY(
   sampleStep = 3,
   maxInkRatio = 0.01
 ): number {
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return preferredY
 
   const safePreferredY = Math.max(1, Math.min(canvas.height - 2, Math.floor(preferredY)))
@@ -308,7 +308,18 @@ function findWhitespaceBreakY(
 
 // ── HTML-based PDF generation (rich text templates) ──────────────────────────
 
-export async function generatePDFFromHTML(htmlContent: string): Promise<jsPDF> {
+type PdfFormat = 'a4' | 'a5' | [number, number]
+
+type GenerateHtmlPdfOptions = {
+  containerWidthPx?: number
+  pdfOrientation?: 'portrait' | 'landscape'
+  pdfFormat?: PdfFormat
+  marginTopMm?: number
+  marginSideMm?: number
+  marginBottomMm?: number
+}
+
+export async function generatePDFFromHTML(htmlContent: string, options: GenerateHtmlPdfOptions = {}): Promise<jsPDF> {
   // Clean up the HTML content to avoid trailing empty lines and extra whitespace
   let cleanedContent = htmlContent
     .trim()
@@ -320,7 +331,7 @@ export async function generatePDFFromHTML(htmlContent: string): Promise<jsPDF> {
     'position:absolute',
     'left:-9999px',
     'top:0',
-    'width:794px',
+    `width:${options.containerWidthPx ?? 794}px`,
     'padding:40px 50px 120px 50px',
     'background:white',
     'font-family:Arial,Helvetica,sans-serif',
@@ -417,12 +428,16 @@ export async function generatePDFFromHTML(htmlContent: string): Promise<jsPDF> {
       },
     })
 
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+    const pdf = new jsPDF({
+      orientation: options.pdfOrientation ?? 'portrait',
+      unit: 'mm',
+      format: options.pdfFormat ?? 'a4',
+    })
     const pageW = pdf.internal.pageSize.getWidth()
     const pageH = pdf.internal.pageSize.getHeight()
-    const marginTop = 10
-    const marginSide = 10
-    const marginBottom = 35
+    const marginTop = options.marginTopMm ?? 10
+    const marginSide = options.marginSideMm ?? 10
+    const marginBottom = options.marginBottomMm ?? 35
     const imgW = pageW - marginSide * 2
     const availablePageH = pageH - marginTop - marginBottom
     const pxPerMm = canvas.width / imgW
@@ -449,7 +464,7 @@ export async function generatePDFFromHTML(htmlContent: string): Promise<jsPDF> {
       const pageCanvas = document.createElement('canvas')
       pageCanvas.width = canvas.width
       pageCanvas.height = Math.ceil(sourceSliceH)
-      const ctx = pageCanvas.getContext('2d')!
+      const ctx = pageCanvas.getContext('2d', { willReadFrequently: true })!
       ctx.drawImage(canvas, 0, sourceY, canvas.width, pageCanvas.height, 0, 0, canvas.width, pageCanvas.height)
 
       pdf.addImage(pageCanvas.toDataURL('image/jpeg', 0.92), 'JPEG', marginSide, marginTop, imgW, sliceH)

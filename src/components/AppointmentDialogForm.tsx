@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import helpContent from '@/docs/form-appointment.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -77,18 +77,19 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[90vh] max-w-2xl">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
           <DialogTitle className="flex items-center gap-1">
             {appointment ? t.appointments_view.form.title_edit : t.appointments_view.form.title_new}
-            <HelpButton content={helpContent} title="Ajuda — Formulário de Compromisso" />
+            <HelpButton docKey="form-appointment" title="Ajuda — Formulário de Compromisso" />
           </DialogTitle>
           <DialogDescription>
             {appointment ? 'Edite as informações do compromisso' : 'Preencha os dados do novo compromisso'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="title">{t.appointments_view.form.appointment_title}</Label>
             <Input
@@ -276,7 +277,8 @@ export default function AppointmentDialogForm({ open, onOpenChange, onSubmit, ap
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+          </div>
+          <div className="flex justify-end gap-2 px-6 py-4 border-t shrink-0 bg-background">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t.appointments_view.form.cancel}
             </Button>

@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useContext } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
-import { useLanguage } from '@/lib/LanguageContext'
-import { formatDecimalInputValue, parseDecimalValue, resolveDecimalSeparator, type DecimalSeparator } from '@/lib/numberFormat'
+import { formatDecimalInputValue, parseDecimalValue, type DecimalSeparator } from '@/lib/numberFormat'
+import { detectRegionalPreferenceDefaults } from '@/lib/regionalPreferences'
 
 interface NumberFormatContextType {
   decimalSeparator: DecimalSeparator
@@ -13,10 +13,10 @@ interface NumberFormatContextType {
 const NumberFormatContext = createContext<NumberFormatContextType | undefined>(undefined)
 
 export function NumberFormatProvider({ children }: { children: ReactNode }) {
-  const { language } = useLanguage()
+  const regionalDefaults = detectRegionalPreferenceDefaults()
   const [savedDecimalSeparator, setSavedDecimalSeparator] = useKV<DecimalSeparator | null>('app-decimal-separator', null)
 
-  const decimalSeparator = resolveDecimalSeparator(language, savedDecimalSeparator)
+  const decimalSeparator = savedDecimalSeparator || regionalDefaults.decimalSeparator
   const parseDecimal = (value: string) => parseDecimalValue(value, decimalSeparator)
   const formatDecimalInput = (value: number | undefined | null) => formatDecimalInputValue(value, decimalSeparator)
 

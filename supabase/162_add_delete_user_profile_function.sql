@@ -10,7 +10,6 @@ as $$
 declare
   v_caller_auth_id  uuid;
   v_caller_role     text;
-  v_is_platform_admin boolean;
   v_target_auth_id  uuid;
 begin
   -- who is calling?
@@ -19,14 +18,8 @@ begin
     return jsonb_build_object('error', 'Unauthorized');
   end if;
 
-  -- is the caller a platform admin (app_metadata flag)?
-  select coalesce(
-    (auth.jwt() -> 'app_metadata' ->> 'platform_admin')::boolean,
-    false
-  ) into v_is_platform_admin;
-
   -- check caller is admin of this tenant
-  if not v_is_platform_admin then
+  if not public.is_current_user_platform_admin() then
     select role into v_caller_role
     from public.user_profiles
     where tenant_id     = p_tenant_id

@@ -2,12 +2,16 @@ import { useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { useLanguage } from '@/lib/LanguageContext'
 import { UserProfileSheet } from '@/components/UserProfileSheet'
 
-export function UserInfo() {
-  const { currentUser, userProfile, isLoading } = useAuth()
-  const { t } = useLanguage()
+interface UserInfoProps {
+  activeTab?: string
+  activeTabLabel?: string
+  tabTitleMap?: Record<string, string>
+}
+
+export function UserInfo({ activeTab, activeTabLabel, tabTitleMap }: UserInfoProps = {}) {
+  const { currentUser, userProfile, accessProfile, isLoading } = useAuth()
   const [sheetOpen, setSheetOpen] = useState(false)
 
   if (isLoading) {
@@ -26,8 +30,8 @@ export function UserInfo() {
     return null
   }
 
-  const roleLabel = userProfile.role === 'admin' ? t.roles?.admin || 'Administrador' : t.roles?.guest || 'Hóspede'
-  const roleColor = userProfile.role === 'admin' ? 'default' : 'secondary'
+  const profileLabel = accessProfile?.name || 'Perfil padrao'
+  const profileColor = userProfile.role === 'admin' ? 'default' : 'secondary'
   const login = currentUser.login || userProfile.githubLogin || 'user'
   const initials = login.slice(0, 2).toUpperCase()
 
@@ -43,11 +47,13 @@ export function UserInfo() {
         </Avatar>
         <div className="hidden min-w-0 flex-col items-start sm:flex">
           <span className="text-sm font-semibold text-foreground">{login}</span>
-          <Badge variant={roleColor as any} className="w-fit text-xs">{roleLabel}</Badge>
+          <Badge variant={profileColor as 'default' | 'secondary'} className="w-fit text-xs">
+            {profileLabel}
+          </Badge>
         </div>
       </button>
 
-      <UserProfileSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      <UserProfileSheet open={sheetOpen} onOpenChange={setSheetOpen} activeTab={activeTab} activeTabLabel={activeTabLabel} tabTitleMap={tabTitleMap} />
     </>
   )
 }

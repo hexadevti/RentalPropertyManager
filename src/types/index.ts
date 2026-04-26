@@ -1,4 +1,4 @@
-export type PropertyType = 'room' | 'apartment' | 'house'
+export type PropertyType = 'room' | 'apartment' | 'house' | 'parking'
 export type RentalDuration = 'short-term' | 'long-term'
 export type PropertyStatus = 'available' | 'occupied' | 'maintenance'
 export type TransactionType = 'income' | 'expense'
@@ -47,6 +47,15 @@ export interface Owner {
   createdAt: string
 }
 
+export type ICalProvider = 'airbnb' | 'booking' | 'vrbo' | 'expedia' | 'other'
+
+export interface PropertyICalFeed {
+  id: string
+  provider: ICalProvider
+  label: string
+  url: string
+}
+
 export interface Property {
   id: string
   name: string
@@ -63,6 +72,19 @@ export interface Property {
   inspectionItems?: string[]
   description: string
   ownerIds: string[]
+  photos?: PropertyPhoto[]
+  icalFeeds?: PropertyICalFeed[]
+  createdAt: string
+}
+
+export interface PropertyPhoto {
+  id: string
+  fileName: string
+  filePath: string
+  fileSize?: number
+  mimeType?: string
+  isCover: boolean
+  sortOrder: number
   createdAt: string
 }
 
@@ -138,6 +160,7 @@ export interface Contract {
   status: ContractStatus
   notes?: string
   templateId?: string
+  icalUid?: string
   createdAt: string
 }
 
@@ -198,14 +221,97 @@ export interface Tenant {
 }
 
 export type UserRole = 'admin' | 'guest'
-export type UserStatus = 'pending' | 'approved' | 'rejected'
+export type UserStatus = 'pending' | 'approved' | 'blocked'
+export type AccessRoleId =
+  | 'tenant'
+  | 'properties'
+  | 'owners'
+  | 'finances'
+  | 'calendar'
+  | 'tasks'
+  | 'reports'
+  | 'guests'
+  | 'contracts'
+  | 'documents'
+  | 'ai-assistant'
+  | 'inspections'
+  | 'templates'
+  | 'notifications'
+  | 'providers'
+  | 'appointments'
+  | 'users-permissions'
+  | 'access-profiles'
+  | 'audit-logs'
+  | 'my-bug-reports'
+export type AccessLevel = 'none' | 'read' | 'write'
+export type TemplateLanguage = 'pt' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'nl' | 'ar' | 'zh' | 'ja' | 'pl' | 'ru'
+
+export const ACCESS_ROLES: { id: AccessRoleId; label: string; description: string }[] = [
+  { id: 'tenant', label: 'Tenant', description: 'Acesso ao gerenciamento de tenant' },
+  { id: 'properties', label: 'Propriedades', description: 'Acesso a propriedades' },
+  { id: 'owners', label: 'Proprietarios', description: 'Acesso a proprietarios' },
+  { id: 'finances', label: 'Financas', description: 'Acesso a financas' },
+  { id: 'calendar', label: 'Calendario', description: 'Acesso ao calendario' },
+  { id: 'tasks', label: 'Tarefas', description: 'Acesso a tarefas' },
+  { id: 'reports', label: 'Relatorios', description: 'Acesso a relatorios' },
+  { id: 'guests', label: 'Hospedes', description: 'Acesso a hospedes' },
+  { id: 'contracts', label: 'Contratos', description: 'Acesso a contratos' },
+  { id: 'documents', label: 'Documentos', description: 'Acesso a documentos' },
+  { id: 'ai-assistant', label: 'Assistente IA', description: 'Acesso ao assistente IA' },
+  { id: 'inspections', label: 'Vistorias', description: 'Acesso a vistorias' },
+  { id: 'templates', label: 'Templates', description: 'Acesso a templates de contrato' },
+  { id: 'notifications', label: 'Notificacoes', description: 'Acesso a notificacoes' },
+  { id: 'providers', label: 'Prestadores', description: 'Acesso a prestadores' },
+  { id: 'appointments', label: 'Compromissos', description: 'Acesso a compromissos' },
+  { id: 'users-permissions', label: 'Usuarios e Permissoes', description: 'Acesso a usuarios e permissoes' },
+  { id: 'access-profiles', label: 'Perfis de Acesso', description: 'Acesso ao gerenciamento de perfis de acesso' },
+  { id: 'audit-logs', label: 'Log de Auditoria', description: 'Acesso ao log de auditoria' },
+  { id: 'my-bug-reports', label: 'Bugs Reportados', description: 'Acesso à lista de bugs reportados pelo usuário' },
+]
+
+export const TEMPLATE_LANGUAGES: { code: TemplateLanguage; nativeName: string }[] = [
+  { code: 'pt', nativeName: 'Português' },
+  { code: 'en', nativeName: 'English' },
+  { code: 'es', nativeName: 'Español' },
+  { code: 'fr', nativeName: 'Français' },
+  { code: 'de', nativeName: 'Deutsch' },
+  { code: 'it', nativeName: 'Italiano' },
+  { code: 'nl', nativeName: 'Nederlands' },
+  { code: 'ar', nativeName: 'العربية' },
+  { code: 'zh', nativeName: '中文' },
+  { code: 'ja', nativeName: '日本語' },
+  { code: 'pl', nativeName: 'Polski' },
+  { code: 'ru', nativeName: 'Русский' },
+]
 
 export interface UserProfile {
   githubLogin: string
   role: UserRole
   status: UserStatus
   email: string
+  phone?: string | null
   avatarUrl: string
+  accessProfileId?: string | null
+  accessProfileName?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AccessProfile {
+  id: string
+  tenantId: string
+  name: string
+  description?: string
+  isSystem: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AccessProfileRole {
+  tenantId: string
+  accessProfileId: string
+  accessRoleId: AccessRoleId
+  accessLevel: AccessLevel
   createdAt: string
   updatedAt: string
 }
@@ -216,6 +322,8 @@ export interface ContractTemplate {
   id: string
   name: string
   type: TemplateType
+  language: TemplateLanguage
+  translationGroupId: string
   content: string
   createdAt: string
   updatedAt: string
@@ -251,6 +359,8 @@ export interface NotificationTemplate {
   channel: NotificationChannel
   eventType: NotificationTemplateEventType
   contentType: NotificationTemplateContentType
+  language: TemplateLanguage
+  translationGroupId: string
   description?: string
   subject?: string
   content: string

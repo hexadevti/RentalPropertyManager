@@ -14,37 +14,41 @@ import ServiceProvidersView from './components/views/ServiceProvidersView'
 import AppointmentsView from './components/views/AppointmentsView'
 import OwnersView from './components/views/OwnersView'
 import UsersPermissionsView from './components/views/UsersPermissionsView'
+import AccessProfilesView from './components/views/AccessProfilesView'
+import TenantManagementView from './components/views/TenantManagementView'
 import InspectionsView from './components/views/InspectionsView'
 import BugReportsView from './components/views/BugReportsView'
 import MyBugReportsView from './components/views/MyBugReportsView'
 import ContactMessagesView from './components/views/ContactMessagesView'
+import WhatsAppBotView from './components/views/WhatsAppBotView'
 import AuditLogsView from './components/views/AuditLogsView'
 import AiAssistantView from './components/views/AiAssistantView'
-import { Property, Transaction } from './types'
+import UsagePlansView from './components/views/UsagePlansView'
 import { Toaster } from '@/components/ui/sonner'
 import { LanguageProvider, useLanguage } from '@/lib/LanguageContext'
 import { CurrencyProvider, useCurrency } from '@/lib/CurrencyContext'
-import { NumberFormatProvider } from '@/lib/NumberFormatContext'
+import { NumberFormatProvider, useNumberFormat } from '@/lib/NumberFormatContext'
 import { PhoneFormatProvider } from '@/lib/PhoneFormatContext'
-import { DateFormatProvider } from '@/lib/DateFormatContext'
+import { DateFormatProvider, useDateFormat } from '@/lib/DateFormatContext'
 import { AuthProvider, useAuth } from '@/lib/AuthContext'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { UserInfo } from '@/components/UserInfo'
 import { Login } from '@/components/Login'
 import { HomePage } from '@/components/HomePage'
-import { PendingApproval } from '@/components/PendingApproval'
-import { Rejected } from '@/components/Rejected'
+import { Blocked } from '@/components/Rejected'
 import { PasswordRecoveryForm } from '@/components/PasswordRecoveryForm'
+import { MobilePhotoCapturePage } from '@/components/MobilePhotoCapturePage'
 import { useKVCleanup } from '@/hooks/use-kv-cleanup'
 import { usePropertyMigration } from '@/hooks/use-property-migration'
 import { useUserPresence } from '@/hooks/use-user-presence'
 import { AppSidebar } from '@/components/AppSidebar'
-import { BugReportDialog } from '@/components/BugReportDialog'
-import { ContactUsDialog } from '@/components/ContactUsDialog'
 import { useTheme } from 'next-themes'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import { detectRegionalPreferenceDefaults } from '@/lib/regionalPreferences'
+import { APP_TABS_BY_ACCESS_ROLE, EXTRA_ACCESS_CONTROLLED_TABS } from '@/lib/accessControl'
+import type { AccessRoleId } from './types'
 
 type TenantOption = {
   id: string
@@ -55,13 +59,37 @@ function AuthCallbackPage() {
   const { t } = useLanguage()
   const {
     isLoading,
-    isAuthenticated,
     isApproved,
     isPending,
-    isRejected,
+    isBlocked,
   } = useAuth()
   const searchParams = new URLSearchParams(window.location.search)
   const isPasswordRecoveryMode = searchParams.get('mode') === 'reset-password'
+  const [hasCheckedRecoverySession, setHasCheckedRecoverySession] = useState(false)
+  const [hasRecoverySession, setHasRecoverySession] = useState(false)
+
+  useEffect(() => {
+    if (!isPasswordRecoveryMode) return
+
+    let isMounted = true
+    const checkRecoverySession = async () => {
+      const { data, error } = await supabase.auth.getSession()
+      if (!isMounted) return
+
+      if (error) {
+        console.error('Failed to load recovery session:', error)
+      }
+
+      setHasRecoverySession(!!data.session)
+      setHasCheckedRecoverySession(true)
+    }
+
+    void checkRecoverySession()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isPasswordRecoveryMode])
 
   useEffect(() => {
     if (isLoading || isPasswordRecoveryMode) return
@@ -79,15 +107,15 @@ function AuthCallbackPage() {
       toast.error(authError)
     }
 
-    if (isAuthenticated || isApproved || isPending || isRejected || authError) {
+    if (isApproved || isPending || isBlocked || authError) {
       window.location.replace(destination.toString())
       return
     }
 
     window.location.replace(destination.toString())
-  }, [isApproved, isAuthenticated, isLoading, isPasswordRecoveryMode, isPending, isRejected])
+  }, [isApproved, isBlocked, isLoading, isPasswordRecoveryMode, isPending])
 
-  if (isPasswordRecoveryMode && isLoading) {
+  if (isPasswordRecoveryMode && (isLoading || !hasCheckedRecoverySession)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -101,7 +129,7 @@ function AuthCallbackPage() {
     )
   }
 
-  if (isPasswordRecoveryMode && !isAuthenticated) {
+  if (isPasswordRecoveryMode && !hasRecoverySession) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="w-full max-w-md rounded-2xl border bg-card p-6 text-center shadow-lg">
@@ -133,33 +161,56 @@ function AuthCallbackPage() {
 
 function AppContent() {
   const { t } = useLanguage()
-  const { formatCurrency } = useCurrency()
   const { resolvedTheme } = useTheme()
   const {
+    userProfile,
     isApproved,
-    isPending,
-    isRejected,
+    isBlocked,
     isLoading,
     isAdmin,
     isPlatformAdmin,
     isGuest,
     isAuthenticated,
+    hasAccess,
     currentUser,
     currentTenantId,
     setSessionTenant,
   } = useAuth()
-  const [properties] = useKV<Property[]>('properties', [])
-  const [transactions] = useKV<Transaction[]>('transactions', [])
+  const { signInWithEmail } = useAuth()
   const [showLogin, setShowLogin] = useState(false)
+  const [isDemoLoggingIn, setIsDemoLoggingIn] = useState(false)
+
+  const handleDemoLogin = async () => {
+    setIsDemoLoggingIn(true)
+    try {
+      await signInWithEmail('demo@rpm.app', 'Demo@2026!')
+    } catch {
+      setShowLogin(true)
+    } finally {
+      setIsDemoLoggingIn(false)
+    }
+  }
   const hasInviteParam = new URLSearchParams(window.location.search).has('invite')
+  const DEMO_TENANT_ID = 'aaaaaaaa-0000-4000-a000-000000000001'
+
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('tab') || (isGuest ? 'calendar' : 'properties')
   })
+
+  // Force 'properties' as landing tab for the demo tenant
+  useEffect(() => {
+    if (!currentTenantId) return
+    if (currentTenantId === DEMO_TENANT_ID) {
+      const params = new URLSearchParams(window.location.search)
+      if (!params.get('tab')) setActiveTab('properties')
+    }
+  }, [currentTenantId])
   const [pinnedItems, setPinnedItems] = useKV<string[]>(`pinned-items-${currentUser?.login ?? 'anonymous'}`, [])
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([])
   const [isChangingTenant, setIsChangingTenant] = useState(false)
   const isAuthCallbackRoute = window.location.pathname === '/auth/callback'
+  const isMobileCaptureRoute = window.location.pathname === '/mobile/capture'
 
   const tabTitleMap: Record<string, string> = {
     properties: t.tabs.properties,
@@ -180,7 +231,10 @@ function AppContent() {
     'bug-reports': t.tabs['bug-reports'],
     'my-bug-reports': t.tabs['my-bug-reports'],
     'contact-messages': t.tabs['contact-messages'],
+    'usage-plans': t.tabs['usage-plans'] || 'Planos de uso',
     'users-permissions': t.tabs['users-permissions'],
+    tenant: t.tabs.tenant,
+    'access-profiles': 'Perfis de acesso',
     'audit-logs': t.tabs['audit-logs'],
   }
   
@@ -208,23 +262,37 @@ function AppContent() {
     void loadTenantsForMaster()
   }, [isPlatformAdmin])
   
-  const calculateCurrentMonthBalance = () => {
-    const now = new Date()
-    const currentYear = now.getFullYear()
-    const currentMonth = now.getMonth()
+  const canRead = (roleId: AccessRoleId) => hasAccess(roleId, 'read')
+  const canWrite = (roleId: AccessRoleId) => hasAccess(roleId, 'write')
 
-    return (transactions || []).filter((transaction) => {
-      const transactionDate = new Date(transaction.date)
-      return transactionDate.getFullYear() === currentYear && transactionDate.getMonth() === currentMonth
-    }).reduce((acc, t) => {
-      return t.type === 'income' ? acc + t.amount : acc - t.amount
-    }, 0)
-  }
+  useEffect(() => {
+    const roleBasedTabs = [
+      ...(Object.entries(APP_TABS_BY_ACCESS_ROLE) as Array<[AccessRoleId, string]>)
+        .filter(([roleId]) => canRead(roleId))
+        .map(([, tab]) => tab),
+      ...EXTRA_ACCESS_CONTROLLED_TABS
+        .filter(({ roleId }) => canRead(roleId))
+        .map(({ tab }) => tab),
+    ]
 
-  const currentMonthBalance = calculateCurrentMonthBalance()
+    const specialTabs = [
+      ...(isPlatformAdmin ? ['contact-messages', 'bug-reports', 'whatsapp-bot', 'usage-plans'] : []),
+    ]
+
+    const accessibleTabs = [...new Set([...roleBasedTabs, ...specialTabs])]
+
+    if (!accessibleTabs.length) return
+    if (!accessibleTabs.includes(activeTab)) {
+      setActiveTab(accessibleTabs[0])
+    }
+  }, [activeTab, hasAccess, isAdmin, isPlatformAdmin])
 
   if (isAuthCallbackRoute) {
     return <AuthCallbackPage />
+  }
+
+  if (isMobileCaptureRoute) {
+    return <MobilePhotoCapturePage />
   }
 
   if (isLoading) {
@@ -238,8 +306,19 @@ function AppContent() {
     )
   }
 
-  if (isRejected) {
-    return <Rejected />
+  if (isBlocked) {
+    return <Blocked />
+  }
+
+  if (isAuthenticated && !userProfile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!isAuthenticated && !showLogin) {
@@ -251,7 +330,7 @@ function AppContent() {
         setShowLogin(false)
       }} />
     }
-    return <HomePage onLoginClick={() => setShowLogin(true)} />
+    return <HomePage onLoginClick={() => setShowLogin(true)} onDemoClick={handleDemoLogin} isDemoLoggingIn={isDemoLoggingIn} />
   }
 
   if (!isAuthenticated) {
@@ -263,16 +342,12 @@ function AppContent() {
     }} />
   }
 
-  if (!isApproved && isPending) {
-    return <PendingApproval />
-  }
-
   if (!isApproved) {
-    return <PendingApproval />
+    return <Blocked />
   }
 
   return (
-    <div id="spark-app" className={`min-h-screen bg-background ${resolvedTheme === 'dark' ? 'dark-theme' : ''}`}>
+    <div id="rpm-app" className={`min-h-screen bg-background ${resolvedTheme === 'dark' ? 'dark-theme' : ''}`}>
       <Toaster />
       
       <AppSidebar
@@ -283,7 +358,7 @@ function AppContent() {
       />
 
       <div className="flex min-h-screen flex-col pb-24 md:pl-20 md:pb-0">
-        <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40">
+        <header className="border-b border-border bg-card/50 backdrop-blur-sm md:sticky md:top-0 z-40">
           <div className="container mx-auto px-4 py-4 sm:px-6">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="min-w-0">
@@ -292,14 +367,6 @@ function AppContent() {
                 </h1>
               </div>
               <div className="flex flex-col gap-4 xl:items-end">
-                <div className="flex flex-wrap items-center gap-2">
-                  <BugReportDialog
-                    activeTab={activeTab}
-                    activeTabLabel={tabTitleMap[activeTab] || t.appName}
-                    tabTitleMap={tabTitleMap}
-                  />
-                  <ContactUsDialog />
-                </div>
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-end">
                 {isPlatformAdmin && (
                   <div className="w-full min-w-0 xl:min-w-[260px]">
@@ -332,25 +399,11 @@ function AppContent() {
                     </Select>
                   </div>
                 )}
-                <UserInfo />
-                {isAdmin && (
-                  <>
-                    <div className="hidden h-12 w-px bg-border xl:block" />
-                    <div className="text-left xl:text-right">
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-                        {t.balance} {new Date().toLocaleDateString(undefined, { month: 'short' })}
-                      </p>
-                      <p className={`text-2xl font-bold ${currentMonthBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        {formatCurrency(currentMonthBalance)}
-                      </p>
-                    </div>
-                    <div className="hidden h-12 w-px bg-border xl:block" />
-                    <div className="text-left xl:text-right">
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">{t.properties}</p>
-                      <p className="text-2xl font-bold text-foreground">{(properties || []).length}</p>
-                    </div>
-                  </>
-                )}
+                <UserInfo
+                  activeTab={activeTab}
+                  activeTabLabel={tabTitleMap[activeTab] || t.appName}
+                  tabTitleMap={tabTitleMap}
+                />
                 </div>
               </div>
             </div>
@@ -358,26 +411,30 @@ function AppContent() {
         </header>
 
         <main className="container mx-auto flex-1 px-4 py-6 sm:px-6">
-          {activeTab === 'properties' && isAdmin && <PropertiesView />}
-          {activeTab === 'owners' && isAdmin && <OwnersView />}
-          {activeTab === 'finances' && isAdmin && <FinancesView />}
-          {activeTab === 'calendar' && <CalendarView />}
-          {activeTab === 'tasks' && isAdmin && <TasksView />}
-          {activeTab === 'reports' && isAdmin && <ReportsView />}
-          {activeTab === 'guests' && isAdmin && <GuestsView />}
-          {activeTab === 'contracts' && <ContractsView onNavigate={setActiveTab} />}
-          {activeTab === 'documents' && isAdmin && <DocumentsView />}
-          {activeTab === 'ai-assistant' && isAdmin && <AiAssistantView />}
-          {activeTab === 'inspections' && isAdmin && <InspectionsView />}
-          {activeTab === 'templates' && isAdmin && <ContractTemplatesView />}
-          {activeTab === 'notifications' && isAdmin && <NotificationsView />}
-          {activeTab === 'providers' && isAdmin && <ServiceProvidersView />}
-          {activeTab === 'appointments' && <AppointmentsView />}
-          {activeTab === 'my-bug-reports' && isAdmin && !isPlatformAdmin && <MyBugReportsView />}
+          {activeTab === 'properties' && canRead('properties') && <PropertiesView readOnly={!canWrite('properties')} />}
+          {activeTab === 'owners' && canRead('owners') && <OwnersView />}
+          {activeTab === 'finances' && canRead('finances') && <FinancesView />}
+          {activeTab === 'calendar' && canRead('calendar') && <CalendarView />}
+          {activeTab === 'tasks' && canRead('tasks') && <TasksView />}
+          {activeTab === 'reports' && canRead('reports') && <ReportsView />}
+          {activeTab === 'guests' && canRead('guests') && <GuestsView />}
+          {activeTab === 'contracts' && canRead('contracts') && <ContractsView onNavigate={setActiveTab} />}
+          {activeTab === 'documents' && canRead('documents') && <DocumentsView />}
+          {activeTab === 'ai-assistant' && canRead('ai-assistant') && <AiAssistantView />}
+          {activeTab === 'inspections' && canRead('inspections') && <InspectionsView />}
+          {activeTab === 'templates' && canRead('templates') && <ContractTemplatesView />}
+          {activeTab === 'notifications' && canRead('notifications') && <NotificationsView />}
+          {activeTab === 'providers' && canRead('providers') && <ServiceProvidersView />}
+          {activeTab === 'appointments' && canRead('appointments') && <AppointmentsView />}
+          {activeTab === 'my-bug-reports' && canRead('my-bug-reports') && !isPlatformAdmin && <MyBugReportsView />}
           {activeTab === 'contact-messages' && isPlatformAdmin && <ContactMessagesView />}
           {activeTab === 'bug-reports' && isPlatformAdmin && <BugReportsView />}
-          {activeTab === 'users-permissions' && isAdmin && <UsersPermissionsView />}
-          {activeTab === 'audit-logs' && isAdmin && <AuditLogsView />}
+          {activeTab === 'whatsapp-bot' && isPlatformAdmin && <WhatsAppBotView />}
+          {activeTab === 'usage-plans' && isPlatformAdmin && <UsagePlansView />}
+          {activeTab === 'tenant' && canRead('tenant') && <TenantManagementView />}
+          {activeTab === 'users-permissions' && canRead('users-permissions') && <UsersPermissionsView />}
+          {activeTab === 'access-profiles' && canRead('access-profiles') && <AccessProfilesView readOnly={!canWrite('access-profiles')} />}
+          {activeTab === 'audit-logs' && canRead('audit-logs') && <AuditLogsView />}
         </main>
       </div>
     </div>
@@ -393,6 +450,7 @@ function App() {
             <NumberFormatProvider>
               <PhoneFormatProvider>
                 <DateFormatProvider>
+                  <RegionalPreferenceBootstrap />
                   <AppContent />
                 </DateFormatProvider>
               </PhoneFormatProvider>
@@ -402,6 +460,53 @@ function App() {
       </ThemeProvider>
     </AuthProvider>
   )
+}
+
+function RegionalPreferenceBootstrap() {
+  const { currentUser } = useAuth()
+  const { setLanguage } = useLanguage()
+  const { setCurrency } = useCurrency()
+  const { setDateFormat } = useDateFormat()
+  const { setDecimalSeparator } = useNumberFormat()
+
+  useEffect(() => {
+    if (!currentUser?.id) return
+
+    let isMounted = true
+
+    const syncMissingSettings = async () => {
+      const defaults = detectRegionalPreferenceDefaults()
+      const trackedKeys = [
+        'app-language',
+        'app-currency',
+        'app-date-format',
+        'app-decimal-separator',
+      ]
+
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('key')
+        .eq('auth_user_id', currentUser.id)
+        .in('key', trackedKeys)
+
+      if (!isMounted || error) return
+
+      const existingKeys = new Set((data || []).map((row) => row.key))
+
+      if (!existingKeys.has('app-language')) setLanguage(defaults.language)
+      if (!existingKeys.has('app-currency')) setCurrency(defaults.currency)
+      if (!existingKeys.has('app-date-format')) setDateFormat(defaults.dateFormat)
+      if (!existingKeys.has('app-decimal-separator')) setDecimalSeparator(defaults.decimalSeparator)
+    }
+
+    void syncMissingSettings()
+
+    return () => {
+      isMounted = false
+    }
+  }, [currentUser?.id, setCurrency, setDateFormat, setDecimalSeparator, setLanguage])
+
+  return null
 }
 
 export default App

@@ -15,7 +15,7 @@ create table if not exists public.user_profiles (
   auth_user_id uuid unique references auth.users(id) on delete set null,
   github_login text not null unique,
   role text not null check (role in ('admin', 'guest')),
-  status text not null check (status in ('pending', 'approved', 'rejected')),
+  status text not null check (status in ('pending', 'approved', 'blocked')),
   email text not null,
   avatar_url text not null,
   created_at timestamptz not null default timezone('utc', now()),

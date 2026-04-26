@@ -10,7 +10,27 @@
       "Bash(node -e \"const icons = require\\('c:/Users/lucia/repos/RentalPropertyManager/node_modules/@phosphor-icons/react'\\); console.log\\(Object.keys\\(icons\\).filter\\(k => !k.startsWith\\('_'\\)\\).slice\\(0,5\\)\\); console.log\\('total:', Object.keys\\(icons\\).length\\)\")",
       "Bash(wrangler whoami *)",
       "Bash(npx wrangler *)",
-      "Bash(./node_modules/.bin/wrangler --version)"
+      "Bash(./node_modules/.bin/wrangler --version)",
+      "Bash(node -e \"const icons = require\\('c:/Users/lucia/repos/RentalPropertyManager/node_modules/@phosphor-icons/react'\\); console.log\\('Translate' in icons\\)\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(grep -E \"\\\\.sql$\")",
+      "Bash(npx supabase *)",
+      "Bash(supabase --version)",
+      "Bash(grep -n \"return$\\\\|^  \\)\\\\|^}\" c:\\\\Users\\\\lucia\\\\repos\\\\RentalPropertyManager\\\\src\\\\components\\\\views\\\\FinancesView.tsx)",
+      "Bash(xargs -I{} basename {})",
+      "Bash(xargs grep *)",
+      "Bash(node -e ' *)",
+      "Bash(awk 'NR>=2390 && NR<=2410 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)",
+      "Bash(awk 'NR>=2410 && NR<=2430 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)",
+      "Bash(awk 'NR>=2780 && NR<=2815 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)",
+      "Bash(awk 'NR>=2595 && NR<=2660 {print NR\": \"$0}' c:/Users/lucia/repos/RentalPropertyManager/src/components/views/NotificationsView.tsx)",
+      "Bash(sed -i \"s/^    log\\(/    await log\\(/g\" c:/Users/lucia/repos/RentalPropertyManager/supabase/functions/whatsapp-bot/index.ts)",
+      "Bash(sed -i \"s/^  log\\(/  await log\\(/g\" c:/Users/lucia/repos/RentalPropertyManager/supabase/functions/whatsapp-bot/index.ts)",
+      "Bash(sed -i 's/DO UPDATE SET plan_code = .enterprise., updated_at = now\\(\\)/DO UPDATE SET plan_code = '\\\\''enterprise'\\\\''/g' c:/Users/lucia/repos/RentalPropertyManager/scripts/create-demo-tenant.sql)",
+      "Bash(sed -i 's/DO UPDATE SET email = excluded.email, phone = excluded.phone, updated_at = now\\(\\)/DO UPDATE SET email = excluded.email, phone = excluded.phone/g' c:/Users/lucia/repos/RentalPropertyManager/scripts/create-demo-tenant.sql)",
+      "Bash(sed -i 's/DO UPDATE SET name = excluded.name, updated_at = now\\(\\)/DO UPDATE SET name = excluded.name/g' c:/Users/lucia/repos/RentalPropertyManager/scripts/create-demo-tenant.sql)",
+      "Bash(sed -i 's/DO UPDATE SET email = excluded.email, updated_at = now\\(\\)/DO UPDATE SET email = excluded.email/g' c:/Users/lucia/repos/RentalPropertyManager/scripts/create-demo-tenant.sql)",
+      "Bash(sed -i 's/DO UPDATE SET status = excluded.status, updated_at = now\\(\\)/DO UPDATE SET status = excluded.status/g' c:/Users/lucia/repos/RentalPropertyManager/scripts/create-demo-tenant.sql)"
     ]
   }
 }

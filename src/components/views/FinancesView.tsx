@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Transaction, TransactionType, Property, Contract, ServiceProvider, Guest, Owner } from '@/types'
-import helpContent from '@/docs/finances.md?raw'
-import formHelpContent from '@/docs/form-transaction.md?raw'
+
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Plus, TrendUp, TrendDown, Trash, CalendarBlank, ArrowsClockwise, PencilSimple, CaretDown } from '@phosphor-icons/react'
+import { Plus, TrendUp, TrendDown, Trash, CalendarBlank, ArrowsClockwise, PencilSimple, CaretDown, UploadSimple, DownloadSimple } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { ptBR, enUS } from 'date-fns/locale'
@@ -45,6 +45,9 @@ export default function FinancesView() {
   const [owners] = useKV<Owner[]>('owners', [])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [csvParsedRows, setCsvParsedRows] = useState<Partial<Transaction>[]>([])
+  const [csvError, setCsvError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const restoreScrollYRef = useRef<number | null>(null)
   const [monthFilter, setMonthFilter] = useState('all')
@@ -184,6 +187,108 @@ export default function FinancesView() {
       .sort((a, b) => b.monthKey.localeCompare(a.monthKey))
   }, [filteredTransactions, locale, contracts, serviceProviders, guests, properties, owners, refreshKey])
 
+  const handleDownloadTemplate = () => {
+    const rows = [
+      ['type', 'amount', 'category', 'description', 'date'],
+      ['income', '1500.00', 'Aluguel', 'Aluguel apartamento 01 - Janeiro', '2026-01-05'],
+      ['expense', '250.00', 'Manutenção', 'Troca de torneira', '2026-01-10'],
+    ]
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'template-transacoes.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const parseCSVLine = (line: string, sep: string): string[] => {
+    const result: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+        else inQuotes = !inQuotes
+      } else if (ch === sep && !inQuotes) {
+        result.push(current.trim())
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+    result.push(current.trim())
+    return result
+  }
+
+  const parseDate = (raw: string): string => {
+    const ddmmyyyy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (ddmmyyyy) return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+    return new Date().toISOString().split('T')[0]
+  }
+
+  const handleCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCsvError(null)
+    setCsvParsedRows([])
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const text = (event.target?.result as string).replace(/\r/g, '')
+        const lines = text.split('\n').filter(l => l.trim())
+        if (lines.length < 2) { setCsvError(t.finances_view.import_error_empty); return }
+        const sep = lines[0].includes(';') ? ';' : ','
+        const headers = parseCSVLine(lines[0], sep).map(h => h.toLowerCase().replace(/\s/g, ''))
+        const typeMap: Record<string, TransactionType> = {
+          income: 'income', receita: 'income', entrada: 'income',
+          expense: 'expense', despesa: 'expense', saida: 'expense', saída: 'expense',
+        }
+        const rows: Partial<Transaction>[] = []
+        for (let i = 1; i < lines.length; i++) {
+          const vals = parseCSVLine(lines[i], sep)
+          const row: Record<string, string> = {}
+          headers.forEach((h, idx) => { row[h] = vals[idx] ?? '' })
+          const amount = parseFloat(row.amount?.replace(',', '.') ?? '')
+          if (!row.type && !row.amount) continue
+          rows.push({
+            type: typeMap[row.type?.toLowerCase()] ?? 'income',
+            amount: isNaN(amount) ? 0 : amount,
+            category: row.category ?? '',
+            description: row.description ?? '',
+            date: parseDate(row.date ?? ''),
+          })
+        }
+        if (rows.length === 0) { setCsvError(t.finances_view.import_error_empty); return }
+        setCsvParsedRows(rows)
+      } catch {
+        setCsvError(t.finances_view.import_error_parse)
+      }
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  const handleImportConfirm = () => {
+    const newTransactions: Transaction[] = csvParsedRows.map((row) => ({
+      ...row,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      createdAt: new Date().toISOString(),
+      type: row.type ?? 'income',
+      amount: row.amount ?? 0,
+      category: row.category ?? '',
+      description: row.description ?? '',
+      date: row.date ?? new Date().toISOString().split('T')[0],
+    } as Transaction))
+    setTransactions((current) => [...(current ?? []), ...newTransactions])
+    toast.success(`${newTransactions.length} ${t.finances_view.import_success}`)
+    setIsImportDialogOpen(false)
+    setCsvParsedRows([])
+    setCsvError(null)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     restoreScrollYRef.current = window.scrollY
@@ -299,7 +404,7 @@ export default function FinancesView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{t.finances_view.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Finanças" />
+            <HelpButton docKey="finances" title="Ajuda — Finanças" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{t.finances_view.monthly_cashflow}</p>
         </div>
@@ -307,6 +412,10 @@ export default function FinancesView() {
           <Button variant="outline" onClick={handleRefresh} className="gap-2">
             <ArrowsClockwise weight="bold" size={16} />
             {t.common.refresh}
+          </Button>
+          <Button variant="outline" className="gap-2" onClick={() => { setCsvParsedRows([]); setCsvError(null); setIsImportDialogOpen(true) }}>
+            <UploadSimple weight="bold" size={16} />
+            {t.finances_view.import_csv}
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
@@ -322,7 +431,7 @@ export default function FinancesView() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1">
                 {editingTransaction ? t.finances_view.form.title_edit : t.finances_view.form.title_new}
-                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Transação" />
+                <HelpButton docKey="form-transaction" title="Ajuda — Formulário de Transação" />
               </DialogTitle>
               <DialogDescription>{t.finances_view.form.description}</DialogDescription>
             </DialogHeader>
@@ -778,6 +887,74 @@ export default function FinancesView() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={isImportDialogOpen} onOpenChange={(open) => { setIsImportDialogOpen(open); if (!open) { setCsvParsedRows([]); setCsvError(null) } }}>
+        <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[90vh] max-w-2xl">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+            <DialogTitle>{t.finances_view.import_dialog_title}</DialogTitle>
+            <DialogDescription>{t.finances_view.import_hint}</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadTemplate}>
+              <DownloadSimple weight="bold" size={16} />
+              {t.finances_view.import_download_template}
+            </Button>
+            <div className="space-y-2">
+              <Label>{t.finances_view.import_select_file}</Label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border file:border-input file:text-sm file:font-medium file:bg-background file:text-foreground hover:file:bg-accent cursor-pointer"
+                onChange={handleCSVFile}
+              />
+            </div>
+            {csvError && (
+              <p className="text-sm text-destructive">{csvError}</p>
+            )}
+            {csvParsedRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{t.finances_view.import_preview} — {csvParsedRows.length} {t.finances_view.import_rows_found}</p>
+                <div className="border rounded-lg overflow-auto max-h-64">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-medium">{t.finances_view.import_col_type}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.finances_view.import_col_amount}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.finances_view.import_col_category}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.finances_view.import_col_description}</th>
+                        <th className="text-left px-3 py-2 font-medium">{t.finances_view.import_col_date}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvParsedRows.map((row, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-3 py-2">
+                            <Badge variant="outline" className={row.type === 'income' ? 'text-green-600' : 'text-red-600'}>
+                              {row.type === 'income' ? t.finances_view.income : t.finances_view.expense}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-2 font-medium">{formatCurrency(row.amount ?? 0)}</td>
+                          <td className="px-3 py-2">{row.category}</td>
+                          <td className="px-3 py-2 max-w-[200px] truncate">{row.description}</td>
+                          <td className="px-3 py-2">{row.date}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              {t.finances_view.cancel}
+            </Button>
+            <Button onClick={handleImportConfirm} disabled={csvParsedRows.length === 0}>
+              {t.finances_view.import_confirm_btn} {csvParsedRows.length > 0 && `(${csvParsedRows.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

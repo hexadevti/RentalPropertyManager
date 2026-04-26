@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Contract, Property, Guest, Appointment, ServiceProvider, Task } from '@/types'
-import helpContent from '@/docs/calendar.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Calendar as CalendarIcon, ArrowsClockwise, CalendarCheck, CheckSquare, CurrencyCircleDollar, FileText, Wrench, User } from '@phosphor-icons/react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Plus, Calendar as CalendarIcon, ArrowsClockwise, CalendarCheck, CheckSquare, CurrencyCircleDollar, FileText, Wrench, User, CaretDown, CaretUp } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { format, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, isWithinInterval, addMonths, subMonths, parseISO, startOfWeek, endOfWeek, isBefore, isAfter } from 'date-fns'
 import { ptBR, enUS } from 'date-fns/locale'
@@ -47,6 +48,8 @@ export default function CalendarView() {
   const [appointmentDetailOpen, setAppointmentDetailOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [taskDetailOpen, setTaskDetailOpen] = useState(false)
+  const [selectedPropertyFilter, setSelectedPropertyFilter] = useState<string>('all')
+  const [isGeneralCalendarCollapsed, setIsGeneralCalendarCollapsed] = useState(false)
 
   const previousMonth = subMonths(currentDate, 1)
   const nextMonth = addMonths(currentDate, 1)
@@ -196,6 +199,9 @@ export default function CalendarView() {
 
   const generalCalendarDays = getMonthCalendarDays(currentDate)
   const selectedDayEvents = selectedDate ? getAllEventsForDay(selectedDate) : []
+  const filteredProperties = selectedPropertyFilter === 'all'
+    ? (properties || [])
+    : (properties || []).filter((property) => property.id === selectedPropertyFilter)
 
   // Weekday header labels derived from date-fns locale
   const weekdayHeaders = Array.from({ length: 7 }, (_, i) => {
@@ -209,7 +215,7 @@ export default function CalendarView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{t.tabs.calendar}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Calendário" />
+            <HelpButton docKey="calendar" title="Ajuda — Calendário" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{cv.subtitle}</p>
           <div className="flex items-center gap-4 mt-2">
@@ -265,11 +271,24 @@ export default function CalendarView() {
       {/* General event calendar */}
       <Card className="border-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon weight="duotone" size={24} />
-            {cv.general_calendar}
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <CalendarIcon weight="duotone" size={24} />
+              {cv.general_calendar}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1"
+              onClick={() => setIsGeneralCalendarCollapsed((prev) => !prev)}
+            >
+              {isGeneralCalendarCollapsed ? cv.expand_calendar : cv.collapse_calendar}
+              {isGeneralCalendarCollapsed ? <CaretDown size={14} /> : <CaretUp size={14} />}
+            </Button>
           </CardTitle>
         </CardHeader>
+        {!isGeneralCalendarCollapsed && (
         <CardContent>
           <div className="grid grid-cols-7 gap-2 mb-2">
             {weekdayHeaders.map((day) => (
@@ -380,6 +399,7 @@ export default function CalendarView() {
             })}
           </div>
         </CardContent>
+        )}
       </Card>
 
       {/* Selected day events */}
@@ -418,8 +438,25 @@ export default function CalendarView() {
         </Card>
       ) : (
         <div className="space-y-6">
-          <h3 className="text-xl font-semibold">{cv.property_calendars}</h3>
-          {(properties || []).map((property) => (
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h3 className="text-xl font-semibold">{cv.property_calendars}</h3>
+            <div className="w-full md:w-72">
+              <Select value={selectedPropertyFilter} onValueChange={setSelectedPropertyFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder={cv.filter_all} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{cv.filter_all}</SelectItem>
+                  {(properties || []).map((property) => (
+                    <SelectItem key={property.id} value={property.id}>
+                      {property.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {filteredProperties.map((property) => (
             <Card key={property.id}>
               <CardHeader>
                 <CardTitle className="text-lg">{property.name}</CardTitle>

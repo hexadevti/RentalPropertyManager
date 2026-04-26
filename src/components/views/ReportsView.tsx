@@ -1,6 +1,6 @@
 import { useKV } from '@/lib/useSupabaseKV'
 import { Transaction, Property, Task, ServiceProvider, Guest, Contract, Appointment, Owner } from '@/types'
-import helpContent from '@/docs/reports.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { TrendUp, TrendDown, House, Calendar, ArrowsClockwise, User, Files, Wren
 import { startOfMonth, endOfMonth, isWithinInterval, differenceInDays, isAfter, parseISO, subMonths, format, subDays, startOfYear, subYears, eachMonthOfInterval, eachDayOfInterval } from 'date-fns'
 import { useCurrency } from '@/lib/CurrencyContext'
 import { useLanguage } from '@/lib/LanguageContext'
+import { getPropertyAvailabilityStatus } from '@/lib/propertyAvailability'
 import { toast } from 'sonner'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { useState } from 'react'
@@ -77,6 +78,14 @@ export default function ReportsView() {
 
   const activeContracts = (contracts || []).filter(c => c.status === 'active')
   const occupiedPropertiesFromContracts = new Set(activeContracts.flatMap(c => c.propertyIds))
+  const contractAvailabilityInput = (contracts || []).map((contract) => ({
+    id: contract.id,
+    status: contract.status,
+    property_ids: contract.propertyIds,
+  }))
+  const availablePropertiesCount = (properties || []).filter((property) => (
+    getPropertyAvailabilityStatus(property.id, contractAvailabilityInput) === 'available'
+  )).length
   const occupancyRate = properties && properties.length > 0
     ? (occupiedPropertiesFromContracts.size / properties.length) * 100
     : 0
@@ -224,7 +233,7 @@ export default function ReportsView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{rv.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Relatórios" />
+            <HelpButton docKey="reports" title="Ajuda — Relatórios" />
           </div>
           <p className="text-sm text-muted-foreground mt-1">{rv.subtitle}</p>
         </div>
@@ -273,7 +282,7 @@ export default function ReportsView() {
           <CardContent>
             <p className="text-3xl font-bold">{(properties || []).length}</p>
             <p className="text-xs text-muted-foreground mt-1">
-              {(properties || []).filter(p => p.status === 'available').length} {rv.available}
+              {availablePropertiesCount} {rv.available}
             </p>
           </CardContent>
         </Card>

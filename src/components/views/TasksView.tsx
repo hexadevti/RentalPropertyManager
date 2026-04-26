@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useKV } from '@/lib/useSupabaseKV'
 import { Guest, Owner, Property, ServiceProvider, Task, TaskAssigneeType, TaskPriority, TaskStatus } from '@/types'
-import helpContent from '@/docs/tasks.md?raw'
-import formHelpContent from '@/docs/form-task.md?raw'
+
+
 import { HelpButton } from '@/components/HelpButton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -177,7 +177,7 @@ export default function TasksView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-2xl font-semibold tracking-tight">{tv.title}</h2>
-            <HelpButton content={helpContent} title="Ajuda — Tarefas" />
+            <HelpButton docKey="tasks" title="Ajuda — Tarefas" />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -192,15 +192,16 @@ export default function TasksView() {
                 {tv.add_task}
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-            <DialogHeader>
+            <DialogContent className="flex flex-col p-0 gap-0 overflow-hidden max-h-[90vh] max-w-2xl">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
               <DialogTitle className="flex items-center gap-1">
                 {editingTask ? tv.form.title_edit : tv.form.title_new}
-                <HelpButton content={formHelpContent} title="Ajuda — Formulário de Tarefa" />
+                <HelpButton docKey="form-task" title="Ajuda — Formulário de Tarefa" />
               </DialogTitle>
               <DialogDescription>{editingTask ? tv.form.updated_success : tv.form.created_success}</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="title">{tv.form.task_title}</Label>
                 <Input
@@ -324,7 +325,8 @@ export default function TasksView() {
                 </Select>
               </div>
 
-              <DialogFooter>
+              </div>
+              <DialogFooter className="px-6 py-4 border-t shrink-0 bg-background">
                 <Button type="button" variant="outline" onClick={resetForm}>
                   {tv.form.cancel}
                 </Button>

@@ -8,25 +8,28 @@ type PhoneInputProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> 
   onValueChange: (value: string) => void
 }
 
+const INVALID_PHONE_MESSAGE = 'Telefone nao corresponde a uma das mascaras configuradas.'
+
 export function PhoneInput({ value, onValueChange, ...props }: PhoneInputProps) {
-  const { formatPhone, isValidPhone } = usePhoneFormat()
+  const { formatPhone, isValidPhone, validPhoneMasks } = usePhoneFormat()
+  const hasMasks = validPhoneMasks.length > 0
 
   return (
     <Input
       {...props}
-      value={formatPhone(value || '')}
+      value={hasMasks ? formatPhone(value || '') : (value || '')}
       inputMode="tel"
       onChange={(event) => {
-        const digits = onlyPhoneDigits(event.target.value)
+        const nextValue = hasMasks ? onlyPhoneDigits(event.target.value) : event.target.value
         event.target.setCustomValidity(
-          isValidPhone(digits) ? '' : 'Telefone não corresponde a uma das máscaras configuradas.'
+          isValidPhone(nextValue) ? '' : INVALID_PHONE_MESSAGE
         )
-        onValueChange(digits)
+        onValueChange(nextValue)
       }}
       onBlur={(event) => {
-        const digits = onlyPhoneDigits(event.target.value)
+        const nextValue = hasMasks ? onlyPhoneDigits(event.target.value) : event.target.value
         event.target.setCustomValidity(
-          isValidPhone(digits) ? '' : 'Telefone não corresponde a uma das máscaras configuradas.'
+          isValidPhone(nextValue) ? '' : INVALID_PHONE_MESSAGE
         )
         props.onBlur?.(event)
       }}

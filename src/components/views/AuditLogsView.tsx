@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ClockCounterClockwise, ArrowsClockwise } from '@phosphor-icons/react'
-import helpContent from '@/docs/audit-logs.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { format } from 'date-fns'
 import { Badge } from '@/components/ui/badge'
@@ -215,7 +215,7 @@ export default function AuditLogsView() {
         <div>
           <div className="flex items-center gap-1">
             <h2 className="text-3xl font-bold tracking-tight">{t.tabs['audit-logs']}</h2>
-            <HelpButton content={helpContent} title={t.audit_logs_view.help_title} />
+            <HelpButton docKey="audit-logs" title={t.audit_logs_view.help_title} />
           </div>
           <p className="text-muted-foreground mt-1">
             {t.audit_logs_view.subtitle}

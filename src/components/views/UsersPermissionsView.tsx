@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/lib/AuthContext'
-import helpContent from '@/docs/users-permissions.md?raw'
+
 import { HelpButton } from '@/components/HelpButton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,8 @@ import { Badge } from '@/components/ui/badge'
 import { useLanguage } from '@/lib/LanguageContext'
 import { supabase } from '@/lib/supabase'
 import { logAppAudit } from '@/lib/appAudit'
-import type { TenantUserInvitation, UserRole, UserStatus } from '@/types'
+import { deriveUserRoleFromAccessProfileId, resolveDefaultAccessProfileId } from '@/lib/accessControl'
+import type { AccessProfile, TenantUserInvitation, UserRole, UserStatus } from '@/types'
 import { Brain, BuildingOffice, ChartBar, Circle, CurrencyDollar, EnvelopeSimple, PencilSimpleLine, ShieldCheck, Trash, User, UsersThree } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { InviteTenantUserDialog } from '@/components/InviteTenantUserDialog'
@@ -47,8 +48,11 @@ type TenantProfile = {
   githubLogin: string
   role: UserRole
   status: UserStatus
+  accessProfileId?: string | null
+  accessProfileName?: string | null
   email: string
   avatarUrl: string
+  phone?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -71,7 +75,7 @@ type UserPresenceRow = {
 type InvitationRow = TenantUserInvitation
 
 export default function UsersPermissionsView() {
-  const { isAdmin, isPlatformAdmin, setSessionTenant, currentUser, currentTenantId } = useAuth()
+  const { isAdmin, isPlatformAdmin, setSessionTenant, currentUser, currentTenantId, tenantUsagePlan } = useAuth()
   const { t } = useLanguage()
 
   const [tenants, setTenants] = useState<TenantOption[]>([])
@@ -85,7 +89,10 @@ export default function UsersPermissionsView() {
   const [draftLogin, setDraftLogin] = useState('')
   const [draftEmail, setDraftEmail] = useState('')
   const [draftAvatar, setDraftAvatar] = useState('')
+  const [draftPhone, setDraftPhone] = useState('')
+  const [draftPhoneError, setDraftPhoneError] = useState<string | null>(null)
   const [draftRole, setDraftRole] = useState<UserRole>('guest')
+  const [draftAccessProfileId, setDraftAccessProfileId] = useState<string>('')
   const [draftStatus, setDraftStatus] = useState<UserStatus>('pending')
   const [moveTenantId, setMoveTenantId] = useState<string>('')
   const [isSavingProfile, setIsSavingProfile] = useState(false)
@@ -93,13 +100,17 @@ export default function UsersPermissionsView() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [deleteEmailInput, setDeleteEmailInput] = useState('')
   const [isDeletingProfile, setIsDeletingProfile] = useState(false)
+  const [isDeleteTenantConfirmOpen, setIsDeleteTenantConfirmOpen] = useState(false)
+  const [deleteTenantNameInput, setDeleteTenantNameInput] = useState('')
+  const [isDeletingTenant, setIsDeletingTenant] = useState(false)
   const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all')
+  const [accessProfileFilter, setAccessProfileFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | UserStatus>('all')
   const [onlineUsers, setOnlineUsers] = useState<UserPresenceRow[]>([])
   const [invitations, setInvitations] = useState<InvitationRow[]>([])
   const [isLoadingOnlineUsers, setIsLoadingOnlineUsers] = useState(false)
   const [isLoadingInvitations, setIsLoadingInvitations] = useState(false)
+  const [accessProfiles, setAccessProfiles] = useState<AccessProfile[]>([])
   const [aiUsageLogs, setAiUsageLogs] = useState<AiUsageRow[]>([])
   const [allTenantsUsage, setAllTenantsUsage] = useState<TenantUsageSummary[]>([])
   const [isLoadingAiUsage, setIsLoadingAiUsage] = useState(false)
@@ -121,7 +132,7 @@ export default function UsersPermissionsView() {
   const filteredProfiles = useMemo(() => {
     const term = search.trim().toLowerCase()
     return profiles.filter((profile) => {
-      if (roleFilter !== 'all' && profile.role !== roleFilter) return false
+      if (accessProfileFilter !== 'all' && (profile.accessProfileId || '') !== accessProfileFilter) return false
       if (statusFilter !== 'all' && profile.status !== statusFilter) return false
       if (!term) return true
       return (
@@ -129,7 +140,22 @@ export default function UsersPermissionsView() {
         || profile.email.toLowerCase().includes(term)
       )
     })
-  }, [profiles, search, roleFilter, statusFilter])
+  }, [profiles, search, accessProfileFilter, statusFilter])
+
+  const activeUsersCount = useMemo(() => (
+    profiles.filter((profile) => profile.status !== 'blocked').length
+  ), [profiles])
+
+  const pendingInvitesCount = useMemo(() => (
+    invitations.filter((invitation) => invitation.status === 'pending').length
+  ), [invitations])
+
+  const maxUsersByPlan = tenantUsagePlan?.maxUsers ?? null
+  const inviteLimitReached = maxUsersByPlan !== null && (activeUsersCount + pendingInvitesCount) >= maxUsersByPlan
+
+  const accessProfileNameById = useMemo(() => (
+    new Map(accessProfiles.map((profile) => [profile.id, profile.name]))
+  ), [accessProfiles])
 
   const loadAllTenantsUsage = useCallback(async (tenantList: TenantOption[]) => {
     if (!tenantList.length) return
@@ -204,13 +230,44 @@ export default function UsersPermissionsView() {
         githubLogin: row.github_login,
         role: row.role,
         status: row.status,
+        accessProfileId: row.access_profile_id || null,
         email: row.email,
         avatarUrl: row.avatar_url,
+        phone: row.phone || null,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       })))
     }
     setIsLoadingProfiles(false)
+  }, [])
+
+  const loadAccessProfiles = useCallback(async (tenantId: string) => {
+    if (!tenantId) {
+      setAccessProfiles([])
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('access_profiles')
+      .select('tenant_id, id, name, description, is_system, created_at, updated_at')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.warn('Failed to load access profiles:', error)
+      setAccessProfiles([])
+      return
+    }
+
+    setAccessProfiles((data || []).map((row: any) => ({
+      tenantId: row.tenant_id,
+      id: row.id,
+      name: row.name,
+      description: row.description || '',
+      isSystem: !!row.is_system,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    })))
   }, [])
 
   const loadOnlineUsers = useCallback(async (tenantId?: string) => {
@@ -300,10 +357,11 @@ export default function UsersPermissionsView() {
   useEffect(() => {
     if (!selectedTenantId) return
     void loadProfilesByTenant(selectedTenantId)
+    void loadAccessProfiles(selectedTenantId)
     void loadOnlineUsers(selectedTenantId)
     void loadAiUsage(selectedTenantId)
     void loadInvitations(selectedTenantId)
-  }, [selectedTenantId, loadProfilesByTenant, loadOnlineUsers, loadAiUsage, loadInvitations])
+  }, [selectedTenantId, loadProfilesByTenant, loadAccessProfiles, loadOnlineUsers, loadAiUsage, loadInvitations])
 
   useEffect(() => {
     if (!selectedTenantId) return
@@ -364,7 +422,10 @@ export default function UsersPermissionsView() {
     setDraftLogin(profile.githubLogin)
     setDraftEmail(profile.email)
     setDraftAvatar(profile.avatarUrl)
-    setDraftRole(profile.role)
+    setDraftPhone(profile.phone || '')
+    setDraftPhoneError(null)
+    setDraftRole(deriveUserRoleFromAccessProfileId(profile.accessProfileId || resolveDefaultAccessProfileId(profile.role)))
+    setDraftAccessProfileId(profile.accessProfileId || resolveDefaultAccessProfileId(profile.role))
     setDraftStatus(profile.status)
     setMoveTenantId(selectedTenantId)
   }
@@ -403,6 +464,8 @@ export default function UsersPermissionsView() {
     }
   }
 
+  const E164_REGEX = /^\+[1-9]\d{6,14}$/
+
   const handleSaveProfile = async () => {
     if (!editingLogin || !selectedProfile) return
     if (!draftLogin.trim()) {
@@ -413,6 +476,12 @@ export default function UsersPermissionsView() {
       toast.error(t.users_permissions_view.profile_email_required)
       return
     }
+    const phoneValue = draftPhone.trim()
+    if (phoneValue && !E164_REGEX.test(phoneValue)) {
+      setDraftPhoneError(t.users_permissions_view.phone_invalid)
+      return
+    }
+    setDraftPhoneError(null)
 
     if (moveTenantId !== selectedTenantId) {
       setIsMoveConfirmOpen(true)
@@ -439,10 +508,12 @@ export default function UsersPermissionsView() {
 
       const updatePayload: Record<string, any> = {
         role: draftRole,
+        access_profile_id: draftAccessProfileId || resolveDefaultAccessProfileId(draftRole),
         status: draftStatus,
         github_login: draftLogin.trim(),
         email: draftEmail.trim(),
         avatar_url: draftAvatar.trim(),
+        phone: draftPhone.trim() || null,
         updated_at: new Date().toISOString(),
       }
 
@@ -510,6 +581,124 @@ export default function UsersPermissionsView() {
     }
   }
 
+  const handleDraftAccessProfileChange = (value: string) => {
+    setDraftAccessProfileId(value)
+    setDraftRole(deriveUserRoleFromAccessProfileId(value))
+  }
+
+  const handleBlockProfile = async (profile: TenantProfile) => {
+    if (profile.status === 'blocked') return
+    if (profile.authUserId && profile.authUserId === currentUser?.id) {
+      toast.error(t.errors.cannotChangeOwnRole)
+      return
+    }
+    if (!window.confirm(`Bloquear o usuario ${profile.email}?`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          status: 'blocked',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profile.id)
+        .eq('tenant_id', selectedTenantId)
+
+      if (error) throw error
+
+      await logAppAudit({
+        entity: 'user_profiles',
+        action: 'update',
+        recordId: profile.id,
+        tenantId: selectedTenantId,
+        actorAuthUserId: currentUser?.id,
+        actorLogin: currentUser?.login,
+      })
+
+      toast.success(t.success.userBlocked)
+      await loadProfilesByTenant(selectedTenantId)
+    } catch (error: any) {
+      toast.error(error?.message || t.errors.updateFailed)
+    }
+  }
+
+  const handleUnblockProfile = async (profile: TenantProfile) => {
+    if (profile.status !== 'blocked') return
+    if (profile.authUserId && profile.authUserId === currentUser?.id) {
+      toast.error(t.errors.cannotChangeOwnRole)
+      return
+    }
+    if (!window.confirm(`Desbloquear o usuario ${profile.email}?`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          status: 'approved',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', profile.id)
+        .eq('tenant_id', selectedTenantId)
+
+      if (error) throw error
+
+      await logAppAudit({
+        entity: 'user_profiles',
+        action: 'update',
+        recordId: profile.id,
+        tenantId: selectedTenantId,
+        actorAuthUserId: currentUser?.id,
+        actorLogin: currentUser?.login,
+      })
+
+      toast.success(t.success.userApproved)
+      await loadProfilesByTenant(selectedTenantId)
+    } catch (error: any) {
+      toast.error(error?.message || t.errors.updateFailed)
+    }
+  }
+
+  const handleDeleteTenant = async () => {
+    if (!selectedTenantId || !selectedTenant) return
+    if (deleteTenantNameInput.trim() !== selectedTenant.name.trim()) {
+      toast.error(t.users_permissions_view.delete_tenant_name_mismatch)
+      return
+    }
+    if (selectedTenantId === currentTenantId) {
+      toast.error(t.users_permissions_view.delete_tenant_switch_session_first)
+      return
+    }
+
+    setIsDeletingTenant(true)
+    try {
+      const { data, error } = await supabase.rpc('delete_tenant', {
+        p_tenant_id: selectedTenantId,
+        p_confirmation_name: deleteTenantNameInput.trim(),
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      const remainingTenants = tenants.filter((tenant) => tenant.id !== selectedTenantId)
+      setTenants(remainingTenants)
+      setSelectedTenantId(remainingTenants[0]?.id || '')
+      setProfiles([])
+      setInvitations([])
+      setOnlineUsers([])
+      setAiUsageLogs([])
+      setDeleteTenantNameInput('')
+      setIsDeleteTenantConfirmOpen(false)
+      toast.success(t.users_permissions_view.delete_tenant_success)
+    } catch (error: any) {
+      toast.error(error?.message || t.users_permissions_view.delete_tenant_error)
+    } finally {
+      setIsDeletingTenant(false)
+    }
+  }
+
   const sourceTenantName = selectedTenant?.name || selectedTenantId || '-'
   const destinationTenantName = tenants.find((tenant) => tenant.id === moveTenantId)?.name || moveTenantId || '-'
 
@@ -518,62 +707,48 @@ export default function UsersPermissionsView() {
       <div>
         <div className="flex items-center gap-1">
           <h2 className="text-3xl font-bold tracking-tight">{t.tabs['users-permissions']}</h2>
-          <HelpButton content={helpContent} title={t.users_permissions_view.help_title} />
+          <HelpButton docKey="users-permissions" title={t.users_permissions_view.help_title} />
         </div>
         <p className="text-muted-foreground mt-1">
           {t.users_permissions_view.subtitle}
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BuildingOffice size={20} weight="duotone" />
-            {t.users_permissions_view.tenant_control_title}
-          </CardTitle>
-          <CardDescription>
-            {t.users_permissions_view.tenant_control_description}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="tenant-selector">{t.users_permissions_view.tenant_in_focus}</Label>
-              <Select value={selectedTenantId} onValueChange={setSelectedTenantId} disabled={isLoadingTenants || tenants.length === 0 || !isPlatformAdmin}>
-                <SelectTrigger id="tenant-selector">
-                  <SelectValue placeholder={t.users_permissions_view.select_tenant} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>{tenant.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      {isPlatformAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BuildingOffice size={20} weight="duotone" />
+              {t.users_permissions_view.tenant_in_focus}
+            </CardTitle>
+            <CardDescription>
+              Selecione o tenant para gerenciar usuarios, convites e sessoes.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="tenant-selector">{t.users_permissions_view.tenant_in_focus}</Label>
+                <Select value={selectedTenantId} onValueChange={setSelectedTenantId} disabled={isLoadingTenants || tenants.length === 0}>
+                  <SelectTrigger id="tenant-selector">
+                    <SelectValue placeholder={t.users_permissions_view.select_tenant} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>{tenant.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tenant-id">{t.users_permissions_view.tenant_id}</Label>
+                <Input id="tenant-id" value={selectedTenantId || ''} disabled />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="tenant-name">{t.users_permissions_view.tenant_name}</Label>
-              <Input
-                id="tenant-name"
-                value={tenantDraft}
-                onChange={(event) => setTenantDraft(event.target.value)}
-                placeholder={t.users_permissions_view.organization_name}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tenant-id">{t.users_permissions_view.tenant_id}</Label>
-              <Input id="tenant-id" value={selectedTenantId || ''} disabled />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {t.users_permissions_view.logged_user_tenant}: {currentTenantId || '-'}
-          </p>
-          {!isPlatformAdmin && (
-            <p className="text-xs text-muted-foreground">
-              {t.users_permissions_view.only_master_session_and_move}
-            </p>
-          )}
-          <div className="flex flex-col gap-2 sm:flex-row">
-            {isPlatformAdmin && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                {t.users_permissions_view.logged_user_tenant}: {currentTenantId || '-'}
+              </p>
               <Button
                 variant="secondary"
                 onClick={async () => {
@@ -589,13 +764,10 @@ export default function UsersPermissionsView() {
               >
                 {t.users_permissions_view.use_selected_tenant}
               </Button>
-            )}
-            <Button onClick={handleSaveTenant} disabled={isSavingTenant || !tenantDraft.trim()}>
-              {isSavingTenant ? t.users_permissions_view.saving : t.users_permissions_view.save_tenant}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -691,15 +863,18 @@ export default function UsersPermissionsView() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="role-filter">{t.users_permissions_view.role}</Label>
-              <Select value={roleFilter} onValueChange={(value) => setRoleFilter(value as 'all' | UserRole)}>
-                <SelectTrigger id="role-filter">
+              <Label htmlFor="access-profile-filter">Perfil de acesso</Label>
+              <Select value={accessProfileFilter} onValueChange={setAccessProfileFilter}>
+                <SelectTrigger id="access-profile-filter">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t.users_permissions_view.all}</SelectItem>
-                  <SelectItem value="admin">{t.roles.admin}</SelectItem>
-                  <SelectItem value="guest">{t.roles.guest}</SelectItem>
+                  {accessProfiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -713,7 +888,7 @@ export default function UsersPermissionsView() {
                   <SelectItem value="all">{t.users_permissions_view.all}</SelectItem>
                   <SelectItem value="pending">{t.userManagement.pending}</SelectItem>
                   <SelectItem value="approved">{t.userManagement.approved}</SelectItem>
-                  <SelectItem value="rejected">{t.userManagement.rejected}</SelectItem>
+                  <SelectItem value="blocked">{t.userManagement.blocked}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -729,9 +904,33 @@ export default function UsersPermissionsView() {
               <div className="min-w-0">
                 <p className="font-medium truncate">{profile.githubLogin}</p>
                 <p className="text-sm text-muted-foreground truncate">{profile.email}</p>
-                <p className="text-xs text-muted-foreground">{t.users_permissions_view.role}: {t.roles[profile.role]} • {t.users_permissions_view.status}: {profile.status === 'pending' ? t.userManagement.pending : profile.status === 'approved' ? t.userManagement.approved : t.userManagement.rejected}</p>
+                <p className="text-xs text-muted-foreground">
+                  Perfil de acesso: {accessProfileNameById.get(profile.accessProfileId || '') || 'Padrao do papel'}
+                </p>
+                <p className="text-xs text-muted-foreground">{t.users_permissions_view.role}: {t.roles[profile.role]} • {t.users_permissions_view.status}: {profile.status === 'pending' ? t.userManagement.pending : profile.status === 'approved' ? t.userManagement.approved : t.userManagement.blocked}</p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
+                {profile.status === 'blocked' ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleUnblockProfile(profile)}
+                    disabled={profile.authUserId === currentUser?.id}
+                  >
+                    <ShieldCheck size={16} weight="duotone" className="mr-2" />
+                    {t.users_permissions_view.unblock_user}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => void handleBlockProfile(profile)}
+                    disabled={profile.authUserId === currentUser?.id}
+                  >
+                    <ShieldCheck size={16} weight="duotone" className="mr-2" />
+                    {t.users_permissions_view.block_user}
+                  </Button>
+                )}
                 <ResetTenantUserPasswordDialog
                   tenantId={selectedTenantId}
                   login={profile.githubLogin}
@@ -788,8 +987,7 @@ export default function UsersPermissionsView() {
             emailRequiredMessage={t.users_permissions_view.profile_email_required}
             successMessage={t.users_permissions_view.invite_sent_success}
             errorMessage={t.users_permissions_view.invite_send_error}
-            roleAdminLabel={t.roles.admin}
-            roleGuestLabel={t.roles.guest}
+            disabled={inviteLimitReached}
             onInvited={() => {
               void loadProfilesByTenant(selectedTenantId)
               void loadInvitations(selectedTenantId)
@@ -797,6 +995,11 @@ export default function UsersPermissionsView() {
           />
         </CardHeader>
         <CardContent className="space-y-3">
+          {inviteLimitReached && (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {t.users_permissions_view.plan_users_limit_reached.replace('{limit}', String(maxUsersByPlan ?? '-'))}
+            </p>
+          )}
           {isLoadingInvitations && (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               {t.users_permissions_view.loading}
@@ -879,18 +1082,39 @@ export default function UsersPermissionsView() {
                 placeholder={t.users_permissions_view.avatar_url_placeholder}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="profile-phone">{t.users_permissions_view.phone}</Label>
+              <Input
+                id="profile-phone"
+                type="tel"
+                value={draftPhone}
+                onChange={(event) => { setDraftPhone(event.target.value); setDraftPhoneError(null) }}
+                placeholder={t.users_permissions_view.phone_placeholder}
+                className={`font-mono ${draftPhoneError ? 'border-destructive' : ''}`}
+              />
+              {draftPhoneError
+                ? <p className="text-xs text-destructive">{draftPhoneError}</p>
+                : <p className="text-xs text-muted-foreground">{t.users_permissions_view.phone_hint}</p>
+              }
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="profile-role">{t.users_permissions_view.role}</Label>
-                <Select value={draftRole} onValueChange={(value) => setDraftRole(value as UserRole)}>
-                  <SelectTrigger id="profile-role">
+                <Label htmlFor="profile-access-profile">Perfil de acesso</Label>
+                <Select value={draftAccessProfileId} onValueChange={handleDraftAccessProfileChange}>
+                  <SelectTrigger id="profile-access-profile">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">{t.roles.admin}</SelectItem>
-                    <SelectItem value="guest">{t.roles.guest}</SelectItem>
+                    {accessProfiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Tipo base: {draftRole === 'admin' ? t.roles.admin : t.roles.guest}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="profile-status">{t.users_permissions_view.status}</Label>
@@ -901,7 +1125,7 @@ export default function UsersPermissionsView() {
                   <SelectContent>
                     <SelectItem value="pending">{t.userManagement.pending}</SelectItem>
                     <SelectItem value="approved">{t.userManagement.approved}</SelectItem>
-                    <SelectItem value="rejected">{t.userManagement.rejected}</SelectItem>
+                    <SelectItem value="blocked">{t.userManagement.blocked}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -989,6 +1213,8 @@ export default function UsersPermissionsView() {
       </Dialog>
 
       {/* ── AI usage – current tenant (last 30 days) ── */}
+      {false && (
+        <>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -1130,6 +1356,44 @@ export default function UsersPermissionsView() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={isDeleteTenantConfirmOpen} onOpenChange={setIsDeleteTenantConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.users_permissions_view.delete_tenant_title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t.users_permissions_view.delete_tenant_description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="delete-tenant-confirm">{t.users_permissions_view.delete_tenant_confirm_label}</Label>
+            <Input
+              id="delete-tenant-confirm"
+              value={deleteTenantNameInput}
+              onChange={(event) => setDeleteTenantNameInput(event.target.value)}
+              placeholder={t.users_permissions_view.delete_tenant_confirm_placeholder}
+            />
+            {selectedTenant && (
+              <p className="text-sm text-muted-foreground">
+                {t.users_permissions_view.delete_tenant_confirm_target}: <strong>{selectedTenant.name}</strong>
+              </p>
+            )}
+            {selectedTenantId === currentTenantId && (
+              <p className="text-sm text-destructive">
+                {t.users_permissions_view.delete_tenant_switch_session_first}
+              </p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingTenant}>{t.properties_view.delete_confirm_cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleDeleteTenant()} disabled={isDeletingTenant}>
+              {isDeletingTenant ? t.users_permissions_view.delete_tenant_deleting : t.users_permissions_view.delete_tenant_confirm_button}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+        </>
+      )}
     </div>
   )
 }

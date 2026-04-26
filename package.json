@@ -1,5 +1,5 @@
 {
-    "name": "spark-template",
+    "name": "rental-property-manager",
     "private": true,
     "version": "0.0.0",
     "type": "module",
@@ -68,9 +68,12 @@
         "jspdf": "^4.2.1",
         "leaflet": "^1.9.4",
         "lucide-react": "^0.484.0",
+        "mammoth": "^1.12.0",
         "marked": "^15.0.7",
         "next-themes": "^0.4.6",
         "octokit": "^4.1.2",
+        "pdfjs-dist": "^5.6.205",
+        "qrcode": "^1.5.4",
         "react": "^19.0.0",
         "react-day-picker": "^9.6.7",
         "react-dom": "^19.0.0",
@@ -91,6 +94,7 @@
     "devDependencies": {
         "@eslint/js": "^9.21.0",
         "@tailwindcss/postcss": "^4.1.8",
+        "@types/qrcode": "^1.5.6",
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",
         "@vitejs/plugin-react-swc": "^4.2.2",

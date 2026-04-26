@@ -1,0 +1,23 @@
+-- Table for property iCal feeds (external platform links: Airbnb, Booking.com, etc.)
+-- Follows the same pattern as property_owners, property_environments, etc.
+create table if not exists property_ical_feeds (
+  id           text        not null,
+  tenant_id    uuid        not null references tenants(id) on delete cascade,
+  property_id  text        not null,
+  provider     text        not null,
+  label        text        not null default '',
+  url          text        not null,
+  created_at   timestamptz not null default now(),
+  primary key (tenant_id, property_id, id)
+);
+
+create index if not exists idx_property_ical_feeds_property
+  on property_ical_feeds(tenant_id, property_id);
+
+-- ical_uid on contracts for deduplication when syncing from iCal feeds
+alter table contracts
+  add column if not exists ical_uid text;
+
+create index if not exists idx_contracts_ical_uid
+  on contracts(tenant_id, ical_uid)
+  where ical_uid is not null;

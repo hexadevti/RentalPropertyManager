@@ -279,6 +279,8 @@ begin
     channel,
     event_type,
     content_type,
+    language,
+    translation_group_id,
     description,
     subject,
     content,
@@ -292,6 +294,8 @@ begin
     template_defaults.channel,
     template_defaults.event_type,
     template_defaults.content_type,
+    'en',
+    template_defaults.id,
     template_defaults.description,
     template_defaults.subject,
     template_defaults.content,
@@ -405,8 +409,8 @@ begin
     v_now
   from (
     values
-      ('user-access:self-service:user-access-invite', 'User access self-service notifications', 'user-access-invite', 'user-access', 'default-email-user-access-invite'),
-      ('user-access:self-service:user-password-reset', 'User access self-service notifications', 'user-password-reset', 'user-access', 'default-email-user-password-reset')
+      ('user-access:self-service:user-access-invite', 'User access notifications', 'user-access-invite', 'user-access', 'default-email-user-access-invite'),
+      ('user-access:self-service:user-password-reset', 'User access notifications', 'user-password-reset', 'user-access', 'default-email-user-password-reset')
   ) as rule_defaults(
     id,
     name,
