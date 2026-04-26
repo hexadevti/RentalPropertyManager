@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import rpmLogo from '@/assets/rpm-go-tranparent.png'
+import { BookingPortalDemo } from '@/components/BookingPortalDemo'
 import {
   House, Buildings, Users, CurrencyCircleDollar, CalendarBlank, ChartBar,
   FileText, Wrench, CheckCircle, ArrowRight, Globe, Star, ShieldCheck,
@@ -273,7 +274,7 @@ const content = {
         {
           number: '02',
           title: 'Importe seus dados',
-          description: 'Use os templates CSV para importar propriedades, hóspedes e contratos existentes em minutos.',
+          description: 'Importe por CSV ou use IA para acelerar o cadastro: extraia dados de anúncios, documentos e fotos para ganhar produtividade desde o primeiro dia.',
         },
         {
           number: '03',
@@ -626,7 +627,7 @@ const content = {
         {
           number: '02',
           title: 'Import your data',
-          description: 'Use CSV templates to import existing properties, guests and contracts in minutes.',
+          description: 'Import via CSV or use AI-assisted intake: extract data from listings, documents and photos to boost productivity from day one.',
         },
         {
           number: '03',
@@ -728,10 +729,15 @@ const content = {
 
 export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }: HomePageProps) {
   const [lang, setLang] = useState<'pt' | 'en'>('pt')
+  const [showPortalDemo, setShowPortalDemo] = useState(false)
   const t = content[lang]
 
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  if (showPortalDemo) {
+    return <BookingPortalDemo onClose={() => setShowPortalDemo(false)} lang={lang} t={t} />
   }
 
   return (
@@ -745,22 +751,22 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
           </div>
 
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <button onClick={() => scrollTo('ai')} className="hover:text-foreground transition-colors flex items-center gap-1">
+            <button onClick={() => scrollTo('ai')} className="hover:text-foreground transition-colors flex items-center gap-1 cursor-pointer">
               <Sparkle size={12} weight="fill" className="text-primary" />
               {t.nav.ai}
             </button>
-            <button onClick={() => scrollTo('ai-capabilities')} className="hover:text-foreground transition-colors">{t.nav.aiCapabilities}</button>
-            <button onClick={() => scrollTo('booking-portal')} className="hover:text-foreground transition-colors">{t.nav.bookingPortal}</button>
-            <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors">{t.nav.features}</button>
-            <button onClick={() => scrollTo('latest')} className="hover:text-foreground transition-colors">{t.nav.latest}</button>
-            <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors">{t.nav.howItWorks}</button>
-            <button onClick={() => scrollTo('pricing')} className="hover:text-foreground transition-colors">{t.nav.pricing}</button>
+            <button onClick={() => scrollTo('ai-capabilities')} className="hover:text-foreground transition-colors cursor-pointer">{t.nav.aiCapabilities}</button>
+            <button onClick={() => scrollTo('booking-portal')} className="hover:text-foreground transition-colors cursor-pointer">{t.nav.bookingPortal}</button>
+            <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors cursor-pointer">{t.nav.features}</button>
+            <button onClick={() => scrollTo('latest')} className="hover:text-foreground transition-colors cursor-pointer">{t.nav.latest}</button>
+            <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors cursor-pointer">{t.nav.howItWorks}</button>
+            <button onClick={() => scrollTo('pricing')} className="hover:text-foreground transition-colors cursor-pointer">{t.nav.pricing}</button>
           </nav>
 
           <div className="flex items-center gap-3">
             <button
               onClick={() => setLang(l => l === 'pt' ? 'en' : 'pt')}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted cursor-pointer"
             >
               <Globe size={14} />
               {lang === 'pt' ? 'EN' : 'PT'}
@@ -1037,11 +1043,19 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
                 </div>
               ))}
             </div>
+
+            <Button
+              onClick={() => setShowPortalDemo(true)}
+              className="mt-8 gap-2 cursor-pointer"
+            >
+              {lang === 'pt' ? 'Abrir demo' : 'Open demo'}
+              <ArrowRight size={16} />
+            </Button>
           </div>
 
-          <div className="relative">
+          <div className="relative cursor-pointer" onClick={() => setShowPortalDemo(true)}>
             <div className="absolute -inset-4 bg-gradient-to-r from-primary/15 to-accent/20 rounded-3xl blur-2xl opacity-60" />
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl hover:shadow-2xl transition-shadow">
               <div className="border-b border-border bg-muted/40 px-4 py-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold">{t.bookingPortal.preview.header}</p>
@@ -1088,23 +1102,23 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
           <p className="text-center text-sm font-semibold text-primary uppercase tracking-wider mb-8">
             {lang === 'pt' ? 'Portfólio de imóveis' : 'Property portfolio'}
           </p>
-          <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-none -mx-6 px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {[
-              { src: 'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Apartamento' : 'Apartment' },
-              { src: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Estúdio moderno' : 'Modern studio' },
-              { src: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Edifício corporativo' : 'Corporate building' },
-              { src: 'https://images.unsplash.com/photo-1416331108676-a22ccb276e35?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Casa de temporada' : 'Vacation home' },
-              { src: 'https://images.unsplash.com/photo-1469022563428-aa04fef9f5a2?w=600&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Cobertura' : 'Penthouse' },
+              { src: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1400&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Casa contemporânea' : 'Contemporary house', className: 'lg:col-span-8 lg:row-span-2' },
+              { src: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1200&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Arquitetura de alto padrão' : 'High-end architecture', className: 'lg:col-span-4' },
+              { src: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=1200&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Sala inspiradora' : 'Inspiring living room', className: 'lg:col-span-4' },
+              { src: 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=1200&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Refúgio de temporada' : 'Vacation retreat', className: 'lg:col-span-6' },
+              { src: 'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?w=1200&q=80&auto=format&fit=crop', label: lang === 'pt' ? 'Vista panorâmica' : 'Panoramic view', className: 'lg:col-span-6' },
             ].map((img, i) => (
-              <div key={i} className="snap-start shrink-0 w-72 md:w-80 rounded-2xl overflow-hidden shadow-md relative group">
+              <div key={i} className={`relative group overflow-hidden rounded-3xl border border-border/60 shadow-xl cursor-pointer ${img.className}`}>
                 <img
                   src={img.src}
                   alt={img.label}
-                  className="h-52 w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className={`w-full object-cover group-hover:scale-105 transition-transform duration-700 ${i === 0 ? 'h-[460px] lg:h-full lg:min-h-[640px]' : 'h-[260px] sm:h-[300px]'}`}
                   loading="lazy"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="absolute bottom-3 left-3 text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-75 group-hover:opacity-90 transition-opacity" />
+                <div className="absolute bottom-5 left-5 text-white text-base sm:text-lg font-semibold tracking-wide">
                   {img.label}
                 </div>
               </div>
@@ -1170,7 +1184,7 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
                   >
                     <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
                     {item.isNew && (
-                      <Badge className="absolute top-3 right-3 text-xs gap-1" variant="secondary">
+                      <Badge className="absolute top-3 right-3 text-xs gap-1 cursor-pointer" variant="secondary">
                         <Sparkle size={10} weight="fill" />
                         {lang === 'pt' ? 'Novo' : 'New'}
                       </Badge>
@@ -1285,7 +1299,7 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
                   ))}
                 </ul>
 
-                <Button variant={plan.highlighted ? 'default' : 'outline'} className="w-full" onClick={onLoginClick}>
+                <Button variant={plan.highlighted ? 'default' : 'outline'} className="w-full cursor-pointer" onClick={onLoginClick}>
                   {plan.cta}
                 </Button>
               </div>
