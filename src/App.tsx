@@ -37,6 +37,7 @@ import { Login } from '@/components/Login'
 import { HomePage } from '@/components/HomePage'
 import { Blocked } from '@/components/Rejected'
 import { PasswordRecoveryForm } from '@/components/PasswordRecoveryForm'
+import { MobilePhotoCapturePage } from '@/components/MobilePhotoCapturePage'
 import { useKVCleanup } from '@/hooks/use-kv-cleanup'
 import { usePropertyMigration } from '@/hooks/use-property-migration'
 import { useUserPresence } from '@/hooks/use-user-presence'
@@ -209,6 +210,7 @@ function AppContent() {
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([])
   const [isChangingTenant, setIsChangingTenant] = useState(false)
   const isAuthCallbackRoute = window.location.pathname === '/auth/callback'
+  const isMobileCaptureRoute = window.location.pathname === '/mobile/capture'
 
   const tabTitleMap: Record<string, string> = {
     properties: t.tabs.properties,
@@ -287,6 +289,10 @@ function AppContent() {
 
   if (isAuthCallbackRoute) {
     return <AuthCallbackPage />
+  }
+
+  if (isMobileCaptureRoute) {
+    return <MobilePhotoCapturePage />
   }
 
   if (isLoading) {

@@ -3,6 +3,7 @@ import { Camera, IdentificationCard, UploadSimple, X } from '@phosphor-icons/rea
 import { toast } from 'sonner'
 
 import { extractPersonFromImageFiles, type PersonAIDraft, type PersonImportTarget } from '@/lib/aiPersonImport'
+import { MobilePhotoCaptureDialog } from '@/components/MobilePhotoCaptureDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -158,6 +159,13 @@ export function PersonDocumentImportDialog({
     return addedCount
   }
 
+  const appendFileArray = (incomingFiles: File[]) => {
+    if (!incomingFiles.length) return 0
+    const dataTransfer = new DataTransfer()
+    incomingFiles.forEach((file) => dataTransfer.items.add(file))
+    return appendFiles(dataTransfer.files)
+  }
+
   const handleFileSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
     appendFiles(event.target.files)
     event.target.value = ''
@@ -279,6 +287,15 @@ export function PersonDocumentImportDialog({
                 <Camera size={16} className="mr-2" />
                 {labels.useCamera}
               </Button>
+              <MobilePhotoCaptureDialog
+                disabled={isExtracting}
+                onFilesReady={(mobileFiles) => {
+                  const addedCount = appendFileArray(mobileFiles)
+                  if (addedCount > 0) {
+                    toast.success(labels.filesSelected.replace('{count}', String(addedCount)))
+                  }
+                }}
+              />
               <Button
                 type="button"
                 variant="ghost"

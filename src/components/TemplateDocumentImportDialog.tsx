@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { importTemplateFromFiles } from '@/lib/aiTemplateImport'
 import RichTextEditor, { plainTextToHTML } from '@/components/RichTextEditor'
+import { MobilePhotoCaptureDialog } from '@/components/MobilePhotoCaptureDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -125,13 +126,11 @@ export function TemplateDocumentImportDialog({
   }
 
   const appendFiles = (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return 0
-
     let addedCount = 0
     setFiles((current) => {
       const seen = new Set(current.map((file) => `${file.name}:${file.size}:${file.lastModified}`))
       const next = [...current]
-      for (const file of Array.from(fileList)) {
+      for (const file of Array.from(fileList || [])) {
         const key = `${file.name}:${file.size}:${file.lastModified}`
         if (seen.has(key)) continue
         seen.add(key)
@@ -144,6 +143,13 @@ export function TemplateDocumentImportDialog({
 
     if (addedCount > 0) clearExtractionResult()
     return addedCount
+  }
+
+  const appendFileArray = (incomingFiles: File[]) => {
+    if (!incomingFiles.length) return 0
+    const dataTransfer = new DataTransfer()
+    incomingFiles.forEach((file) => dataTransfer.items.add(file))
+    return appendFiles(dataTransfer.files)
   }
 
   const handleFileSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -281,6 +287,15 @@ export function TemplateDocumentImportDialog({
                 <Camera size={16} className="mr-2" />
                 Usar câmera
               </Button>
+              <MobilePhotoCaptureDialog
+                disabled={isExtracting}
+                onFilesReady={(mobileFiles) => {
+                  const addedCount = appendFileArray(mobileFiles)
+                  if (addedCount > 0) {
+                    toast.success(`${addedCount} foto(s) recebida(s) do celular.`)
+                  }
+                }}
+              />
               <Button
                 type="button"
                 variant="ghost"
