@@ -8,7 +8,7 @@ import {
   Rocket, Lightning, Handshake, IdentificationCard, Bell, Lock,
   CaretDown, ClipboardText, FolderOpen, Bug, ClockCounterClockwise,
   UserFocus, PushPin, Brain, WhatsappLogo, ArrowsClockwise, UploadSimple,
-  Sparkle, ChatCircleText, Robot, Database, MagicWand,
+  Sparkle, ChatCircleText, Robot, Database, MagicWand, MapPin,
 } from '@phosphor-icons/react'
 
 interface HomePageProps {
@@ -23,6 +23,7 @@ const content = {
       features: 'Recursos',
       ai: 'IA & Automação',
       aiCapabilities: 'Funcionalidades IA',
+      bookingPortal: 'Portal de reservas',
       latest: 'Novidades',
       howItWorks: 'Como funciona',
       pricing: 'Planos',
@@ -33,7 +34,7 @@ const content = {
       badge: 'Gestão com Inteligência Artificial',
       title: 'Gerencie seus imóveis com',
       titleHighlight: 'IA e automação real',
-      subtitle: 'Assistente Claude integrado, bot WhatsApp, sincronização com Airbnb e Booking.com, importação em massa e notificações automáticas — tudo em um só sistema.',
+      subtitle: 'Assistente Claude integrado, bot WhatsApp, sincronização com Airbnb e Booking.com, importação em massa e notificações automáticas — tudo em um só sistema. Cada conta possui um portal de reservas próprio e independente.',
       cta: 'Começar gratuitamente',
       demo: 'Ver como funciona',
       stats: [
@@ -95,9 +96,10 @@ const content = {
         'Leitura e transcrição de documentos (PDF, DOCX e imagens)',
         'Importação de proprietários/hóspedes por documentos e fotos',
         'Importação de templates contratuais com sugestões de variáveis',
-        'Bot WhatsApp conectado ao contexto do tenant',
+        'Bot WhatsApp conectado ao contexto da conta',
         'Sugestões inteligentes para anúncios de propriedade',
         'Notificações automáticas com regras e templates dinâmicos',
+        'Portal de reservas independente para cada conta',
       ],
     },
     integrations: {
@@ -110,6 +112,11 @@ const content = {
           icon: ArrowsClockwise,
           title: 'Sync iCal — Airbnb & Booking',
           description: 'Cadastre os links iCal das suas propriedades e importe reservas automaticamente. Cada propriedade também gera um link público para exportar disponibilidade.',
+        },
+        {
+          icon: Globe,
+          title: 'Portal de reservas por conta',
+          description: 'Cada conta possui um portal de reservas próprio e independente, com dados isolados por conta e experiência dedicada para seus hóspedes.',
         },
         {
           icon: UploadSimple,
@@ -127,6 +134,29 @@ const content = {
           description: 'Notificações via Resend (email) e SMS via webhook. Templates HTML e texto com tokens dinâmicos do contrato, tarefa, hóspede e mais.',
         },
       ],
+    },
+    bookingPortal: {
+      badge: 'Portal de reservas',
+      title: 'Cada conta com um',
+      titleHighlight: 'portal independente',
+      subtitle: 'Sua conta tem URL própria, identidade dedicada e dados isolados. Cada operação mantém reservas, hóspedes e disponibilidade sem mistura entre contas.',
+      domainLabel: 'Exemplo de URL do portal',
+      trustItems: [
+        'Dados isolados por conta',
+        'Experiência dedicada para seus hóspedes',
+        'Fluxo de solicitação de reserva integrado ao contrato',
+      ],
+      preview: {
+        header: 'Preview do portal',
+        tenantBadge: 'Conta',
+        heroTitle: 'Encontre o imóvel ideal',
+        heroSubtitle: 'Pesquise por cidade, veja detalhes e solicite sua reserva em poucos cliques.',
+        searchPlaceholder: 'Buscar por cidade ou nome...',
+        cardTitle: 'Apartamento Centro Premium',
+        cardMeta: 'Centro, São Paulo',
+        cardPrice: 'R$ 320/noite',
+        cta: 'Ver detalhes',
+      },
     },
     features: {
       title: 'Tudo que você precisa para',
@@ -203,6 +233,12 @@ const content = {
           icon: MagicWand,
           title: 'Captação de imóveis por anúncios web com IA',
           description: 'Cole um link de anúncio e gere o rascunho da propriedade com fotos, dados e descrição pré-preenchidos automaticamente.',
+          isNew: true,
+        },
+        {
+          icon: Globe,
+          title: 'Portal de reservas independente por conta',
+          description: 'Cada conta passa a ter seu próprio portal de reservas com identidade e dados isolados, sem mistura entre operações de contas diferentes.',
           isNew: true,
         },
         {
@@ -297,7 +333,7 @@ const content = {
           features: [
             'Tudo do plano Profissional',
             'Usuários ilimitados',
-            'Múltiplos tenants',
+            'Múltiplas contas',
             'API de integração',
             'Auditoria e monitoramento',
             'Onboarding dedicado',
@@ -340,6 +376,7 @@ const content = {
       features: 'Features',
       ai: 'AI & Automation',
       aiCapabilities: 'AI capabilities',
+      bookingPortal: 'Booking portal',
       latest: 'What\'s new',
       howItWorks: 'How it works',
       pricing: 'Pricing',
@@ -350,7 +387,7 @@ const content = {
       badge: 'Property Management with AI',
       title: 'Manage your properties with',
       titleHighlight: 'real AI and automation',
-      subtitle: 'Claude AI assistant, WhatsApp bot, Airbnb & Booking.com sync, bulk CSV import and automatic notifications — all in one system.',
+      subtitle: 'Claude AI assistant, WhatsApp bot, Airbnb & Booking.com sync, bulk CSV import and automatic notifications — all in one system. Every account gets its own independent booking portal.',
       cta: 'Get started for free',
       demo: 'See how it works',
       stats: [
@@ -415,6 +452,7 @@ const content = {
         'WhatsApp bot connected to tenant context',
         'Intelligent property ad copy generation',
         'Automatic notifications with dynamic rules and templates',
+        'Independent booking portal for each account',
       ],
     },
     integrations: {
@@ -427,6 +465,11 @@ const content = {
           icon: ArrowsClockwise,
           title: 'iCal Sync — Airbnb & Booking',
           description: 'Register iCal links from your properties and import bookings automatically. Each property also generates a public link to export availability.',
+        },
+        {
+          icon: Globe,
+          title: 'Booking portal per account',
+          description: 'Each account has its own independent booking portal, with tenant-isolated data and a dedicated experience for guests.',
         },
         {
           icon: UploadSimple,
@@ -444,6 +487,29 @@ const content = {
           description: 'Notifications via Resend (email) and SMS via webhook. HTML and text templates with dynamic tokens for contracts, tasks, guests and more.',
         },
       ],
+    },
+    bookingPortal: {
+      badge: 'Booking portal',
+      title: 'One account, one',
+      titleHighlight: 'independent portal',
+      subtitle: 'Your tenant gets its own URL, dedicated identity and isolated data. Reservations, guests and availability stay fully separated between accounts.',
+      domainLabel: 'Portal URL example',
+      trustItems: [
+        'Tenant-isolated data',
+        'Dedicated experience for your guests',
+        'Booking request flow integrated with contracts',
+      ],
+      preview: {
+        header: 'Portal preview',
+        tenantBadge: 'Tenant',
+        heroTitle: 'Find your ideal property',
+        heroSubtitle: 'Search by city, check details and request your booking in a few clicks.',
+        searchPlaceholder: 'Search by city or name...',
+        cardTitle: 'Downtown Premium Apartment',
+        cardMeta: 'Downtown, Sao Paulo',
+        cardPrice: '$65/night',
+        cta: 'View details',
+      },
     },
     features: {
       title: 'Everything you need to',
@@ -520,6 +586,12 @@ const content = {
           icon: MagicWand,
           title: 'AI property capture from web listings',
           description: 'Paste a listing URL and generate a property draft with photos, details and description already pre-filled.',
+          isNew: true,
+        },
+        {
+          icon: Globe,
+          title: 'Independent booking portal per account',
+          description: 'Each account now has its own booking portal with isolated data and identity, keeping tenant operations fully separated.',
           isNew: true,
         },
         {
@@ -678,6 +750,7 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
               {t.nav.ai}
             </button>
             <button onClick={() => scrollTo('ai-capabilities')} className="hover:text-foreground transition-colors">{t.nav.aiCapabilities}</button>
+            <button onClick={() => scrollTo('booking-portal')} className="hover:text-foreground transition-colors">{t.nav.bookingPortal}</button>
             <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors">{t.nav.features}</button>
             <button onClick={() => scrollTo('latest')} className="hover:text-foreground transition-colors">{t.nav.latest}</button>
             <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors">{t.nav.howItWorks}</button>
@@ -931,6 +1004,80 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
                 </div>
               )
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* BOOKING PORTAL PREVIEW */}
+      <section id="booking-portal" className="py-20 px-6 bg-background">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-[0.95fr_1.05fr] gap-10 items-center">
+          <div>
+            <Badge variant="outline" className="mb-5 gap-1.5">
+              <Globe size={12} weight="fill" />
+              {t.bookingPortal.badge}
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              {t.bookingPortal.title}{' '}
+              <span className="text-primary">{t.bookingPortal.titleHighlight}</span>
+            </h2>
+            <p className="text-muted-foreground text-lg leading-relaxed mb-6">
+              {t.bookingPortal.subtitle}
+            </p>
+
+            <div className="rounded-xl border border-border bg-card p-4 mb-4">
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{t.bookingPortal.domainLabel}</p>
+              <p className="font-mono text-sm text-foreground">rpm.hexadevit.com/{lang === 'pt' ? 'sua-conta' : 'your-account'}</p>
+            </div>
+
+            <div className="space-y-2">
+              {t.bookingPortal.trustItems.map((item) => (
+                <div key={item} className="flex items-start gap-2.5 text-sm text-foreground">
+                  <CheckCircle size={16} weight="fill" className="text-primary mt-0.5 shrink-0" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute -inset-4 bg-gradient-to-r from-primary/15 to-accent/20 rounded-3xl blur-2xl opacity-60" />
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+              <div className="border-b border-border bg-muted/40 px-4 py-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">{t.bookingPortal.preview.header}</p>
+                  <p className="text-xs text-muted-foreground">rpm.hexadevit.com/demo-tenant</p>
+                </div>
+                <Badge variant="secondary" className="gap-1">
+                  <IdentificationCard size={12} />
+                  {t.bookingPortal.preview.tenantBadge}
+                </Badge>
+              </div>
+
+              <div className="bg-gradient-to-br from-blue-700 to-blue-900 text-white px-4 py-6">
+                <h3 className="text-xl font-bold">{t.bookingPortal.preview.heroTitle}</h3>
+                <p className="text-blue-100 text-sm mt-1">{t.bookingPortal.preview.heroSubtitle}</p>
+                <div className="mt-4 rounded-xl bg-white px-4 py-3 text-sm text-slate-500">
+                  {t.bookingPortal.preview.searchPlaceholder}
+                </div>
+              </div>
+
+              <div className="p-4">
+                <div className="rounded-xl border border-border p-3">
+                  <div className="h-28 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 mb-3" />
+                  <p className="font-semibold text-sm">{t.bookingPortal.preview.cardTitle}</p>
+                  <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin size={12} weight="fill" />
+                    <span>{t.bookingPortal.preview.cardMeta}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-foreground">{t.bookingPortal.preview.cardPrice}</span>
+                    <Button size="sm" variant="outline" className="h-8 px-3 text-xs">
+                      {t.bookingPortal.preview.cta}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
