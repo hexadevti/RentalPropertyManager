@@ -22,6 +22,7 @@ const content = {
     nav: {
       features: 'Recursos',
       ai: 'IA & Automação',
+      aiCapabilities: 'Funcionalidades IA',
       latest: 'Novidades',
       howItWorks: 'Como funciona',
       pricing: 'Planos',
@@ -45,7 +46,7 @@ const content = {
       badge: 'Inteligência Artificial',
       title: 'O primeiro sistema de gestão de imóveis',
       titleHighlight: 'verdadeiramente inteligente',
-      subtitle: 'Não é só um chatbot. É um assistente que consulta seus dados em tempo real, raciocina sobre eles e responde em linguagem natural — via web ou WhatsApp.',
+      subtitle: 'Não é só um chatbot. É um ecossistema de IA para captar imóveis, ler documentos, automatizar tarefas e responder em linguagem natural via web ou WhatsApp.',
       items: [
         {
           icon: Brain,
@@ -54,15 +55,21 @@ const content = {
           highlight: true,
         },
         {
+          icon: MagicWand,
+          title: 'Captação de imóveis por anúncios web',
+          description: 'Cole o link de um anúncio e a IA extrai automaticamente título, descrição, fotos, preço e características para montar o cadastro do imóvel em segundos.',
+          highlight: true,
+        },
+        {
+          icon: FileText,
+          title: 'Leitura e transcrição de documentos',
+          description: 'Envie PDF, DOCX, imagens e fotos de documentos. A IA lê, transcreve e estrutura os dados para contratos, hóspedes, proprietários e templates.',
+          highlight: true,
+        },
+        {
           icon: WhatsappLogo,
           title: 'Bot WhatsApp',
           description: 'Acesse o assistente pelo WhatsApp. Usuários identificados pelo número de telefone têm acesso direto ao portfólio via chat — sem abrir o sistema.',
-          highlight: false,
-        },
-        {
-          icon: Database,
-          title: 'Consultas dinâmicas',
-          description: 'Powered by tool use — o Claude decide quais dados buscar, faz múltiplas queries simultâneas e cruza informações de tabelas diferentes para responder.',
           highlight: false,
         },
         {
@@ -77,6 +84,20 @@ const content = {
         { role: 'bot', text: '3 imóveis disponíveis: Apto 203 Centro, Casa Vila Nova e Quarto 01. Deseja criar um contrato para algum deles?' },
         { role: 'user', text: 'Qual o saldo financeiro de abril?' },
         { role: 'bot', text: 'Abril: R$ 8.400 em receitas, R$ 1.250 em despesas. Saldo líquido: *R$ 7.150*. Maior categoria de receita: Aluguel mensal.' },
+      ],
+    },
+    aiCapabilities: {
+      title: 'Todas as funcionalidades de IA em um só lugar',
+      subtitle: 'Do onboarding de dados à operação diária: recursos práticos para ganhar velocidade sem perder controle.',
+      items: [
+        'Assistente IA com consultas dinâmicas no banco de dados',
+        'Captação automática de propriedades a partir de anúncios na web',
+        'Leitura e transcrição de documentos (PDF, DOCX e imagens)',
+        'Importação de proprietários/hóspedes por documentos e fotos',
+        'Importação de templates contratuais com sugestões de variáveis',
+        'Bot WhatsApp conectado ao contexto do tenant',
+        'Sugestões inteligentes para anúncios de propriedade',
+        'Notificações automáticas com regras e templates dinâmicos',
       ],
     },
     integrations: {
@@ -179,6 +200,18 @@ const content = {
       subtitle: 'Funcionalidades lançadas recentemente para aumentar produtividade e automação.',
       items: [
         {
+          icon: MagicWand,
+          title: 'Captação de imóveis por anúncios web com IA',
+          description: 'Cole um link de anúncio e gere o rascunho da propriedade com fotos, dados e descrição pré-preenchidos automaticamente.',
+          isNew: true,
+        },
+        {
+          icon: FileText,
+          title: 'Leitura e transcrição inteligente de documentos',
+          description: 'Importe documentos e fotos para a IA extrair texto estruturado e preencher dados com muito menos digitação manual.',
+          isNew: true,
+        },
+        {
           icon: Brain,
           title: 'Assistente IA com Claude',
           description: 'Tool use real — o Claude consulta o banco dinamicamente para cada pergunta, sem limites de registros pré-carregados.',
@@ -189,18 +222,6 @@ const content = {
           title: 'Bot WhatsApp',
           description: 'Chat com o assistente IA pelo WhatsApp. Histórico de conversa, comandos e identificação por número de telefone.',
           isNew: true,
-        },
-        {
-          icon: ArrowsClockwise,
-          title: 'Sincronização iCal',
-          description: 'Importe reservas do Airbnb e Booking.com via iCal. Exporte disponibilidade de cada propriedade com link público.',
-          isNew: true,
-        },
-        {
-          icon: UploadSimple,
-          title: 'Importação CSV universal',
-          description: 'Importe em massa qualquer entidade do sistema: imóveis, hóspedes, proprietários, contratos, finanças e prestadores.',
-          isNew: false,
         },
       ],
     },
@@ -318,6 +339,7 @@ const content = {
     nav: {
       features: 'Features',
       ai: 'AI & Automation',
+      aiCapabilities: 'AI capabilities',
       latest: 'What\'s new',
       howItWorks: 'How it works',
       pricing: 'Pricing',
@@ -341,7 +363,7 @@ const content = {
       badge: 'Artificial Intelligence',
       title: 'The first property management system',
       titleHighlight: 'truly powered by AI',
-      subtitle: 'It\'s not just a chatbot. It\'s an assistant that queries your live data, reasons about it and responds in natural language — via web or WhatsApp.',
+      subtitle: 'It\'s not just a chatbot. It\'s a complete AI stack to capture properties, read documents, automate workflows and answer in natural language via web or WhatsApp.',
       items: [
         {
           icon: Brain,
@@ -350,15 +372,21 @@ const content = {
           highlight: true,
         },
         {
+          icon: MagicWand,
+          title: 'Property capture from web listings',
+          description: 'Paste a listing URL and AI extracts title, description, photos, price and features to pre-fill the property record in seconds.',
+          highlight: true,
+        },
+        {
+          icon: FileText,
+          title: 'Document reading and transcription',
+          description: 'Upload PDFs, DOCX files, scans and photos. AI reads, transcribes and structures the data for contracts, guests, owners and templates.',
+          highlight: true,
+        },
+        {
           icon: WhatsappLogo,
           title: 'WhatsApp Bot',
           description: 'Access the assistant via WhatsApp. Users identified by phone number get direct portfolio access via chat — without opening the system.',
-          highlight: false,
-        },
-        {
-          icon: Database,
-          title: 'Dynamic queries',
-          description: 'Powered by tool use — Claude decides which data to fetch, runs multiple queries and cross-references tables to answer accurately.',
           highlight: false,
         },
         {
@@ -373,6 +401,20 @@ const content = {
         { role: 'bot', text: '3 properties available: Apt 203 Downtown, Villa Nova House and Room 01. Want to create a contract for any of them?' },
         { role: 'user', text: 'What\'s the financial balance for April?' },
         { role: 'bot', text: 'April: $8,400 in revenue, $1,250 in expenses. Net balance: *$7,150*. Top income category: Monthly rent.' },
+      ],
+    },
+    aiCapabilities: {
+      title: 'All AI capabilities in one place',
+      subtitle: 'From data onboarding to daily operations: practical features that increase speed without losing control.',
+      items: [
+        'AI assistant with dynamic database queries',
+        'Automatic property capture from web listings',
+        'Document reading and transcription (PDF, DOCX and images)',
+        'Owner/guest import from documents and photos',
+        'Contract template import with variable suggestions',
+        'WhatsApp bot connected to tenant context',
+        'Intelligent property ad copy generation',
+        'Automatic notifications with dynamic rules and templates',
       ],
     },
     integrations: {
@@ -475,6 +517,18 @@ const content = {
       subtitle: 'Recently launched to increase productivity and automation.',
       items: [
         {
+          icon: MagicWand,
+          title: 'AI property capture from web listings',
+          description: 'Paste a listing URL and generate a property draft with photos, details and description already pre-filled.',
+          isNew: true,
+        },
+        {
+          icon: FileText,
+          title: 'Intelligent document reading and transcription',
+          description: 'Import documents and photos so AI extracts structured text and pre-fills key data with minimal manual typing.',
+          isNew: true,
+        },
+        {
           icon: Brain,
           title: 'AI Assistant with Claude',
           description: 'Real tool use — Claude queries the database dynamically for each question, with no pre-loaded record limits.',
@@ -485,18 +539,6 @@ const content = {
           title: 'WhatsApp Bot',
           description: 'Chat with the AI assistant via WhatsApp. Conversation history, commands and phone number identification.',
           isNew: true,
-        },
-        {
-          icon: ArrowsClockwise,
-          title: 'iCal Sync',
-          description: 'Import bookings from Airbnb and Booking.com via iCal. Export each property\'s availability with a public link.',
-          isNew: true,
-        },
-        {
-          icon: UploadSimple,
-          title: 'Universal CSV import',
-          description: 'Bulk import any entity in the system: properties, guests, owners, contracts, finances and providers.',
-          isNew: false,
         },
       ],
     },
@@ -635,6 +677,7 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
               <Sparkle size={12} weight="fill" className="text-primary" />
               {t.nav.ai}
             </button>
+            <button onClick={() => scrollTo('ai-capabilities')} className="hover:text-foreground transition-colors">{t.nav.aiCapabilities}</button>
             <button onClick={() => scrollTo('features')} className="hover:text-foreground transition-colors">{t.nav.features}</button>
             <button onClick={() => scrollTo('latest')} className="hover:text-foreground transition-colors">{t.nav.latest}</button>
             <button onClick={() => scrollTo('how-it-works')} className="hover:text-foreground transition-colors">{t.nav.howItWorks}</button>
@@ -831,6 +874,31 @@ export function HomePage({ onLoginClick, onDemoClick, isDemoLoggingIn = false }:
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ALL AI CAPABILITIES */}
+      <section id="ai-capabilities" className="py-20 px-6 bg-background">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-10">
+            <Badge variant="outline" className="mb-4 gap-1.5">
+              <Robot size={12} weight="fill" />
+              {lang === 'pt' ? 'Mapa de IA' : 'AI map'}
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">{t.aiCapabilities.title}</h2>
+            <p className="text-muted-foreground text-lg max-w-3xl mx-auto">{t.aiCapabilities.subtitle}</p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {t.aiCapabilities.items.map((item) => (
+              <div key={item} className="rounded-xl border border-border bg-card px-4 py-4 flex items-start gap-3 hover:border-primary/40 transition-colors">
+                <div className="mt-0.5 h-6 w-6 shrink-0 rounded-md bg-primary/10 flex items-center justify-center">
+                  <CheckCircle size={14} weight="fill" className="text-primary" />
+                </div>
+                <p className="text-sm leading-relaxed text-foreground">{item}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
